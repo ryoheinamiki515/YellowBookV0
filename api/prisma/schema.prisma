@@ -1,0 +1,109 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id       String       @id @default(uuid()) @db.Uuid
+  auth0Sub String       @unique
+  plans    SocialPlan[]
+}
+
+model Person {
+  id           String                  @id @default(uuid()) @db.Uuid
+  participants SocialPlanParticipant[]
+}
+
+/// SocialPlan is the minimal primitive for “friend plans”:
+/// social intent + (optional) context + (optional) time anchor + (optional) place + participants.
+/// No nudges, reminders, messaging, sharing, recurrence, or RSVP semantics belong here.
+model SocialPlan {
+  id String @id @default(uuid()) @db.Uuid
+
+  ownerId String @db.Uuid
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  /// The user's original phrasing / intent:
+  /// "let's do lunch Thursday", "gym Monday?", "call sometime this week"
+  intentText String @db.Text
+
+  /// Optional private relational context ("why this matters", "what to remember")
+  contextNote String? @db.Text
+
+  /// Optional human place phrase ("near Union Sq", "your place?", "that ramen spot")
+  locationText String? @db.Text
+
+  /// Open/closed state only. Avoid guilt semantics.
+  state SocialPlanState @default(OPEN)
+
+  /// Unified time anchor representation.
+  timePrecision SocialPlanTimePrecision @default(UNSPECIFIED)
+
+  /// Anchor start/end interpretation:
+  /// - NONE: both null
+  /// - WINDOW: [anchorStart, anchorEnd] is a rough range
+  /// - EXACT: anchorStart is the start time; anchorEnd optional
+  anchorStart DateTime?
+  anchorEnd   DateTime?
+
+  /// Optional IANA timezone (e.g., "America/New_York") for interpreting/displaying anchors.
+  timezone String? @db.VarChar(64)
+
+  participants SocialPlanParticipant[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerId, state])
+  @@index([ownerId, anchorStart])
+  @@index([ownerId, anchorEnd])
+}
+
+model SocialPlanParticipant {
+  id String @id @default(uuid()) @db.Uuid
+
+  planId String     @db.Uuid
+  plan   SocialPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  /// MVP: links to the user's private People Library.
+  /// SetNull preserves plan readability if a Person is deleted; use displayName as a snapshot.
+  personId String? @db.Uuid
+  person   Person? @relation(fields: [personId], references: [id], onDelete: SetNull)
+
+  /// Optional snapshot so the plan remains readable even if the Person changes/disappears.
+  displayName String? @db.VarChar(120)
+
+  /// Helps UI labeling (e.g., the “main” friend in a 1:1 plan) without inventing host/RSVP semantics.
+  isPrimary Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@unique([planId, personId])
+  @@index([planId])
+  @@index([personId])
+}
+
+enum SocialPlanState {
+  OPEN
+  DONE
+  DROPPED
+  ARCHIVED
+}
+
+enum SocialPlanTimePrecision {
+  /// Unknown / not decided yet (keeps ingestion easy)
+  UNSPECIFIED
+
+  /// Intentionally unanchored ("call sometime")
+  NONE
+
+  /// Rough range ("this weekend", "next week")
+  WINDOW
+
+  /// Specific time ("Thursday 12:30")
+  EXACT
+}
