@@ -114,3 +114,18 @@ enum SocialPlanTimePrecision {
   /// Specific time ("Thursday 12:30")
   EXACT
 }
+
+model IdempotencyKey {
+  id          String   @id @default(uuid()) @db.Uuid
+  ownerId     String   @db.Uuid
+  key         String
+  scope       String   // e.g. "POST /v1/plans"
+  requestHash String
+  // store the created resource pointer (enough to replay)
+  resourceType String?
+  resourceId   String?
+  createdAt   DateTime @default(now())
+
+  @@unique([ownerId, key, scope])
+  @@index([createdAt])
+}
