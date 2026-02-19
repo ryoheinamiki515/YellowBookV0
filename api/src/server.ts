@@ -10,6 +10,8 @@ import { serializeSocialPlan } from "./api/serializers/socialPlan.js";
 import { makeRequireUser } from "./middleware/requireUser.js";
 import { planEtag, ifMatchFailed } from "./api/etag.js";
 import { makeWithIdempotency } from "./api/idempotency.js";
+import { decodeCursor, encodeCursor } from "./api/pagination/planCursor.js";
+import { PlanPatchSchema, toPrismaUpdate, validateTimeSemantics } from "./api/patch/planPatch.js";
 
 const app = express();
 app.use(express.json({ type: ["application/json", "application/*+json"] }));
@@ -150,19 +152,64 @@ v1.get(
     ...requireUser(["read:socialplans"]),
     async (req, res, next) => {
         try {
-            const ownerId = (req as any).userId;
+            const ownerId = (req as any).userId as string;
 
-            const plans = await prisma.socialPlan.findMany({
-                where: { ownerId },
-                orderBy: { createdAt: "desc" },
+            const limit = Math.min(Math.max(Number(req.query.limit ?? 50), 1), 200);
+            const cursorStr = typeof req.query.cursor === "string" ? req.query.cursor : undefined;
+
+            let cursor: { updatedAt: Date; id: string } | null = null;
+            if (cursorStr) {
+                try {
+                    const c = decodeCursor(cursorStr);
+                    cursor = { updatedAt: new Date(c.updatedAt), id: c.id };
+                } catch (e) {
+                    return next({ status: 400, expose: true, message: "invalid_cursor" });
+                }
+            }
+
+            // Deterministic order: updatedAt desc, id desc (tie-breaker)
+            const orderBy = [{ updatedAt: "desc" as const }, { id: "desc" as const }];
+
+            // Composite cursor filter using OR conditions for multi-column sort
+            const where = {
+                ownerId,
+                ...(cursor
+                    ? {
+                        OR: [
+                            { updatedAt: { lt: cursor.updatedAt } },
+                            {
+                                updatedAt: cursor.updatedAt,
+                                id: { lt: cursor.id },
+                            },
+                        ],
+                    }
+                    : {}),
+            };
+
+            const rows = await prisma.socialPlan.findMany({
+                where,
+                orderBy,
+                take: limit + 1,
+                include: { participants: true },
             });
 
+            const hasNext = rows.length > limit;
+            const pageRows = hasNext ? rows.slice(0, limit) : rows;
+
+            let nextCursor: string | null = null;
+            if (hasNext) {
+                const lastRow = pageRows[pageRows.length - 1];
+                if (lastRow) {
+                    nextCursor = encodeCursor({
+                        updatedAt: lastRow.updatedAt.toISOString(),
+                        id: lastRow.id,
+                    });
+                }
+            }
+
             res.json({
-                data: plans.map(serializeSocialPlan),
-                meta: {
-                    limit: 50,
-                    nextCursor: null,
-                },
+                data: pageRows.map(serializeSocialPlan),
+                page: { limit, nextCursor },
             });
         } catch (err) {
             next(err);
@@ -191,20 +238,9 @@ v1.get("/plans/:planId", ...requireUser(["read:socialplans"]), async (req, res, 
 // ---------------------------------------------------------------------------
 // PATCH /v1/plans/:planId — Update a social plan (JSON Merge Patch)
 // ---------------------------------------------------------------------------
-const UpdatePlanSchema = z.object({
-    intentText: z.string().min(1).max(5000).optional(),
-    contextNote: z.string().max(20000).nullable().optional(),
-    locationText: z.string().max(5000).nullable().optional(),
-    state: z.enum(["OPEN", "DONE", "DROPPED", "ARCHIVED"]).optional(),
-    timePrecision: z.enum(["UNSPECIFIED", "NONE", "WINDOW", "EXACT"]).optional(),
-    anchorStart: z.string().datetime().nullable().optional(),
-    anchorEnd: z.string().datetime().nullable().optional(),
-    timezone: z.string().max(64).nullable().optional(),
-});
-
-v1.patch("/plans/:planId", ...requireUser(["create:socialplans"]), async (req, res, next) => {
+v1.patch("/plans/:planId", ...requireUser(["create:socialplans"]), async (req: any, res, next) => {
     try {
-        const ownerId = (req as any).userId as string;
+        const ownerId = req.userId as string;
         const planId = req.params.planId;
 
         const current = await prisma.socialPlan.findFirst({ where: { id: planId, ownerId } });
@@ -216,39 +252,29 @@ v1.patch("/plans/:planId", ...requireUser(["create:socialplans"]), async (req, r
             return next({ status: 409, expose: true, message: "etag_mismatch" });
         }
 
-        const patch = UpdatePlanSchema.parse(req.body);
+        const patch = PlanPatchSchema.parse(req.body);
 
-        // Merge implementation for validation (JSON Merge Patch semantics)
-        const merged = {
-            timePrecision: patch.timePrecision ?? current.timePrecision,
-            anchorStart: patch.anchorStart !== undefined
-                ? (patch.anchorStart ? new Date(patch.anchorStart) : null)
-                : current.anchorStart,
-            anchorEnd: patch.anchorEnd !== undefined
-                ? (patch.anchorEnd ? new Date(patch.anchorEnd) : null)
-                : current.anchorEnd,
-        };
+        // Apply patch in-memory to validate cross-field semantics against the *final* state.
+        const finalTimePrecision = (("timePrecision" in patch) ? patch.timePrecision : current.timePrecision) ?? "UNSPECIFIED";
+        const finalAnchorStart =
+            ("anchorStart" in patch)
+                ? (patch.anchorStart === null ? null : (patch.anchorStart === undefined ? current.anchorStart : new Date(patch.anchorStart)))
+                : current.anchorStart;
+        const finalAnchorEnd =
+            ("anchorEnd" in patch)
+                ? (patch.anchorEnd === null ? null : (patch.anchorEnd === undefined ? current.anchorEnd : new Date(patch.anchorEnd)))
+                : current.anchorEnd;
 
-        // Deep Validation: Validate the RESULTING state of the resource
-        SocialPlanConstraints.parse(merged);
-
-        const updateData: any = {};
-        if (patch.intentText !== undefined) updateData.intentText = patch.intentText;
-        if (patch.contextNote !== undefined) updateData.contextNote = patch.contextNote;
-        if (patch.locationText !== undefined) updateData.locationText = patch.locationText;
-        if (patch.state !== undefined) updateData.state = patch.state;
-        if (patch.timePrecision !== undefined) updateData.timePrecision = patch.timePrecision;
-        if (patch.timezone !== undefined) updateData.timezone = patch.timezone;
-        if (patch.anchorStart !== undefined) {
-            updateData.anchorStart = patch.anchorStart ? new Date(patch.anchorStart) : null;
-        }
-        if (patch.anchorEnd !== undefined) {
-            updateData.anchorEnd = patch.anchorEnd ? new Date(patch.anchorEnd) : null;
-        }
+        validateTimeSemantics({
+            timePrecision: finalTimePrecision as any,
+            anchorStart: finalAnchorStart,
+            anchorEnd: finalAnchorEnd,
+        });
 
         const updated = await prisma.socialPlan.update({
             where: { id: current.id },
-            data: updateData,
+            data: toPrismaUpdate(patch),
+            include: { participants: true },
         });
 
         res.setHeader("ETag", planEtag(updated));

@@ -1003,7 +1003,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SocialPlan"
-        meta:
+        page:
           type: object
           additionalProperties: false
           properties:
@@ -1012,7 +1012,7 @@ components:
             nextCursor:
               type: [string, "null"]
           required: [limit, nextCursor]
-      required: [data, meta]
+      required: [data, page]
 
     SocialPlanParticipantResponse:
       type: object
@@ -1048,7 +1048,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Person"
-        meta:
+        page:
           type: object
           additionalProperties: false
           properties:
@@ -1057,7 +1057,7 @@ components:
             nextCursor:
               type: [string, "null"]
           required: [limit, nextCursor]
-      required: [data, meta]
+      required: [data, page]
 
     MeResponse:
       type: object

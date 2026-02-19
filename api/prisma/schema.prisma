@@ -15,14 +15,18 @@ model User {
 }
 
 model Person {
-  id String @id @default(uuid()) @db.Uuid
+  id          String @id @default(uuid()) @db.Uuid
+  ownerId     String @db.Uuid
+  owner       User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
-  ownerId String @db.Uuid
-  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  displayName String @db.VarChar(120)
 
   participants SocialPlanParticipant[]
 
-  @@index([ownerId])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([ownerId, displayName])
 }
 
 /// SocialPlan is the minimal primitive for “friend plans”:
@@ -65,9 +69,9 @@ model SocialPlan {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([ownerId, state])
+  @@index([ownerId, updatedAt])
+  @@index([ownerId, state, updatedAt])
   @@index([ownerId, anchorStart])
-  @@index([ownerId, anchorEnd])
 }
 
 model SocialPlanParticipant {
@@ -89,9 +93,9 @@ model SocialPlanParticipant {
 
   createdAt DateTime @default(now())
 
+  // prevent duplicate linked person on same plan (nulls are allowed in Postgres)
   @@unique([planId, personId])
   @@index([planId])
-  @@index([personId])
 }
 
 enum SocialPlanState {
