@@ -1,11 +1,21 @@
 import "dotenv/config";
+import path from "node:path";
 import express from "express";
 import { z } from "zod";
 import { PrismaClient } from "@prisma/client";
 import { auth, requiredScopes } from "express-oauth2-jwt-bearer";
+import { middleware as openapiValidator } from "express-openapi-validator";
 
 const app = express();
 app.use(express.json());
+
+app.use(
+    openapiValidator({
+        apiSpec: path.join(process.cwd(), "openapi.yaml"),
+        validateRequests: true,
+        validateResponses: process.env.NODE_ENV !== "production",
+    })
+);
 
 const prisma = new PrismaClient();
 
