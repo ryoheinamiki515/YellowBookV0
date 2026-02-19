@@ -1,0 +1,1117 @@
+openapi: 3.1.0
+jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
+info:
+  title: YellowBook API
+  version: 1.0.0
+  description: |
+    YellowBook is a private, emotionally safe friend notebook.
+
+    This API defines the "Friend Plans" primitive:
+    - SocialPlan: social intent + optional context + optional time anchor + optional place + participants
+    - SocialPlanParticipant: links a plan to People Library records or a displayName snapshot
+
+    Non-goals for this surface (intentionally excluded):
+    - RSVP / invites / hosting semantics
+    - reminders / notifications / nudges
+    - recurrence rules
+    - message scraping or passive ingestion
+
+servers:
+  - url: https://api.yellowbook.example.com
+    description: Production
+  - url: https://staging-api.yellowbook.example.com
+    description: Staging
+
+tags:
+  - name: Plans
+    description: Friend Plans (SocialPlan) and participants
+  - name: People
+    description: Minimal People Library surfaces needed for plan linking
+  - name: System
+    description: Health and identity
+
+security:
+  - sessionCookie: []
+  - bearerAuth: []
+
+paths:
+  /v1/health:
+    get:
+      tags: [System]
+      summary: Health check
+      operationId: healthCheck
+      security: []
+      responses:
+        "200":
+          description: OK
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
+                  time:
+                    type: string
+                    format: date-time
+                required: [status, time]
+
+  /v1/me:
+    get:
+      tags: [System]
+      summary: Get the current authenticated user
+      operationId: getMe
+      responses:
+        "200":
+          description: The current user
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /v1/plans:
+    get:
+      tags: [Plans]
+      summary: List social plans
+      operationId: listPlans
+      description: |
+        Lists the authenticated user's plans with cursor pagination.
+
+        Default behavior:
+        - If `state` is omitted, servers SHOULD default to returning OPEN plans.
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/SortPlans"
+        - name: state
+          in: query
+          description: Filter by one or more states.
+          style: form
+          explode: true
+          schema:
+            type: array
+            items:
+              $ref: "#/components/schemas/SocialPlanState"
+          example: [OPEN]
+        - name: participantPersonId
+          in: query
+          description: Filter plans containing a participant with this personId.
+          schema:
+            $ref: "#/components/schemas/Uuid"
+        - name: anchorFrom
+          in: query
+          description: Include plans whose anchors intersect this lower bound (best-effort for rough anchors).
+          schema:
+            type: string
+            format: date-time
+        - name: anchorTo
+          in: query
+          description: Include plans whose anchors intersect this upper bound (best-effort for rough anchors).
+          schema:
+            type: string
+            format: date-time
+        - name: updatedSince
+          in: query
+          description: Return plans updated at or after this timestamp (for incremental sync).
+          schema:
+            type: string
+            format: date-time
+        - name: q
+          in: query
+          description: Full-text search over intent/context/location/participant names (implementation-dependent).
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        "200":
+          description: A page of plans
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SocialPlanListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    post:
+      tags: [Plans]
+      summary: Create a social plan
+      operationId: createPlan
+      description: |
+        Creates a new plan for the authenticated user.
+
+        Idempotency:
+        - Clients SHOULD provide `Idempotency-Key` to safely retry on flaky networks.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SocialPlanCreateRequest"
+            examples:
+              lunchThursday:
+                summary: Simple exact anchor
+                value:
+                  intentText: "let’s do lunch Thursday?"
+                  contextNote: "Sam’s been stressed — a check-in would mean a lot."
+                  locationText: "near Union Sq"
+                  timePrecision: EXACT
+                  anchorStart: "2026-02-26T12:30:00-05:00"
+                  timezone: "America/New_York"
+                  participants:
+                    - personId: "d290f1ee-6c54-4b01-90e6-d701748f0851"
+                      isPrimary: true
+      responses:
+        "201":
+          description: Created
+          headers:
+            Location:
+              description: Canonical URL of the created plan
+              schema:
+                type: string
+            ETag:
+              $ref: "#/components/headers/ETag"
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SocialPlanResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /v1/plans/{planId}:
+    parameters:
+      - $ref: "#/components/parameters/PlanId"
+
+    get:
+      tags: [Plans]
+      summary: Get a social plan
+      operationId: getPlan
+      responses:
+        "200":
+          description: The plan
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SocialPlanResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    patch:
+      tags: [Plans]
+      summary: Update a social plan (JSON Merge Patch)
+      operationId: patchPlan
+      description: |
+        Partial update using JSON Merge Patch semantics.
+
+        Concurrency:
+        - If `If-Match` is provided, the server MUST enforce ETag matching.
+        - ETag mismatches return 412 Precondition Failed.
+      parameters:
+        - $ref: "#/components/parameters/IfMatch"
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: "#/components/schemas/SocialPlanPatchRequest"
+            examples:
+              markDone:
+                summary: Mark plan as DONE
+                value:
+                  state: DONE
+              refineToWindow:
+                summary: Add a rough time window
+                value:
+                  timePrecision: WINDOW
+                  anchorStart: "2026-03-07T00:00:00-05:00"
+                  anchorEnd: "2026-03-09T00:00:00-04:00"
+                  timezone: "America/New_York"
+      responses:
+        "200":
+          description: Updated
+          headers:
+            ETag:
+              $ref: "#/components/headers/ETag"
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SocialPlanResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "412":
+          $ref: "#/components/responses/PreconditionFailed"
+
+    delete:
+      tags: [Plans]
+      summary: Permanently delete a social plan
+      operationId: deletePlan
+      description: |
+        Permanently deletes the plan.
+
+        Soft removal should be done via: PATCH { "state": "ARCHIVED" }.
+      responses:
+        "204":
+          description: Deleted
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1/plans/{planId}/participants:
+    parameters:
+      - $ref: "#/components/parameters/PlanId"
+
+    get:
+      tags: [Plans]
+      summary: List participants for a plan
+      operationId: listPlanParticipants
+      responses:
+        "200":
+          description: Participants
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SocialPlanParticipantListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    post:
+      tags: [Plans]
+      summary: Add a participant to a plan
+      operationId: addPlanParticipant
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SocialPlanParticipantCreateRequest"
+      responses:
+        "201":
+          description: Created
+          headers:
+            Location:
+              description: Canonical URL of the created participant
+              schema:
+                type: string
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SocialPlanParticipantResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /v1/plans/{planId}/participants/{participantId}:
+    parameters:
+      - $ref: "#/components/parameters/PlanId"
+      - $ref: "#/components/parameters/ParticipantId"
+
+    patch:
+      tags: [Plans]
+      summary: Update a plan participant (JSON Merge Patch)
+      operationId: patchPlanParticipant
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: "#/components/schemas/SocialPlanParticipantPatchRequest"
+      responses:
+        "200":
+          description: Updated
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SocialPlanParticipantResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+    delete:
+      tags: [Plans]
+      summary: Remove a participant from a plan
+      operationId: deletePlanParticipant
+      responses:
+        "204":
+          description: Removed
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1/people:
+    get:
+      tags: [People]
+      summary: List people (minimal People Library)
+      operationId: listPeople
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+        - name: q
+          in: query
+          description: Search by display name (implementation-dependent).
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        "200":
+          description: A page of people
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PersonListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    post:
+      tags: [People]
+      summary: Create a person (minimal)
+      operationId: createPerson
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PersonCreateRequest"
+      responses:
+        "201":
+          description: Created
+          headers:
+            Location:
+              schema:
+                type: string
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PersonResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /v1/people/{personId}:
+    parameters:
+      - $ref: "#/components/parameters/PersonId"
+
+    get:
+      tags: [People]
+      summary: Get a person
+      operationId: getPerson
+      responses:
+        "200":
+          description: The person
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PersonResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    patch:
+      tags: [People]
+      summary: Update a person (JSON Merge Patch)
+      operationId: patchPerson
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: "#/components/schemas/PersonPatchRequest"
+      responses:
+        "200":
+          description: Updated
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PersonResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      tags: [People]
+      summary: Delete a person
+      operationId: deletePerson
+      description: |
+        Deletes a person from the People Library.
+
+        Plans remain readable because participant links are SetNull and may retain displayName snapshots.
+      responses:
+        "204":
+          description: Deleted
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: yb_session
+      description: First-party HttpOnly session cookie.
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Bearer JWT access token (optional alternative depending on client platform).
+
+  headers:
+    X-Request-Id:
+      description: Correlation ID for tracing/debugging.
+      schema:
+        type: string
+    ETag:
+      description: Entity tag for optimistic concurrency control.
+      schema:
+        type: string
+        examples:
+          - '"plan:4f8a2c3b:1700000000"'
+
+  parameters:
+    PlanId:
+      name: planId
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/Uuid"
+    ParticipantId:
+      name: participantId
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/Uuid"
+    PersonId:
+      name: personId
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/Uuid"
+
+    Limit:
+      name: limit
+      in: query
+      description: Max items to return (server may clamp).
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 50
+    Cursor:
+      name: cursor
+      in: query
+      description: Opaque cursor for pagination.
+      schema:
+        type: string
+        minLength: 1
+
+    SortPlans:
+      name: sort
+      in: query
+      description: |
+        Sort order for plans. Prefix with `-` for descending.
+        Supported fields: updatedAt, createdAt, anchorStart.
+      schema:
+        type: string
+        default: "-updatedAt"
+
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: Unique key for safely retrying POST requests.
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 200
+
+    IfMatch:
+      name: If-Match
+      in: header
+      required: false
+      description: If provided, update only succeeds if the ETag matches the current resource.
+      schema:
+        type: string
+
+  responses:
+    BadRequest:
+      description: Invalid request
+      headers:
+        X-Request-Id:
+          $ref: "#/components/headers/X-Request-Id"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+    Unauthorized:
+      description: Not authenticated
+      headers:
+        X-Request-Id:
+          $ref: "#/components/headers/X-Request-Id"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+    NotFound:
+      description: Resource not found
+      headers:
+        X-Request-Id:
+          $ref: "#/components/headers/X-Request-Id"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+    Conflict:
+      description: Conflict (e.g., duplicate participant)
+      headers:
+        X-Request-Id:
+          $ref: "#/components/headers/X-Request-Id"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+    PreconditionFailed:
+      description: Precondition failed (e.g., ETag mismatch with If-Match)
+      headers:
+        X-Request-Id:
+          $ref: "#/components/headers/X-Request-Id"
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/ProblemDetails"
+
+  schemas:
+    Uuid:
+      type: string
+      format: uuid
+      examples:
+        - d290f1ee-6c54-4b01-90e6-d701748f0851
+
+    SocialPlanState:
+      type: string
+      enum: [OPEN, DONE, DROPPED, ARCHIVED]
+      description: |
+        OPEN: active, gentle plan to follow through on
+        DONE: completed
+        DROPPED: intentionally let go (no guilt semantics)
+        ARCHIVED: hidden from default views, retained for history
+
+    SocialPlanTimePrecision:
+      type: string
+      enum: [UNSPECIFIED, NONE, WINDOW, EXACT]
+      description: |
+        UNSPECIFIED: unknown/not decided yet (easy capture)
+        NONE: intentionally unanchored ("call sometime")
+        WINDOW: rough range ("this weekend", "next week")
+        EXACT: specific time ("Thursday 12:30")
+
+    # -----------------------
+    # Core resource schemas
+    # -----------------------
+    SocialPlanParticipant:
+      type: object
+      description: |
+        Participant in a plan. May link to a Person or be a displayName snapshot.
+
+        NOTE: In rare cases both personId and displayName may be null (e.g., if a person was deleted and no snapshot was stored).
+        Clients should handle this gracefully.
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        planId:
+          $ref: "#/components/schemas/Uuid"
+        personId:
+          type: [string, "null"]
+          format: uuid
+        displayName:
+          type: [string, "null"]
+          maxLength: 120
+        isPrimary:
+          type: boolean
+          default: false
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, planId, isPrimary, createdAt]
+      additionalProperties: true
+
+    SocialPlan:
+      type: object
+      description: |
+        Minimal primitive for “friend plans”:
+        social intent + (optional) context + (optional) time anchor + (optional) place + participants.
+
+        No nudges, reminders, messaging, sharing, recurrence, or RSVP semantics belong here.
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        ownerId:
+          $ref: "#/components/schemas/Uuid"
+        intentText:
+          type: string
+          minLength: 1
+          maxLength: 5000
+        contextNote:
+          type: [string, "null"]
+          maxLength: 20000
+        locationText:
+          type: [string, "null"]
+          maxLength: 5000
+        state:
+          $ref: "#/components/schemas/SocialPlanState"
+        timePrecision:
+          $ref: "#/components/schemas/SocialPlanTimePrecision"
+        anchorStart:
+          type: [string, "null"]
+          format: date-time
+        anchorEnd:
+          type: [string, "null"]
+          format: date-time
+        timezone:
+          type: [string, "null"]
+          maxLength: 64
+          description: Optional IANA timezone for interpreting/displaying anchors (e.g., "America/New_York").
+        participants:
+          type: array
+          items:
+            $ref: "#/components/schemas/SocialPlanParticipant"
+          default: []
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - ownerId
+        - intentText
+        - state
+        - timePrecision
+        - participants
+        - createdAt
+        - updatedAt
+      additionalProperties: true
+
+    Person:
+      type: object
+      description: |
+        Minimal Person record for linking plans to the user's People Library.
+
+        This is intentionally minimal in this spec; YellowBook may extend it additively
+        (birthday, neighborhood, vibes, notes, etc.) without breaking clients.
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 120
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, displayName, createdAt, updatedAt]
+      additionalProperties: true
+
+    # -----------------------
+    # Requests
+    # -----------------------
+    SocialPlanParticipantCreateRequest:
+      type: object
+      additionalProperties: false
+      description: |
+        Add a participant to a plan.
+
+        At least one of `personId` or `displayName` is required.
+      properties:
+        personId:
+          type: [string, "null"]
+          format: uuid
+        displayName:
+          type: [string, "null"]
+          maxLength: 120
+        isPrimary:
+          type: boolean
+          default: false
+      anyOf:
+        - required: [personId]
+        - required: [displayName]
+
+    SocialPlanParticipantPatchRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        personId:
+          type: [string, "null"]
+          format: uuid
+        displayName:
+          type: [string, "null"]
+          maxLength: 120
+        isPrimary:
+          type: boolean
+
+    SocialPlanCreateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        intentText:
+          type: string
+          minLength: 1
+          maxLength: 5000
+        contextNote:
+          type: [string, "null"]
+          maxLength: 20000
+        locationText:
+          type: [string, "null"]
+          maxLength: 5000
+        state:
+          $ref: "#/components/schemas/SocialPlanState"
+          description: Optional; defaults to OPEN if omitted.
+        timePrecision:
+          $ref: "#/components/schemas/SocialPlanTimePrecision"
+        anchorStart:
+          type: [string, "null"]
+          format: date-time
+        anchorEnd:
+          type: [string, "null"]
+          format: date-time
+        timezone:
+          type: [string, "null"]
+          maxLength: 64
+        participants:
+          type: array
+          items:
+            $ref: "#/components/schemas/SocialPlanParticipantCreateRequest"
+          default: []
+      required: [intentText]
+      allOf:
+        - $ref: "#/components/schemas/SocialPlanCreateTimeConstraints"
+
+    SocialPlanPatchRequest:
+      type: object
+      additionalProperties: false
+      description: |
+        JSON Merge Patch for a plan.
+
+        Cross-field constraints (enforced by server on the resulting resource):
+        - timePrecision NONE => anchors must be null/absent
+        - timePrecision WINDOW => anchorStart required
+        - timePrecision EXACT => anchorStart required
+      properties:
+        intentText:
+          type: string
+          minLength: 1
+          maxLength: 5000
+        contextNote:
+          type: [string, "null"]
+          maxLength: 20000
+        locationText:
+          type: [string, "null"]
+          maxLength: 5000
+        state:
+          $ref: "#/components/schemas/SocialPlanState"
+        timePrecision:
+          $ref: "#/components/schemas/SocialPlanTimePrecision"
+        anchorStart:
+          type: [string, "null"]
+          format: date-time
+        anchorEnd:
+          type: [string, "null"]
+          format: date-time
+        timezone:
+          type: [string, "null"]
+          maxLength: 64
+
+    SocialPlanCreateTimeConstraints:
+      description: |
+        Request-time constraints for SocialPlan creation based on timePrecision.
+
+        This schema is designed to be unambiguous and tooling-friendly.
+      oneOf:
+        # timePrecision omitted: anchors MAY be provided or omitted; server interprets (typically UNSPECIFIED)
+        - type: object
+          not:
+            required: [timePrecision]
+
+        # UNSPECIFIED: anchors optional
+        - type: object
+          required: [timePrecision]
+          properties:
+            timePrecision:
+              const: UNSPECIFIED
+
+        # NONE: if anchors are present, they must be null
+        - type: object
+          required: [timePrecision]
+          properties:
+            timePrecision:
+              const: NONE
+            anchorStart:
+              type: "null"
+            anchorEnd:
+              type: "null"
+
+        # WINDOW: anchorStart required (end optional)
+        - type: object
+          required: [timePrecision, anchorStart]
+          properties:
+            timePrecision:
+              const: WINDOW
+            anchorStart:
+              type: string
+              format: date-time
+            anchorEnd:
+              type: [string, "null"]
+              format: date-time
+
+        # EXACT: anchorStart required (end optional)
+        - type: object
+          required: [timePrecision, anchorStart]
+          properties:
+            timePrecision:
+              const: EXACT
+            anchorStart:
+              type: string
+              format: date-time
+            anchorEnd:
+              type: [string, "null"]
+              format: date-time
+
+    PersonCreateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 120
+      required: [displayName]
+
+    PersonPatchRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 120
+
+    # -----------------------
+    # Response envelopes
+    # -----------------------
+    SocialPlanResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        data:
+          $ref: "#/components/schemas/SocialPlan"
+      required: [data]
+
+    SocialPlanListResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/SocialPlan"
+        meta:
+          type: object
+          additionalProperties: false
+          properties:
+            limit:
+              type: integer
+            nextCursor:
+              type: [string, "null"]
+          required: [limit, nextCursor]
+      required: [data, meta]
+
+    SocialPlanParticipantResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        data:
+          $ref: "#/components/schemas/SocialPlanParticipant"
+      required: [data]
+
+    SocialPlanParticipantListResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/SocialPlanParticipant"
+      required: [data]
+
+    PersonResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        data:
+          $ref: "#/components/schemas/Person"
+      required: [data]
+
+    PersonListResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Person"
+        meta:
+          type: object
+          additionalProperties: false
+          properties:
+            limit:
+              type: integer
+            nextCursor:
+              type: [string, "null"]
+          required: [limit, nextCursor]
+      required: [data, meta]
+
+    MeResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          properties:
+            id:
+              $ref: "#/components/schemas/Uuid"
+            authSubject:
+              type: string
+              description: OIDC subject (e.g., Auth0 sub)
+          required: [id, authSubject]
+      required: [data]
+
+    # -----------------------
+    # Errors (RFC 7807)
+    # -----------------------
+    ProblemDetails:
+      type: object
+      description: RFC 7807 Problem Details
+      additionalProperties: true
+      properties:
+        type:
+          type: string
+          description: URI reference identifying the problem type.
+          examples:
+            - "https://api.yellowbook.example.com/problems/validation-error"
+        title:
+          type: string
+          examples: ["Validation error"]
+        status:
+          type: integer
+          examples: [400]
+        detail:
+          type: string
+          examples: ["anchorStart is required when timePrecision is EXACT."]
+        instance:
+          type: string
+          description: URI reference identifying this occurrence of the problem.
+        errors:
+          type: array
+          description: Optional field-level validation errors.
+          items:
+            type: object
+            additionalProperties: false
+            properties:
+              field:
+                type: string
+                examples: ["anchorStart"]
+              message:
+                type: string
+                examples: ["Required when timePrecision is EXACT."]
+            required: [field, message]
+      required: [type, title, status]
