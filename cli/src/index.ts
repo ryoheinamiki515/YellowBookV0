@@ -10,7 +10,7 @@ const program = new Command();
 const AUTH0_DOMAIN = process.env.AUTH0_DOMAIN!;
 const AUTH0_CLIENT_ID = process.env.AUTH0_CLIENT_ID!;
 const AUTH0_AUDIENCE = process.env.AUTH0_AUDIENCE!;
-const API_BASE_URL = process.env.API_BASE_URL ?? "http://localhost:3000";
+const API_BASE_URL = process.env.API_BASE_URL ?? "http://localhost:3000/v1";
 
 const TOKEN_PATH = path.join(os.homedir(), ".config", "social-plans-cli", "token.json");
 

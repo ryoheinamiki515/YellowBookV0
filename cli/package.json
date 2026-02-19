@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "@types/node": "^25.2.3",
+    "express-openapi-validator": "^6.0.0-alpha.9",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   }

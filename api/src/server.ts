@@ -1,13 +1,17 @@
 import "dotenv/config";
 import path from "node:path";
 import express from "express";
+import cookieParser from "cookie-parser";
+import type { Request, Response, NextFunction } from "express";
 import { z } from "zod";
 import { PrismaClient } from "@prisma/client";
-import { auth, requiredScopes } from "express-oauth2-jwt-bearer";
 import { middleware as openapiValidator } from "express-openapi-validator";
+import { serializeSocialPlan } from "./api/serializers/socialPlan.js";
+import { makeRequireUser } from "./middleware/requireUser.js";
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ type: ["application/json", "application/*+json"] }));
+app.use(cookieParser());
 
 app.use(
     openapiValidator({
@@ -19,28 +23,28 @@ app.use(
 
 const prisma = new PrismaClient();
 
-// Auth0 JWT validation middleware
-const jwtCheck = auth({
+const requireUser = makeRequireUser({
+    prisma,
     issuerBaseURL: process.env.AUTH0_ISSUER_BASE_URL!,
     audience: process.env.AUTH0_AUDIENCE!,
 });
 
-// ---------------------------------------------------------------------------
-// JIT User Provisioning
-// ---------------------------------------------------------------------------
-// Given an Auth0 `sub` claim, find-or-create a local User row and return
-// the internal UUID. Uses upsert so it's safe to call on every request.
-// ---------------------------------------------------------------------------
-async function resolveUser(sub: string): Promise<string> {
-    const user = await prisma.user.upsert({
-        where: { auth0Sub: sub },
-        update: {},
-        create: { auth0Sub: sub },
-    });
-    return user.id;
-}
+const v1 = express.Router();
+app.use("/v1", v1);
 
-app.get("/health", (_req, res) => res.json({ ok: true }));
+v1.get("/health", (_req, res) => res.json({ status: "ok", time: new Date().toISOString() }));
+
+// ---------------------------------------------------------------------------
+// GET /v1/me — Get the current authenticated user (MeResponse)
+// ---------------------------------------------------------------------------
+v1.get("/me", ...requireUser([]), async (req, res) => {
+    const id = (req as any).userId as string;
+    const authSubject = (req as any).authSubject as string;
+
+    res.json({
+        data: { id, authSubject },
+    });
+});
 
 // ---------------------------------------------------------------------------
 // POST /plans — Create a social plan
@@ -50,24 +54,19 @@ const CreatePlanSchema = z.object({
     contextNote: z.string().max(2000).optional(),
     locationText: z.string().max(500).optional(),
     timePrecision: z.enum(["UNSPECIFIED", "NONE", "WINDOW", "EXACT"]).optional(),
-    anchorStart: z.string().datetime().optional(),
-    anchorEnd: z.string().datetime().optional(),
+    anchorStart: z.iso.datetime().optional(),
+    anchorEnd: z.iso.datetime().optional(),
     timezone: z.string().max(64).optional(),
 });
 
-app.post(
+v1.post(
     "/plans",
-    jwtCheck,
-    requiredScopes("create:socialplans"),
+    ...requireUser(["create:socialplans"]),
     async (req, res, next) => {
         try {
             const data = CreatePlanSchema.parse(req.body);
 
-            // @ts-ignore — express-oauth2-jwt-bearer attaches auth to req
-            const sub: string | undefined = req.auth?.payload.sub;
-            if (!sub) return res.status(401).json({ error: "missing_sub" });
-
-            const ownerId = await resolveUser(sub);
+            const ownerId = (req as any).userId;
 
             const plan = await prisma.socialPlan.create({
                 data: {
@@ -82,7 +81,7 @@ app.post(
                 },
             });
 
-            res.status(201).json(plan);
+            res.status(201).json({ data: serializeSocialPlan(plan) });
         } catch (err) {
             next(err);
         }
@@ -92,45 +91,86 @@ app.post(
 // ---------------------------------------------------------------------------
 // GET /plans — List my plans
 // ---------------------------------------------------------------------------
-app.get(
+v1.get(
     "/plans",
-    jwtCheck,
-    requiredScopes("read:socialplans"),
+    ...requireUser(["read:socialplans"]),
     async (req, res, next) => {
         try {
-            // @ts-ignore
-            const sub: string | undefined = req.auth?.payload.sub;
-            if (!sub) return res.status(401).json({ error: "missing_sub" });
-
-            const ownerId = await resolveUser(sub);
+            const ownerId = (req as any).userId;
 
             const plans = await prisma.socialPlan.findMany({
                 where: { ownerId },
                 orderBy: { createdAt: "desc" },
             });
 
-            res.json({ plans });
+            res.json({
+                data: plans.map(serializeSocialPlan),
+                meta: {
+                    limit: 50,
+                    nextCursor: null,
+                },
+            });
         } catch (err) {
             next(err);
         }
     }
 );
 
-// ---------------------------------------------------------------------------
-// Error handler
-// ---------------------------------------------------------------------------
-app.use((err: any, _req: any, res: any, _next: any) => {
-    if (err?.name === "ZodError") {
-        return res.status(400).json({ error: "validation", details: err.errors });
-    }
-    if (err?.name === "UnauthorizedError" || err?.name === "InsufficientScopeError") {
-        return res.status(err.status || 401).json({
-            error: err.code || "unauthorized",
-            message: err.message
-        });
-    }
-    console.error(err);
-    res.status(500).json({ error: "server_error" });
+// Put AFTER all routes (including the OpenAPI validator middleware)
+app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
+    const status = Number(err?.status || err?.statusCode || 500);
+
+    // Zod -> field errors
+    const zodErrors =
+        err?.name === "ZodError"
+            ? err.errors?.map((e: any) => ({
+                field: (e.path || []).join(".") || "body",
+                message: e.message,
+            }))
+            : undefined;
+
+    // express-openapi-validator typically provides err.errors for request/response validation
+    const openapiErrors =
+        Array.isArray(err?.errors) && err.errors.length
+            ? err.errors.map((e: any) => ({
+                field: e.path || e.instancePath || e.location || "request",
+                message: e.message || e.error || "Invalid request",
+            }))
+            : undefined;
+
+    // Auth errors from express-oauth2-jwt-bearer
+    const isAuthErr =
+        err?.name === "UnauthorizedError" || err?.name === "InsufficientScopeError";
+
+    const problem = {
+        type:
+            status === 400
+                ? "https://api.yellowbook.example.com/problems/validation-error"
+                : status === 401
+                    ? "https://api.yellowbook.example.com/problems/unauthorized"
+                    : status === 404
+                        ? "https://api.yellowbook.example.com/problems/not-found"
+                        : "https://api.yellowbook.example.com/problems/server-error",
+        title:
+            status === 400
+                ? "Validation error"
+                : status === 401
+                    ? "Unauthorized"
+                    : status === 404
+                        ? "Not found"
+                        : "Server error",
+        status,
+        detail:
+            err?.message ||
+            (isAuthErr ? "Missing/invalid credentials or insufficient scope." : undefined),
+        instance: req.originalUrl,
+        errors: zodErrors || openapiErrors,
+    };
+
+    res
+        .status(status)
+        .type("application/problem+json")
+        .json(problem);
 });
 
 const port = Number(process.env.PORT ?? 3000);
