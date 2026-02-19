@@ -63,12 +63,12 @@ app.post(
                 data: {
                     ownerId,
                     intentText: data.intentText,
-                    contextNote: data.contextNote,
-                    locationText: data.locationText,
+                    contextNote: data.contextNote ?? null,
+                    locationText: data.locationText ?? null,
                     timePrecision: data.timePrecision ?? "UNSPECIFIED",
                     anchorStart: data.anchorStart ? new Date(data.anchorStart) : null,
                     anchorEnd: data.anchorEnd ? new Date(data.anchorEnd) : null,
-                    timezone: data.timezone,
+                    timezone: data.timezone ?? null,
                 },
             });
 
