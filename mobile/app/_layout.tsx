@@ -3,6 +3,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React, { useEffect } from "react";
 import { AuthProvider, useAuth } from "../src/context/AuthContext";
 import { View, ActivityIndicator } from "react-native";
+import { TamaguiProvider } from "tamagui";
+import tamaguiConfig from "../tamagui.config";
 
 const queryClient = new QueryClient();
 
@@ -38,10 +40,12 @@ function ProtectedLayout() {
 
 export default function RootLayout() {
     return (
-        <AuthProvider>
-            <QueryClientProvider client={queryClient}>
-                <ProtectedLayout />
-            </QueryClientProvider>
-        </AuthProvider>
+        <TamaguiProvider config={tamaguiConfig} defaultTheme="light">
+            <AuthProvider>
+                <QueryClientProvider client={queryClient}>
+                    <ProtectedLayout />
+                </QueryClientProvider>
+            </AuthProvider>
+        </TamaguiProvider>
     );
 }
