@@ -1,4 +1,5 @@
 import { Platform } from "react-native";
+import { getToken } from "./../lib/tokenStorage";
 
 // 1) Base URL: set this in .env as EXPO_PUBLIC_API_BASE_URL
 //    iOS simulator can use localhost
@@ -13,10 +14,14 @@ function getBaseUrl() {
     return raw;
 }
 
-// 2) Token getter (stub for now; later back it with SecureStore + Auth0)
+// 2) Token getter backed by SecureStore + Auth0
 async function getAccessToken(): Promise<string | null> {
-    // TEMP: easiest dev mode is to paste a token into env
-    return process.env.EXPO_PUBLIC_DEV_ACCESS_TOKEN ?? null;
+    // 1. Check Env var override
+    if (process.env.EXPO_PUBLIC_DEV_ACCESS_TOKEN) {
+        return process.env.EXPO_PUBLIC_DEV_ACCESS_TOKEN;
+    }
+    // 2. Check SecureStore
+    return await getToken();
 }
 
 async function parseBody(res: Response) {

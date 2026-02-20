@@ -5,7 +5,10 @@ import { useQueryClient } from "@tanstack/react-query";
 // names depend on operationIds; with yours it should be useListPlans/useCreatePlan
 import { useListPlans, useCreatePlan, getListPlansQueryKey } from "../src/api/generated/plans/plans";
 
+import { useAuth } from "../src/context/AuthContext";
+
 export default function PlansScreen() {
+    const { signOut } = useAuth();
     const qc = useQueryClient();
     const [intentText, setIntentText] = useState("");
 
@@ -36,7 +39,10 @@ export default function PlansScreen() {
 
     return (
         <View style={{ padding: 16, gap: 12, paddingTop: 60 }}>
-            <Text style={{ fontSize: 24, fontWeight: "700", marginBottom: 8 }}>Plans</Text>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                <Text style={{ fontSize: 24, fontWeight: "700" }}>Plans</Text>
+                <Button title="Sign Out" onPress={signOut} color="#ef4444" />
+            </View>
 
             <View style={{ flexDirection: "row", gap: 8 }}>
                 <TextInput
