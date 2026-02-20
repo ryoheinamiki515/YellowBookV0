@@ -26,19 +26,6 @@ export function makeRequireUser(opts: {
 
         return [
             async (req: any, res: Response, next: NextFunction) => {
-                // Auth bypass for local development
-                const authHeader = req.headers.authorization;
-                const devToken = process.env.DEV_ACCESS_TOKEN;
-
-                if (process.env.NODE_ENV === "development" && devToken && authHeader === `Bearer ${devToken}`) {
-                    console.log("[Auth] Bypassing JWT check for dev token");
-                    const sub = "dev-user-sub"; // Hardcoded sub for dev
-                    const userId = await resolveUser(sub);
-                    req.auth = { payload: { sub } };
-                    req.authSubject = sub;
-                    req.userId = userId;
-                    return next();
-                }
 
                 jwtCheck(req, res, (err) => {
                     if (err) return next(err);

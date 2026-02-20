@@ -26,14 +26,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         async function load() {
             try {
-                // If explicit dev token in environment, prefer it
-                if (__DEV__ && process.env.EXPO_PUBLIC_DEV_ACCESS_TOKEN) {
-                    console.log("[Auth] Using dev override token");
-                    if (mounted) setAuthToken(process.env.EXPO_PUBLIC_DEV_ACCESS_TOKEN);
-                } else {
-                    const saved = await getToken();
-                    if (mounted) setAuthToken(saved);
-                }
+                const saved = await getToken();
+                if (mounted) setAuthToken(saved);
             } catch (e) {
                 console.error("Failed to load token", e);
             } finally {

@@ -14,13 +14,7 @@ function getBaseUrl() {
     return raw;
 }
 
-// 2) Token getter backed by SecureStore + Auth0
 async function getAccessToken(): Promise<string | null> {
-    // 1. Check Env var override
-    if (process.env.EXPO_PUBLIC_DEV_ACCESS_TOKEN) {
-        return process.env.EXPO_PUBLIC_DEV_ACCESS_TOKEN;
-    }
-    // 2. Check SecureStore
     return await getToken();
 }
 
