@@ -11,9 +11,12 @@ export default function PlansScreen() {
     const { signOut } = useAuth();
     const qc = useQueryClient();
     const [intentText, setIntentText] = useState("");
+    const [createErrorMessage, setCreateErrorMessage] = useState<string | null>(null);
+    const listParams = { limit: 50 };
+    const listQueryKey = getListPlansQueryKey(listParams);
 
     const plansQuery = useListPlans(
-        { limit: 50 }, // params object depends on your spec
+        listParams, // params object depends on your spec
         {
             query: {
                 // optional: keep it feeling snappy
@@ -24,11 +27,35 @@ export default function PlansScreen() {
 
     const createPlan = useCreatePlan({
         mutation: {
-            onSuccess: () => {
+            onSuccess: (createdRes: any) => {
+                const created = createdRes?.status === 201 ? createdRes?.data?.data : null;
+                if (created?.id) {
+                    qc.setQueryData(listQueryKey, (prev: any) => {
+                        if (prev?.status !== 200 || !Array.isArray(prev?.data?.data)) return prev;
+                        const exists = prev.data.data.some((p: any) => p?.id === created.id);
+                        if (exists) return prev;
+                        return {
+                            ...prev,
+                            data: {
+                                ...prev.data,
+                                data: [created, ...prev.data.data],
+                            },
+                        };
+                    });
+                }
                 // re-fetch list after create
-                qc.invalidateQueries({ queryKey: getListPlansQueryKey({ limit: 50 }) });
+                qc.invalidateQueries({ queryKey: listQueryKey, exact: true });
                 setIntentText("");
+                setCreateErrorMessage(null);
             },
+            onError: (error: any) => {
+                setCreateErrorMessage(
+                    error?.problem?.detail ||
+                    error?.problem?.title ||
+                    error?.message ||
+                    "Failed to create plan"
+                );
+            }
         },
     });
 
@@ -74,9 +101,23 @@ export default function PlansScreen() {
                 </Button>
             </XStack>
 
+            {createErrorMessage && (
+                <Theme name="red">
+                    <YStack backgroundColor="$background" padding="$3" borderRadius="$true">
+                        <Text color="$color">{createErrorMessage}</Text>
+                    </YStack>
+                </Theme>
+            )}
+
             {plansQuery.isLoading && (
                 <Text textAlign="center" marginTop="$5" color="$color">
                     Loading…
+                </Text>
+            )}
+
+            {!plansQuery.isLoading && !plansQuery.isError && (
+                <Text opacity={0.6}>
+                    {`Loaded ${items.length} plan${items.length === 1 ? "" : "s"}`}
                 </Text>
             )}
 
@@ -127,4 +168,3 @@ export default function PlansScreen() {
         </YStack>
     );
 }
-

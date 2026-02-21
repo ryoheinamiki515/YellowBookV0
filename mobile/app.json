@@ -2,6 +2,7 @@
   "expo": {
     "name": "mobile",
     "slug": "mobile",
+    "owner": "ryoheinamiki515",
     "scheme": "yellowbook",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -14,9 +15,11 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "dev.yellowbook.mobile"
     },
     "android": {
+      "package": "dev.yellowbook.mobile",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -28,6 +31,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      "expo-dev-client",
       "expo-router",
       "expo-web-browser",
       "expo-secure-store",

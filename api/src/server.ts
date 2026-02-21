@@ -16,6 +16,14 @@ import { PlanPatchSchema, toPrismaUpdate, validateTimeSemantics } from "./api/pa
 const app = express();
 app.use(express.json({ type: ["application/json", "application/*+json"] }));
 app.use(cookieParser());
+app.use((req, res, next) => {
+    const started = Date.now();
+    res.on("finish", () => {
+        const ms = Date.now() - started;
+        console.log(`${req.method} ${req.originalUrl} -> ${res.statusCode} (${ms}ms)`);
+    });
+    next();
+});
 
 app.use(
     openapiValidator({

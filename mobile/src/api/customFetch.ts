@@ -11,7 +11,9 @@ function getBaseUrl() {
     if (Platform.OS === "android" && raw.includes("localhost")) {
         return raw.replace("localhost", "10.0.2.2");
     }
-    return raw;
+
+    // Avoid accidental double slash when generated paths start with /v1
+    return raw.endsWith("/") ? raw.slice(0, -1) : raw;
 }
 
 async function getAccessToken(): Promise<string | null> {
@@ -46,7 +48,21 @@ export const customFetch = async <T>(
         headers.set("Content-Type", "application/json");
     }
 
-    const res = await fetch(fullUrl, { ...options, headers });
+    let res: Response;
+    try {
+        res = await fetch(fullUrl, { ...options, headers });
+    } catch (cause: any) {
+        const hostHint = Platform.OS === "android"
+            ? "Android emulator should use 10.0.2.2; physical devices must use your computer LAN IP."
+            : "iOS simulator can use localhost; physical devices must use your computer LAN IP.";
+        const err: any = new Error(
+            `Network request failed for ${fullUrl}. Check EXPO_PUBLIC_API_BASE_URL (${baseUrl}). ${hostHint}`
+        );
+        err.cause = cause;
+        err.baseUrl = baseUrl;
+        err.url = fullUrl;
+        throw err;
+    }
 
     const body = await parseBody(res);
 

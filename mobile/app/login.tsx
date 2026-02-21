@@ -19,10 +19,9 @@ export default function LoginScreen() {
     const router = useRouter();
     const [isExchanging, setIsExchanging] = useState(false);
 
-    // Dynamic redirect URI based on environment
     const redirectUri = makeRedirectUri({
-        scheme: "yellowbook", // ensure this matches app.json scheme
-        path: "login" // specific path improves deep linking
+        scheme: "yellowbook",
+        path: "login",
     });
 
     console.log("Redirect URI:", redirectUri);
@@ -83,7 +82,7 @@ export default function LoginScreen() {
     };
 
     const handleSignUp = () => {
-        promptAsync({ extraParams: { screen_hint: 'signup', audience: process.env.EXPO_PUBLIC_AUTH0_AUDIENCE! } });
+        promptAsync({ extraParams: { screen_hint: "signup", audience: process.env.EXPO_PUBLIC_AUTH0_AUDIENCE! } });
     };
 
     return (
