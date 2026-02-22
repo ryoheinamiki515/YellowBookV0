@@ -4,17 +4,14 @@ import React, { useEffect } from "react";
 import { useFonts } from "expo-font";
 import {
     DMSans_400Regular,
-    DMSans_400Regular_Italic,
     DMSans_500Medium,
-    DMSans_500Medium_Italic,
     DMSans_600SemiBold,
-    DMSans_600SemiBold_Italic,
     DMSans_700Bold,
-    DMSans_700Bold_Italic,
 } from "@expo-google-fonts/dm-sans";
 
-// Prevent the splash screen from auto-hiding before asset loading is complete.
+// Prevent the splash screen from auto-hiding before fonts are loaded.
 SplashScreen.preventAutoHideAsync();
+
 import { AuthProvider, useAuth } from "../src/context/AuthContext";
 import { View, ActivityIndicator } from "react-native";
 import { TamaguiProvider } from "tamagui";
@@ -33,10 +30,8 @@ function ProtectedLayout() {
         const isLogin = segments[0] === 'login';
 
         if (!hasToken && !isLogin) {
-            // Redirect to login if accessing protected route without token
             router.replace('/login');
         } else if (hasToken && isLogin) {
-            // Redirect to home if accessing login while authenticated
             router.replace('/plans');
         }
     }, [hasToken, isLoading, segments]);
@@ -53,24 +48,20 @@ function ProtectedLayout() {
 }
 
 export default function RootLayout() {
-    const [loaded, error] = useFonts({
+    const [fontsLoaded] = useFonts({
         DMSans_400Regular,
-        DMSans_400Regular_Italic,
         DMSans_500Medium,
-        DMSans_500Medium_Italic,
         DMSans_600SemiBold,
-        DMSans_600SemiBold_Italic,
         DMSans_700Bold,
-        DMSans_700Bold_Italic,
     });
 
     useEffect(() => {
-        if (loaded || error) {
+        if (fontsLoaded) {
             SplashScreen.hideAsync();
         }
-    }, [loaded, error]);
+    }, [fontsLoaded]);
 
-    if (!loaded && !error) {
+    if (!fontsLoaded) {
         return null;
     }
 

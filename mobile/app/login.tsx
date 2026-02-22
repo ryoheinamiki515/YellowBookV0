@@ -1,18 +1,23 @@
 import { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from "react-native";
+import { Alert } from "react-native";
 import { useAuthRequest, makeRedirectUri, ResponseType } from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
 import { useAuth } from "../src/context/AuthContext";
 import { useRouter } from "expo-router";
+import { View, Text, YStack, XStack, Spinner } from "tamagui";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 WebBrowser.maybeCompleteAuthSession();
 
-// Hardcode discovery for Auth0
 const discovery = {
     authorizationEndpoint: `https://${process.env.EXPO_PUBLIC_AUTH0_DOMAIN}/authorize`,
     tokenEndpoint: `https://${process.env.EXPO_PUBLIC_AUTH0_DOMAIN}/oauth/token`,
     revocationEndpoint: `https://${process.env.EXPO_PUBLIC_AUTH0_DOMAIN}/oauth/revoke`,
 };
+
+// ---------------------------------------------------------------------------
+// Screen
+// ---------------------------------------------------------------------------
 
 export default function LoginScreen() {
     const { signIn } = useAuth();
@@ -24,13 +29,18 @@ export default function LoginScreen() {
         path: "login",
     });
 
-    console.log("Redirect URI:", redirectUri);
-
     const [request, response, promptAsync] = useAuthRequest(
         {
             clientId: process.env.EXPO_PUBLIC_AUTH0_CLIENT_ID!,
-            responseType: ResponseType.Code, // PKCE flow
-            scopes: ["openid", "profile", "email", "offline_access", "create:socialplans", "read:socialplans"],
+            responseType: ResponseType.Code,
+            scopes: [
+                "openid",
+                "profile",
+                "email",
+                "offline_access",
+                "create:socialplans",
+                "read:socialplans",
+            ],
             redirectUri,
             extraParams: {
                 audience: process.env.EXPO_PUBLIC_AUTH0_AUDIENCE!,
@@ -39,13 +49,15 @@ export default function LoginScreen() {
         discovery
     );
 
-    // Handle Auth0 Code Exchange
     useEffect(() => {
         if (response?.type === "success") {
             const { code } = response.params;
             exchangeCodeForToken(code);
         } else if (response?.type === "error") {
-            Alert.alert("Authentication Error", response.error?.message || "Something went wrong.");
+            Alert.alert(
+                "Hmm, something went wrong",
+                response.error?.message || "We couldn't sign you in — try again?"
+            );
         }
     }, [response]);
 
@@ -60,7 +72,7 @@ export default function LoginScreen() {
                 body: new URLSearchParams({
                     grant_type: "authorization_code",
                     client_id: process.env.EXPO_PUBLIC_AUTH0_CLIENT_ID!,
-                    code: code,
+                    code,
                     redirect_uri: redirectUri,
                     code_verifier: request?.codeVerifier || "",
                 }).toString(),
@@ -70,110 +82,183 @@ export default function LoginScreen() {
 
             if (tokenResponse.ok && data.access_token) {
                 await signIn(data.access_token);
-                // Router redirect handled by layout
             } else {
-                Alert.alert("Login Failed", data.error_description || "Could not exchange token.");
+                Alert.alert(
+                    "Couldn't sign you in",
+                    data.error_description || "Something went wrong — try again?"
+                );
             }
         } catch (e: any) {
-            Alert.alert("Network Error", e.message);
+            Alert.alert(
+                "Connection trouble",
+                "We couldn't reach the server — check your connection and try again?"
+            );
         } finally {
             setIsExchanging(false);
         }
     };
 
-    const handleSignUp = () => {
-        promptAsync({ extraParams: { screen_hint: "signup", audience: process.env.EXPO_PUBLIC_AUTH0_AUDIENCE! } });
+    const handleSignIn = () => {
+        promptAsync();
     };
 
+    const handleSignUp = () => {
+        promptAsync({
+            extraParams: {
+                screen_hint: "signup",
+                audience: process.env.EXPO_PUBLIC_AUTH0_AUDIENCE!,
+            },
+        });
+    };
+
+    const isLoading = isExchanging || !request;
+
     return (
-        <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-            style={styles.container}
-        >
-            <View style={styles.card}>
-                <Text style={styles.title}>Welcome Back</Text>
-                <Text style={styles.subtitle}>Sign in to your account</Text>
+        <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF8F3" }}>
+            <YStack
+                flex={1}
+                backgroundColor="$background"
+                justifyContent="center"
+                alignItems="center"
+                paddingHorizontal="$6"
+            >
+                {/* Top spacer — pushes content slightly above true center */}
+                <View flex={1} />
 
-                <TouchableOpacity
-                    style={[styles.primaryButton, (!request || isExchanging) && styles.disabledButton]}
-                    onPress={() => promptAsync()}
-                    disabled={!request || isExchanging}
+                {/* Brand mark */}
+                <View
+                    width={72}
+                    height={72}
+                    borderRadius="$8"
+                    backgroundColor="$accentBackground"
+                    justifyContent="center"
+                    alignItems="center"
+                    marginBottom="$6"
                 >
-                    {isExchanging ? (
-                        <ActivityIndicator color="#fff" />
-                    ) : (
-                        <Text style={styles.primaryButtonText}>Log In</Text>
-                    )}
-                </TouchableOpacity>
+                    <Text
+                        fontFamily="$heading"
+                        fontSize="$10"
+                        color="$accentColor"
+                        accessibilityLabel="YellowBook logo"
+                    >
+                        Y
+                    </Text>
+                </View>
 
-                <TouchableOpacity
-                    style={[styles.secondaryButton, (!request || isExchanging) && styles.disabledButton]}
-                    onPress={handleSignUp}
-                    disabled={!request || isExchanging}
+                {/* Headline — center-aligned (allowed for onboarding) */}
+                <Text
+                    fontFamily="$heading"
+                    fontSize="$11"
+                    color="$color"
+                    textAlign="center"
+                    marginBottom="$2"
                 >
-                    <Text style={styles.secondaryButtonText}>Create Account</Text>
-                </TouchableOpacity>
-            </View>
-        </KeyboardAvoidingView>
+                    YellowBook
+                </Text>
+
+                {/* Tagline */}
+                <Text
+                    fontFamily="$body"
+                    fontSize="$6"
+                    color="$colorSecondary"
+                    textAlign="center"
+                    lineHeight="$7"
+                    marginBottom="$10"
+                    paddingHorizontal="$4"
+                >
+                    A calm place to nurture the{"\n"}relationships that matter most.
+                </Text>
+
+                {/* Action area */}
+                <YStack width="100%" gap="$3" maxWidth={360}>
+                    {/* Primary CTA */}
+                    <YStack
+                        height="$12"
+                        borderRadius="$5"
+                        backgroundColor="$accentBackground"
+                        justifyContent="center"
+                        alignItems="center"
+                        onPress={handleSignIn}
+                        disabled={isLoading}
+                        opacity={isLoading ? 0.5 : 1}
+                        pressStyle={{
+                            backgroundColor: "$accentBackgroundPress",
+                            opacity: 0.95,
+                        }}
+                        accessibilityRole="button"
+                        accessibilityLabel="Sign in to YellowBook"
+                        cursor="pointer"
+                    >
+                        {isExchanging ? (
+                            <XStack alignItems="center" gap="$2">
+                                <Spinner size="small" color="$accentColor" />
+                                <Text
+                                    fontFamily="$body"
+                                    fontSize="$4"
+                                    fontWeight="500"
+                                    color="$accentColor"
+                                >
+                                    Signing you in...
+                                </Text>
+                            </XStack>
+                        ) : (
+                            <Text
+                                fontFamily="$body"
+                                fontSize="$4"
+                                fontWeight="500"
+                                color="$accentColor"
+                            >
+                                Sign In
+                            </Text>
+                        )}
+                    </YStack>
+
+                    {/* Secondary CTA */}
+                    <YStack
+                        height="$11"
+                        borderRadius="$5"
+                        backgroundColor="transparent"
+                        borderWidth={1.5}
+                        borderColor="$borderColor"
+                        justifyContent="center"
+                        alignItems="center"
+                        onPress={handleSignUp}
+                        disabled={isLoading}
+                        opacity={isLoading ? 0.5 : 1}
+                        pressStyle={{
+                            backgroundColor: "$backgroundPress",
+                            borderColor: "$borderColorPress",
+                        }}
+                        accessibilityRole="button"
+                        accessibilityLabel="Create a new YellowBook account"
+                        cursor="pointer"
+                    >
+                        <Text
+                            fontFamily="$body"
+                            fontSize="$4"
+                            fontWeight="500"
+                            color="$color"
+                        >
+                            Create Account
+                        </Text>
+                    </YStack>
+                </YStack>
+
+                {/* Bottom spacer — slightly larger than top for visual balance */}
+                <View flex={1.4} />
+
+                {/* Footer */}
+                <Text
+                    fontFamily="$body"
+                    fontSize="$2"
+                    color="$colorTertiary"
+                    textAlign="center"
+                    lineHeight="$2"
+                >
+                    By continuing, you agree to our Terms of{"\n"}Service and
+                    Privacy Policy.
+                </Text>
+            </YStack>
+        </SafeAreaView>
     );
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: "#f5f5f5",
-        justifyContent: "center",
-        padding: 20,
-    },
-    card: {
-        backgroundColor: "#fff",
-        borderRadius: 16,
-        padding: 24,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-        elevation: 4,
-    },
-    title: {
-        fontSize: 28,
-        fontWeight: "bold",
-        color: "#111",
-        textAlign: "center",
-        marginBottom: 8,
-    },
-    subtitle: {
-        fontSize: 16,
-        color: "#666",
-        textAlign: "center",
-        marginBottom: 32,
-    },
-    primaryButton: {
-        backgroundColor: "#2563eb",
-        paddingVertical: 14,
-        borderRadius: 8,
-        alignItems: "center",
-        marginBottom: 12,
-    },
-    primaryButtonText: {
-        color: "#fff",
-        fontSize: 16,
-        fontWeight: "600",
-    },
-    secondaryButton: {
-        backgroundColor: "transparent",
-        borderWidth: 1,
-        borderColor: "#d1d5db",
-        paddingVertical: 12,
-        borderRadius: 8,
-        alignItems: "center",
-    },
-    secondaryButtonText: {
-        color: "#374151",
-        fontSize: 15,
-        fontWeight: "500",
-    },
-    disabledButton: {
-        opacity: 0.5,
-    },
-});
