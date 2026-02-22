@@ -15,6 +15,7 @@
     "@expo-google-fonts/dm-sans": "^0.4.2",
     "@expo/metro-config": "~54.0.14",
     "@expo/metro-runtime": "~6.1.2",
+    "@react-native-menu/menu": "^2.0.0",
     "@tamagui/animations-react-native": "^2.0.0-rc.16",
     "@tamagui/babel-plugin": "^2.0.0-rc.16",
     "@tamagui/config": "^2.0.0-rc.16",
@@ -38,7 +39,8 @@
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
     "react-native-web": "^0.21.0",
-    "tamagui": "^2.0.0-rc.16"
+    "tamagui": "^2.0.0-rc.16",
+    "zeego": "^3.0.0"
   },
   "devDependencies": {
     "@expo/ngrok": "^4.1.0",
@@ -46,6 +48,10 @@
     "babel-preset-expo": "~12.0.0",
     "orval": "^8.4.0",
     "typescript": "~5.9.2"
+  },
+  "overrides": {
+    "react-native-ios-context-menu": "3.0.0",
+    "react-native-ios-utilities": "5.2.0"
   },
   "private": true
 }

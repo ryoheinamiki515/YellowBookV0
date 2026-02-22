@@ -1,2 +1,2 @@
-import '@tamagui/native/setup-zeego'
-import 'expo-router/entry'
+require("@tamagui/native/setup-zeego");
+require("expo-router/entry");

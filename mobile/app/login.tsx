@@ -1,5 +1,11 @@
-import { useEffect, useState } from "react";
-import { Alert } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import {
+    AccessibilityInfo,
+    Alert,
+    Animated,
+    Easing,
+    Platform,
+} from "react-native";
 import { useAuthRequest, makeRedirectUri, ResponseType } from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
 import { useAuth } from "../src/context/AuthContext";
@@ -16,6 +22,80 @@ const discovery = {
 };
 
 // ---------------------------------------------------------------------------
+// Staggered entrance animation hook
+// ---------------------------------------------------------------------------
+
+function useReducedMotionPreference() {
+    const [reducedMotion, setReducedMotion] = useState(false);
+
+    useEffect(() => {
+        let mounted = true;
+
+        AccessibilityInfo.isReduceMotionEnabled?.()
+            .then((enabled) => {
+                if (mounted) {
+                    setReducedMotion(Boolean(enabled));
+                }
+            })
+            .catch(() => {
+                // Ignore unsupported platforms / implementations.
+            });
+
+        const subscription = AccessibilityInfo.addEventListener?.(
+            "reduceMotionChanged",
+            (enabled) => {
+                setReducedMotion(Boolean(enabled));
+            }
+        );
+
+        return () => {
+            mounted = false;
+            subscription?.remove?.();
+        };
+    }, []);
+
+    return reducedMotion;
+}
+
+function useStaggeredEntrance(count: number, baseDelay = 80) {
+    const reducedMotion = useReducedMotionPreference();
+    const anims = useRef(
+        Array.from({ length: count }, () => new Animated.Value(0))
+    ).current;
+
+    useEffect(() => {
+        if (reducedMotion) {
+            anims.forEach((a) => a.setValue(1));
+            return;
+        }
+
+        const sequence = anims.map((anim, i) =>
+            Animated.timing(anim, {
+                toValue: 1,
+                duration: 350,
+                delay: i * baseDelay,
+                easing: Easing.out(Easing.cubic),
+                useNativeDriver: Platform.OS !== "web",
+            })
+        );
+
+        Animated.stagger(baseDelay, sequence).start();
+    }, [anims, baseDelay, reducedMotion]);
+
+    return anims.map((anim) => ({
+        opacity: anim,
+        transform: [
+            {
+                translateY: anim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [18, 0],
+                }),
+            },
+        ],
+    }));
+}
+
+// ---------------------------------------------------------------------------
 // Screen
 // ---------------------------------------------------------------------------
 
@@ -23,6 +103,26 @@ export default function LoginScreen() {
     const { signIn } = useAuth();
     const router = useRouter();
     const [isExchanging, setIsExchanging] = useState(false);
+    const isWeb = Platform.OS === "web";
+
+    const logoA11yProps: any = isWeb
+        ? { "aria-label": "YellowBook logo" }
+        : { accessibilityLabel: "YellowBook logo" };
+    const signInA11yProps: any = isWeb
+        ? { role: "button", "aria-label": "Sign in to YellowBook" }
+        : {
+              accessibilityRole: "button",
+              accessibilityLabel: "Sign in to YellowBook",
+          };
+    const signUpA11yProps: any = isWeb
+        ? { role: "button", "aria-label": "Create a new YellowBook account" }
+        : {
+              accessibilityRole: "button",
+              accessibilityLabel: "Create a new YellowBook account",
+          };
+
+    // 5 animated groups: logo, headline, tagline, buttons, footer
+    const entrance = useStaggeredEntrance(5);
 
     const redirectUri = makeRedirectUri({
         scheme: "yellowbook",
@@ -122,142 +222,181 @@ export default function LoginScreen() {
                 alignItems="center"
                 paddingHorizontal="$6"
             >
-                {/* Top spacer — pushes content slightly above true center */}
+                {/* Top spacer */}
                 <View flex={1} />
 
-                {/* Brand mark */}
-                <View
-                    width={72}
-                    height={72}
-                    borderRadius="$8"
-                    backgroundColor="$accentBackground"
-                    justifyContent="center"
-                    alignItems="center"
-                    marginBottom="$6"
-                >
-                    <Text
-                        fontFamily="$heading"
-                        fontSize="$10"
-                        color="$accentColor"
-                        accessibilityLabel="YellowBook logo"
-                    >
-                        Y
-                    </Text>
-                </View>
-
-                {/* Headline — center-aligned (allowed for onboarding) */}
-                <Text
-                    fontFamily="$heading"
-                    fontSize="$11"
-                    color="$color"
-                    textAlign="center"
-                    marginBottom="$2"
-                >
-                    YellowBook
-                </Text>
-
-                {/* Tagline */}
-                <Text
-                    fontFamily="$body"
-                    fontSize="$6"
-                    color="$colorSecondary"
-                    textAlign="center"
-                    lineHeight="$7"
-                    marginBottom="$10"
-                    paddingHorizontal="$4"
-                >
-                    A calm place to nurture the{"\n"}relationships that matter most.
-                </Text>
-
-                {/* Action area */}
-                <YStack width="100%" gap="$3" maxWidth={360}>
-                    {/* Primary CTA */}
-                    <YStack
-                        height="$12"
-                        borderRadius="$5"
+                {/* Logo mark — embossed Moleskine feel with shadow */}
+                <Animated.View style={entrance[0]}>
+                    <View
+                        width={80}
+                        height={80}
+                        borderRadius="$9"
                         backgroundColor="$accentBackground"
                         justifyContent="center"
                         alignItems="center"
-                        onPress={handleSignIn}
-                        disabled={isLoading}
-                        opacity={isLoading ? 0.5 : 1}
-                        pressStyle={{
-                            backgroundColor: "$accentBackgroundPress",
-                            opacity: 0.95,
-                        }}
-                        accessibilityRole="button"
-                        accessibilityLabel="Sign in to YellowBook"
-                        cursor="pointer"
-                    >
-                        {isExchanging ? (
-                            <XStack alignItems="center" gap="$2">
-                                <Spinner size="small" color="$accentColor" />
-                                <Text
-                                    fontFamily="$body"
-                                    fontSize="$4"
-                                    fontWeight="500"
-                                    color="$accentColor"
-                                >
-                                    Signing you in...
-                                </Text>
-                            </XStack>
-                        ) : (
-                            <Text
-                                fontFamily="$body"
-                                fontSize="$4"
-                                fontWeight="500"
-                                color="$accentColor"
-                            >
-                                Sign In
-                            </Text>
-                        )}
-                    </YStack>
-
-                    {/* Secondary CTA */}
-                    <YStack
-                        height="$11"
-                        borderRadius="$5"
-                        backgroundColor="transparent"
-                        borderWidth={1.5}
-                        borderColor="$borderColor"
-                        justifyContent="center"
-                        alignItems="center"
-                        onPress={handleSignUp}
-                        disabled={isLoading}
-                        opacity={isLoading ? 0.5 : 1}
-                        pressStyle={{
-                            backgroundColor: "$backgroundPress",
-                            borderColor: "$borderColorPress",
-                        }}
-                        accessibilityRole="button"
-                        accessibilityLabel="Create a new YellowBook account"
-                        cursor="pointer"
+                        marginBottom="$4"
+                        // @ts-ignore – RN shadow props
+                        shadowColor="#B8860B"
+                        shadowOffset={{ width: 0, height: 6 }}
+                        shadowOpacity={0.18}
+                        shadowRadius={16}
+                        elevation={8}
                     >
                         <Text
-                            fontFamily="$body"
-                            fontSize="$4"
-                            fontWeight="500"
-                            color="$color"
+                            fontFamily="$heading"
+                            fontSize="$11"
+                            color="$accentColor"
+                            {...logoA11yProps}
                         >
-                            Create Account
+                            Y
+                        </Text>
+                    </View>
+                </Animated.View>
+
+                {/* Headline */}
+                <Animated.View style={entrance[1]}>
+                    <Text
+                        fontFamily="$heading"
+                        fontSize="$12"
+                        color="$color"
+                        textAlign="center"
+                        marginBottom="$1"
+                    >
+                        YellowBook
+                    </Text>
+                </Animated.View>
+
+                {/* Tagline */}
+                <Animated.View style={entrance[2]}>
+                    <YStack alignItems="center" marginBottom="$10">
+                        {/* Decorative golden divider */}
+                        <View
+                            width={40}
+                            height={2}
+                            borderRadius="$12"
+                            backgroundColor="$accentBackground"
+                            opacity={0.5}
+                            marginBottom="$4"
+                        />
+                        <Text
+                            fontFamily="$body"
+                            fontSize="$7"
+                            color="$colorSecondary"
+                            textAlign="center"
+                            lineHeight="$8"
+                            paddingHorizontal="$2"
+                        >
+                            A calm place to nurture the{"\n"}relationships that
+                            matter most.
                         </Text>
                     </YStack>
-                </YStack>
+                </Animated.View>
 
-                {/* Bottom spacer — slightly larger than top for visual balance */}
+                {/* Action area */}
+                <Animated.View
+                    style={[entrance[3], { width: "100%", maxWidth: 360 }]}
+                >
+                    <YStack gap="$3">
+                        {/* Primary CTA — warm shadow for depth */}
+                        <YStack
+                            height="$13"
+                            borderRadius="$6"
+                            backgroundColor="$accentBackground"
+                            justifyContent="center"
+                            alignItems="center"
+                            onPress={handleSignIn}
+                            disabled={isLoading}
+                            opacity={isLoading ? 0.5 : 1}
+                            pressStyle={{
+                                backgroundColor: "$accentBackgroundPress",
+                                scale: 0.98,
+                            }}
+                            animation="fast"
+                            {...signInA11yProps}
+                            cursor="pointer"
+                            // @ts-ignore
+                            shadowColor="#B8860B"
+                            shadowOffset={{ width: 0, height: 4 }}
+                            shadowOpacity={0.15}
+                            shadowRadius={12}
+                            elevation={4}
+                        >
+                            {isExchanging ? (
+                                <XStack alignItems="center" gap="$2">
+                                    <Spinner
+                                        size="small"
+                                        color="$accentColor"
+                                    />
+                                    <Text
+                                        fontFamily="$body"
+                                        fontSize="$5"
+                                        fontWeight="600"
+                                        color="$accentColor"
+                                    >
+                                        Signing you in...
+                                    </Text>
+                                </XStack>
+                            ) : (
+                                <Text
+                                    fontFamily="$body"
+                                    fontSize="$5"
+                                    fontWeight="600"
+                                    color="$accentColor"
+                                >
+                                    Sign In
+                                </Text>
+                            )}
+                        </YStack>
+
+                        {/* Secondary CTA */}
+                        <YStack
+                            height="$12"
+                            borderRadius="$6"
+                            backgroundColor="transparent"
+                            borderWidth={1.5}
+                            borderColor="$borderColor"
+                            justifyContent="center"
+                            alignItems="center"
+                            onPress={handleSignUp}
+                            disabled={isLoading}
+                            opacity={isLoading ? 0.5 : 1}
+                            pressStyle={{
+                                backgroundColor: "$backgroundPress",
+                                borderColor: "$borderColorPress",
+                                scale: 0.98,
+                            }}
+                            animation="fast"
+                            {...signUpA11yProps}
+                            cursor="pointer"
+                        >
+                            <Text
+                                fontFamily="$body"
+                                fontSize="$5"
+                                fontWeight="500"
+                                color="$color"
+                            >
+                                Create Account
+                            </Text>
+                        </YStack>
+                    </YStack>
+                </Animated.View>
+
+                {/* Bottom spacer */}
                 <View flex={1.4} />
 
                 {/* Footer */}
-                <Text
-                    fontFamily="$body"
-                    fontSize="$2"
-                    color="$colorTertiary"
-                    textAlign="center"
-                    lineHeight="$2"
-                >
-                    By continuing, you agree to our Terms of{"\n"}Service and
-                    Privacy Policy.
-                </Text>
+                <Animated.View style={entrance[4]}>
+                    <Text
+                        fontFamily="$body"
+                        fontSize="$2"
+                        color="$colorTertiary"
+                        textAlign="center"
+                        lineHeight="$3"
+                    >
+                        By continuing, you agree to our Terms of{"\n"}Service
+                        and Privacy Policy.
+                    </Text>
+                </Animated.View>
             </YStack>
         </SafeAreaView>
     );
