@@ -193,17 +193,20 @@ function WhenSheet({
         anchorEnd: string | null;
     }) => void;
 }) {
-    const [mode, setMode] = useState<"menu" | "date" | "datetime">("menu");
+    const [mode, setMode] = useState<"menu" | "date" | "datetime" | "window">("menu");
     const [pickedDate, setPickedDate] = useState(
         currentAnchorStart ? new Date(currentAnchorStart) : new Date()
     );
+    const [windowStart, setWindowStart] = useState(new Date());
+    const [windowEnd, setWindowEnd] = useState(new Date());
 
     useEffect(() => {
         if (open) {
             setMode("menu");
-            setPickedDate(
-                currentAnchorStart ? new Date(currentAnchorStart) : new Date()
-            );
+            const initial = currentAnchorStart ? new Date(currentAnchorStart) : new Date();
+            setPickedDate(initial);
+            setWindowStart(initial);
+            setWindowEnd(initial);
         }
     }, [open, currentAnchorStart]);
 
@@ -213,6 +216,10 @@ function WhenSheet({
 
     const handlePickExact = useCallback(() => {
         setMode("datetime");
+    }, []);
+
+    const handlePickWindow = useCallback(() => {
+        setMode("window");
     }, []);
 
     const handleNoDate = useCallback(() => {
@@ -225,14 +232,90 @@ function WhenSheet({
     }, [onSave, onOpenChange]);
 
     const handleDateConfirm = useCallback(() => {
-        const precision = mode === "datetime" ? "EXACT" : "WINDOW";
-        onSave({
-            timePrecision: precision,
-            anchorStart: pickedDate.toISOString(),
-            anchorEnd: null,
-        });
+        if (mode === "datetime") {
+            onSave({
+                timePrecision: "EXACT",
+                anchorStart: pickedDate.toISOString(),
+                anchorEnd: null,
+            });
+        } else if (mode === "date") {
+            onSave({
+                timePrecision: "WINDOW",
+                anchorStart: pickedDate.toISOString(),
+                anchorEnd: null,
+            });
+        }
         onOpenChange(false);
     }, [mode, pickedDate, onSave, onOpenChange]);
+
+    const handleWindowConfirm = useCallback(() => {
+        if (windowEnd < windowStart) {
+            Alert.alert(
+                "Window is out of order",
+                "The latest date has to be the same as or after the earliest date."
+            );
+            return;
+        }
+        onSave({
+            timePrecision: "WINDOW",
+            anchorStart: windowStart.toISOString(),
+            anchorEnd: windowEnd.toISOString(),
+        });
+        onOpenChange(false);
+    }, [windowStart, windowEnd, onSave, onOpenChange]);
+
+    const renderBackConfirmButtons = useCallback(
+        (onConfirm: () => void) => (
+            <XStack gap="$3" width="100%">
+                <YStack
+                    flex={1}
+                    height="$11"
+                    borderRadius="$6"
+                    borderWidth={1}
+                    borderColor="$borderColor"
+                    justifyContent="center"
+                    alignItems="center"
+                    onPress={() => setMode("menu")}
+                    pressStyle={{ opacity: 0.7 }}
+                    cursor="pointer"
+                >
+                    <Text
+                        fontFamily="$body"
+                        fontSize="$4"
+                        color="$colorSecondary"
+                    >
+                        Back
+                    </Text>
+                </YStack>
+                <YStack
+                    flex={2}
+                    height="$11"
+                    borderRadius="$6"
+                    backgroundColor="$accentBackground"
+                    justifyContent="center"
+                    alignItems="center"
+                    onPress={onConfirm}
+                    pressStyle={{
+                        scale: 0.98,
+                        backgroundColor: "$accentBackgroundPress",
+                    }}
+                    // @ts-ignore
+                    animation="fast"
+                    cursor="pointer"
+                >
+                    <Text
+                        fontFamily="$body"
+                        fontSize="$4"
+                        fontWeight="600"
+                        color="$accentColor"
+                    >
+                        Confirm
+                    </Text>
+                </YStack>
+            </XStack>
+        ),
+        []
+    );
 
     return (
         <Modal
@@ -308,6 +391,31 @@ function WhenSheet({
                             </YStack>
                         </Pressable>
 
+                        <Pressable onPress={handlePickWindow}>
+                            <YStack
+                                backgroundColor="$backgroundStrong"
+                                padding="$4"
+                                borderRadius="$5"
+                            >
+                                <Text
+                                    fontFamily="$body"
+                                    fontSize="$5"
+                                    fontWeight="500"
+                                    color="$color"
+                                >
+                                    Rough window
+                                </Text>
+                                <Text
+                                    fontFamily="$body"
+                                    fontSize="$2"
+                                    color="$colorTertiary"
+                                    marginTop="$1"
+                                >
+                                    Set an earliest and latest date
+                                </Text>
+                            </YStack>
+                        </Pressable>
+
                         <Pressable onPress={handlePickExact}>
                             <YStack
                                 backgroundColor="$backgroundStrong"
@@ -358,65 +466,71 @@ function WhenSheet({
                             </YStack>
                         </Pressable>
                     </YStack>
+                ) : mode === "window" ? (
+                    <ScrollView
+                        showsVerticalScrollIndicator={false}
+                        keyboardShouldPersistTaps="handled"
+                    >
+                        <YStack gap="$4">
+                            <YStack>
+                                <Text
+                                    fontFamily="$body"
+                                    fontSize="$3"
+                                    fontWeight="600"
+                                    color="$colorSecondary"
+                                    marginBottom="$2"
+                                >
+                                    Earliest date
+                                </Text>
+                                <DateTimePicker
+                                    value={windowStart}
+                                    mode="date"
+                                    display="inline"
+                                    onChange={(_event, date) => {
+                                        if (date) setWindowStart(date);
+                                    }}
+                                    style={{ width: "100%" }}
+                                />
+                            </YStack>
+
+                            <YStack>
+                                <Text
+                                    fontFamily="$body"
+                                    fontSize="$3"
+                                    fontWeight="600"
+                                    color="$colorSecondary"
+                                    marginBottom="$2"
+                                >
+                                    Latest date
+                                </Text>
+                                <DateTimePicker
+                                    value={windowEnd}
+                                    mode="date"
+                                    display="inline"
+                                    minimumDate={windowStart}
+                                    onChange={(_event, date) => {
+                                        if (date) setWindowEnd(date);
+                                    }}
+                                    style={{ width: "100%" }}
+                                />
+                            </YStack>
+
+                            {renderBackConfirmButtons(handleWindowConfirm)}
+                        </YStack>
+                    </ScrollView>
                 ) : (
                     <YStack gap="$4" alignItems="center">
                         <DateTimePicker
                             value={pickedDate}
                             mode={mode === "datetime" ? "datetime" : "date"}
-                            display="spinner"
+                            display="inline"
                             onChange={(_event, date) => {
                                 if (date) setPickedDate(date);
                             }}
                             style={{ width: "100%" }}
                         />
 
-                        <XStack gap="$3" width="100%">
-                            <YStack
-                                flex={1}
-                                height="$11"
-                                borderRadius="$6"
-                                borderWidth={1}
-                                borderColor="$borderColor"
-                                justifyContent="center"
-                                alignItems="center"
-                                onPress={() => setMode("menu")}
-                                pressStyle={{ opacity: 0.7 }}
-                                cursor="pointer"
-                            >
-                                <Text
-                                    fontFamily="$body"
-                                    fontSize="$4"
-                                    color="$colorSecondary"
-                                >
-                                    Back
-                                </Text>
-                            </YStack>
-                            <YStack
-                                flex={2}
-                                height="$11"
-                                borderRadius="$6"
-                                backgroundColor="$accentBackground"
-                                justifyContent="center"
-                                alignItems="center"
-                                onPress={handleDateConfirm}
-                                pressStyle={{
-                                    scale: 0.98,
-                                    backgroundColor: "$accentBackgroundPress",
-                                }}
-                                // @ts-ignore
-                                animation="fast"
-                                cursor="pointer"
-                            >
-                                <Text
-                                    fontFamily="$body"
-                                    fontSize="$4"
-                                    fontWeight="600"
-                                    color="$accentColor"
-                                >
-                                    Confirm
-                                </Text>
-                            </YStack>
-                        </XStack>
+                        {renderBackConfirmButtons(handleDateConfirm)}
                     </YStack>
                 )}
             </YStack>
@@ -941,7 +1055,8 @@ function AddPersonSheet({
 
 function formatWhenDisplay(
     timePrecision: string,
-    anchorStart: string | null | undefined
+    anchorStart: string | null | undefined,
+    anchorEnd: string | null | undefined
 ): { primary: string | null; secondary: string | null } {
     if (timePrecision === "NONE") {
         return { primary: "Whenever works", secondary: null };
@@ -962,6 +1077,15 @@ function formatWhenDisplay(
         return {
             primary: relative ? `${relative} at ${timeStr}` : timeStr,
             secondary: full,
+        };
+    }
+
+    // WINDOW with an end date — show range
+    if (anchorEnd) {
+        const endFull = formatFullDate(anchorEnd);
+        return {
+            primary: relative,
+            secondary: full && endFull ? `${full} — ${endFull}` : full,
         };
     }
 
@@ -1223,7 +1347,8 @@ export default function PlanDetailScreen() {
 
     const whenDisplay = formatWhenDisplay(
         plan.timePrecision,
-        plan.anchorStart
+        plan.anchorStart,
+        plan.anchorEnd
     );
 
     const participants = plan.participants.filter(

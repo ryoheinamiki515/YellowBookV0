@@ -64,6 +64,46 @@ function formatRelativeDate(iso: string | null | undefined): string | null {
     });
 }
 
+function formatWhenBadge(plan: SocialPlan): string | null {
+    if (plan.timePrecision === "NONE") return "Whenever";
+    if (plan.timePrecision === "UNSPECIFIED" || !plan.anchorStart) return null;
+
+    const start = formatRelativeDate(plan.anchorStart);
+    if (!start) return null;
+
+    if (plan.timePrecision === "EXACT") {
+        const date = new Date(plan.anchorStart);
+        const timeStr = date.toLocaleTimeString(undefined, {
+            hour: "numeric",
+            minute: "2-digit",
+        });
+        return `${start}, ${timeStr}`;
+    }
+
+    // WINDOW with end date — show range
+    if (plan.anchorEnd) {
+        const endDate = new Date(plan.anchorEnd);
+        const startDate = new Date(plan.anchorStart);
+        // If same day, just show the single date
+        if (
+            startDate.getFullYear() === endDate.getFullYear() &&
+            startDate.getMonth() === endDate.getMonth() &&
+            startDate.getDate() === endDate.getDate()
+        ) {
+            return start;
+        }
+        const endStr = endDate.toLocaleDateString(undefined, {
+            month: "short",
+            day: "numeric",
+        });
+        // For relative labels like "Tomorrow", show "Tomorrow — Mar 8"
+        // For absolute labels like "Mar 5", show "Mar 5 — Mar 8"
+        return `${start} — ${endStr}`;
+    }
+
+    return start;
+}
+
 function participantNames(plan: SocialPlan): string | null {
     const names = plan.participants
         .map((p) => p.displayName)
@@ -277,7 +317,7 @@ function HeroCard({
     isUpdating: boolean;
     reducedMotion: boolean;
 }) {
-    const when = formatRelativeDate(plan.anchorStart);
+    const when = formatWhenBadge(plan);
     const accentColor = getAccentColor(plan);
     const useNativeDriver = Platform.OS !== "web";
 
@@ -514,7 +554,7 @@ function CompactCard({
     index: number;
     reducedMotion: boolean;
 }) {
-    const when = formatRelativeDate(plan.anchorStart);
+    const when = formatWhenBadge(plan);
     const isDone = plan.state === "DONE";
     const isDropped = plan.state === "DROPPED";
     const isOpen = plan.state === "OPEN";
@@ -1009,93 +1049,18 @@ function CreatePlanSheet({
     onCreated: () => void;
 }) {
     const [intentText, setIntentText] = useState("");
-    const [useRoughWindow, setUseRoughWindow] = useState(false);
-    const [windowStartDate, setWindowStartDate] = useState("");
-    const [windowEndDate, setWindowEndDate] = useState("");
     const createPlan = useCreatePlan();
-
-    const normalizeDateInput = useCallback((value: string): string => {
-        const trimmed = value.trim();
-        if (!trimmed) return "";
-
-        const parts = trimmed.split("-");
-        if (parts.length !== 3) return "";
-
-        const [year, month, day] = parts.map((part) => Number(part));
-        if (!year || !month || !day) return "";
-
-        const date = new Date(Date.UTC(year, month - 1, day));
-        if (
-            Number.isNaN(date.getTime()) ||
-            date.getUTCFullYear() !== year ||
-            date.getUTCMonth() !== month - 1 ||
-            date.getUTCDate() !== day
-        ) {
-            return "";
-        }
-
-        return `${year.toString().padStart(4, "0")}-${month
-            .toString()
-            .padStart(2, "0")}-${day.toString().padStart(2, "0")}`;
-    }, []);
 
     const handleCreate = useCallback(() => {
         const trimmed = intentText.trim();
         if (!trimmed) return;
 
-        let payload: {
-            intentText: string;
-            timePrecision?: "WINDOW";
-            anchorStart?: string;
-            anchorEnd?: string;
-        } = { intentText: trimmed };
-
-        if (useRoughWindow) {
-            const normalizedStart = normalizeDateInput(windowStartDate);
-            if (!normalizedStart) {
-                Alert.alert(
-                    "Add a start date",
-                    "Enter the earliest expected date as YYYY-MM-DD."
-                );
-                return;
-            }
-
-            const normalizedEnd = normalizeDateInput(windowEndDate);
-            if (windowEndDate.trim() && !normalizedEnd) {
-                Alert.alert(
-                    "Fix the end date",
-                    "Enter the latest expected date as YYYY-MM-DD."
-                );
-                return;
-            }
-
-            if (normalizedEnd && normalizedEnd < normalizedStart) {
-                Alert.alert(
-                    "Window is out of order",
-                    "The latest date has to be the same as or after the earliest date."
-                );
-                return;
-            }
-
-            payload = {
-                intentText: trimmed,
-                timePrecision: "WINDOW",
-                anchorStart: `${normalizedStart}T00:00:00.000Z`,
-                ...(normalizedEnd
-                    ? { anchorEnd: `${normalizedEnd}T23:59:59.999Z` }
-                    : {}),
-            };
-        }
-
         Keyboard.dismiss();
         createPlan.mutate(
-            { data: payload },
+            { data: { intentText: trimmed } },
             {
                 onSuccess: () => {
                     setIntentText("");
-                    setUseRoughWindow(false);
-                    setWindowStartDate("");
-                    setWindowEndDate("");
                     onOpenChange(false);
                     onCreated();
                 },
@@ -1193,78 +1158,6 @@ function CreatePlanSheet({
                     }}
                     accessibilityLabel="What's the plan?"
                 />
-
-                <YStack marginTop="$4" gap="$2">
-                    <XStack alignItems="center" justifyContent="space-between" gap="$3">
-                        <Text fontFamily="$body" fontSize="$3" color="$colorSecondary">
-                            Add rough timing window
-                        </Text>
-                        <YStack
-                            paddingHorizontal="$3"
-                            paddingVertical="$1.5"
-                            borderRadius="$10"
-                            borderWidth={1}
-                            borderColor={useRoughWindow ? "$accentBackground" : "$borderColor"}
-                            backgroundColor={useRoughWindow ? "$accentBackground" : "transparent"}
-                            onPress={() => {
-                                setUseRoughWindow((prev) => !prev);
-                                if (useRoughWindow) {
-                                    setWindowStartDate("");
-                                    setWindowEndDate("");
-                                }
-                            }}
-                            pressStyle={{ scale: 0.98 }}
-                            accessibilityRole="button"
-                            accessibilityLabel="Toggle rough timing window"
-                        >
-                            <Text fontFamily="$body" fontSize="$2" color="$color">
-                                {useRoughWindow ? "On" : "Off"}
-                            </Text>
-                        </YStack>
-                    </XStack>
-
-                    {useRoughWindow && (
-                        <YStack gap="$2">
-                            <Input
-                                fontFamily="$body"
-                                fontSize="$4"
-                                color="$color"
-                                backgroundColor="$inputBackground"
-                                borderColor="$borderColor"
-                                borderWidth={1}
-                                borderRadius="$4"
-                                paddingHorizontal="$3"
-                                placeholder="Earliest date (YYYY-MM-DD)"
-                                placeholderTextColor="$placeholderColor"
-                                autoCapitalize="none"
-                                autoCorrect={false}
-                                value={windowStartDate}
-                                onChangeText={setWindowStartDate}
-                                accessibilityLabel="Earliest rough date"
-                            />
-                            <Input
-                                fontFamily="$body"
-                                fontSize="$4"
-                                color="$color"
-                                backgroundColor="$inputBackground"
-                                borderColor="$borderColor"
-                                borderWidth={1}
-                                borderRadius="$4"
-                                paddingHorizontal="$3"
-                                placeholder="Latest date (optional, YYYY-MM-DD)"
-                                placeholderTextColor="$placeholderColor"
-                                autoCapitalize="none"
-                                autoCorrect={false}
-                                value={windowEndDate}
-                                onChangeText={setWindowEndDate}
-                                accessibilityLabel="Latest rough date"
-                            />
-                            <Text fontFamily="$body" fontSize="$2" color="$colorTertiary">
-                                Example: beginning of May could be 2026-05-01 to 2026-05-10.
-                            </Text>
-                        </YStack>
-                    )}
-                </YStack>
 
                 {/* Save button */}
                 <YStack
