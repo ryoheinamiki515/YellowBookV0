@@ -314,16 +314,16 @@ const lightTheme: ThemeShape = {
     colorPress: palette.charcoal,
     colorFocus: palette.espresso,
     colorTransparent: palette.transparent,
-    colorSecondary: palette.driftwood,
-    colorTertiary: palette.stone,
+    colorSecondary: palette.walnut,
+    colorTertiary: palette.driftwood,
     colorMuted: palette.fog,
 
     // Borders & dividers
-    borderColor: palette.sand,
+    borderColor: palette.fog,
     borderColorHover: palette.fog,
     borderColorFocus: palette.honey,
     borderColorPress: palette.fog,
-    borderColorSubtle: palette.linen,
+    borderColorSubtle: palette.sand,
 
     // Interactive — primary (honey/gold)
     accentBackground: palette.honey,

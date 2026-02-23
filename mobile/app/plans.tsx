@@ -77,9 +77,21 @@ function participantNames(plan: SocialPlan): string | null {
 function planCountLabel(count: number, filterLabel: string): string {
     if (count === 0) return "";
     if (filterLabel === "Done") {
-        return count === 1 ? "1 plan completed" : `${count} plans completed`;
+        return count === 1 ? "1 completed" : `${count} completed`;
+    }
+    if (filterLabel === "Open") {
+        return count === 1 ? "1 open plan" : `${count} open plans`;
     }
     return count === 1 ? "1 plan" : `${count} plans`;
+}
+
+function blurPressTargetOnWeb(event: unknown) {
+    if (Platform.OS !== "web") return;
+    const target =
+        (event as { currentTarget?: { blur?: () => void } } | null)
+            ?.currentTarget ??
+        (event as { target?: { blur?: () => void } } | null)?.target;
+    target?.blur?.();
 }
 
 // ---------------------------------------------------------------------------
@@ -243,9 +255,9 @@ function SectionHeader({ title }: { title: string }) {
 // ---------------------------------------------------------------------------
 
 const STATE_FILTERS: { label: string; value: SocialPlanState[] }[] = [
+    { label: "All", value: ["OPEN", "DONE", "DROPPED"] },
     { label: "Open", value: ["OPEN"] },
     { label: "Done", value: ["DONE"] },
-    { label: "All", value: ["OPEN", "DONE", "DROPPED"] },
 ];
 
 // ---------------------------------------------------------------------------
@@ -333,8 +345,28 @@ function HeroCard({
                     borderWidth={1}
                     borderColor="$borderColorSubtle"
                     overflow="hidden"
-                    onPress={() => onPress(plan)}
+                    onPress={(event) => {
+                        blurPressTargetOnWeb(event);
+                        onPress(plan);
+                    }}
                     pressStyle={{ scale: 0.985, backgroundColor: "$surfaceHover" }}
+                    // @ts-ignore - web-only CSS property
+                    style={
+                        Platform.OS === "web"
+                            ? { WebkitTapHighlightColor: "transparent" }
+                            : undefined
+                    }
+                    focusStyle={{
+                        borderColor: "$borderColorSubtle",
+                        outlineWidth: 0,
+                        outlineColor: "transparent",
+                    }}
+                    focusVisibleStyle={{
+                        borderColor: "$borderColorFocus",
+                        borderWidth: 2,
+                        outlineWidth: 0,
+                        outlineColor: "transparent",
+                    }}
                     // @ts-ignore – Tamagui animation prop
                     animation="fast"
                     // @ts-ignore
@@ -346,18 +378,6 @@ function HeroCard({
                     accessibilityRole="button"
                     accessibilityLabel={`Plan: ${plan.intentText}`}
                 >
-                    {/* Warm honey tint overlay */}
-                    <View
-                        position="absolute"
-                        top={0}
-                        left={0}
-                        right={0}
-                        bottom={0}
-                        backgroundColor="$accentBackground"
-                        opacity={0.06}
-                        borderRadius="$8"
-                    />
-
                     {/* Left accent bar */}
                     <View
                         position="absolute"
@@ -435,26 +455,10 @@ function HeroCard({
 
                     {/* Bottom row */}
                     <XStack
-                        justifyContent="space-between"
+                        justifyContent="flex-end"
                         alignItems="center"
                         marginTop="$3"
                     >
-                        <View
-                            backgroundColor="$backgroundStrong"
-                            paddingHorizontal="$2"
-                            paddingVertical="$0.5"
-                            borderRadius="$12"
-                        >
-                            <Text
-                                fontFamily="$body"
-                                fontSize="$1"
-                                fontWeight="500"
-                                color="$colorSecondary"
-                            >
-                                Open
-                            </Text>
-                        </View>
-
                         <YStack
                             paddingHorizontal="$3"
                             paddingVertical="$1.5"
@@ -588,11 +592,30 @@ function CompactCard({
                     paddingRight="$3.5"
                     borderWidth={1}
                     borderColor="$borderColorSubtle"
-                    opacity={isInactive ? 0.55 : 1}
+                    opacity={isInactive ? 0.65 : 1}
                     overflow="hidden"
-                    marginLeft={isInactive ? 8 : 0}
-                    onPress={() => onPress(plan)}
+                    onPress={(event) => {
+                        blurPressTargetOnWeb(event);
+                        onPress(plan);
+                    }}
                     pressStyle={{ scale: 0.985, backgroundColor: "$surfaceHover" }}
+                    // @ts-ignore - web-only CSS property
+                    style={
+                        Platform.OS === "web"
+                            ? { WebkitTapHighlightColor: "transparent" }
+                            : undefined
+                    }
+                    focusStyle={{
+                        borderColor: "$borderColorSubtle",
+                        outlineWidth: 0,
+                        outlineColor: "transparent",
+                    }}
+                    focusVisibleStyle={{
+                        borderColor: "$borderColorFocus",
+                        borderWidth: 2,
+                        outlineWidth: 0,
+                        outlineColor: "transparent",
+                    }}
                     // @ts-ignore
                     animation="fast"
                     // @ts-ignore
@@ -671,12 +694,12 @@ function CompactCard({
                             </XStack>
                         </YStack>
 
-                        {/* Right side: state badge or mark done */}
+                        {/* Right side: action button or status label */}
                         {isOpen ? (
                             <YStack
-                                paddingHorizontal="$2.5"
-                                paddingVertical="$1"
-                                borderRadius="$4"
+                                paddingHorizontal="$3"
+                                paddingVertical="$1.5"
+                                borderRadius="$5"
                                 backgroundColor="$successBackground"
                                 onPress={() => onMarkDone(plan)}
                                 disabled={isUpdating}
@@ -690,42 +713,35 @@ function CompactCard({
                                 accessibilityRole="button"
                                 accessibilityLabel={`Mark "${plan.intentText}" as done`}
                                 cursor="pointer"
-                                minHeight={32}
+                                minHeight={36}
                                 justifyContent="center"
                             >
                                 <Text
                                     fontFamily="$body"
                                     fontSize="$2"
-                                    fontWeight="500"
+                                    fontWeight="600"
                                     color="$successColor"
                                 >
-                                    {isUpdating ? "..." : "Done"}
+                                    {isUpdating ? "..." : "✓ Mark Done"}
                                 </Text>
                             </YStack>
                         ) : (
-                            <View
-                                backgroundColor={
-                                    isDone
-                                        ? "$successBackground"
-                                        : "$destructiveBackground"
-                                }
-                                paddingHorizontal="$1.5"
-                                paddingVertical={2}
-                                borderRadius="$10"
-                            >
+                            <XStack alignItems="center" gap="$1">
                                 <Text
                                     fontFamily="$body"
-                                    fontSize={10}
-                                    fontWeight="500"
-                                    color={
-                                        isDone
-                                            ? "$successColor"
-                                            : "$destructiveColor"
-                                    }
+                                    fontSize={12}
+                                    color="$colorTertiary"
                                 >
-                                    {isDone ? "Done" : "Let go"}
+                                    {isDone ? "✓" : "—"}
                                 </Text>
-                            </View>
+                                <Text
+                                    fontFamily="$body"
+                                    fontSize={11}
+                                    color="$colorTertiary"
+                                >
+                                    {isDone ? "Completed" : "Dropped"}
+                                </Text>
+                            </XStack>
                         )}
                     </XStack>
                 </YStack>
@@ -1171,7 +1187,7 @@ export default function PlansScreen() {
     const reducedMotion = useReducedMotionPreference();
     const useNativeDriver = Platform.OS !== "web";
 
-    const [activeFilter, setActiveFilter] = useState(0);
+    const [activeFilter, setActiveFilter] = useState(1); // Default to "Open"
     const [sheetOpen, setSheetOpen] = useState(false);
     const [updatingPlanId, setUpdatingPlanId] = useState<string | null>(null);
 
@@ -1241,21 +1257,6 @@ export default function PlansScreen() {
                 useNativeDriver,
             }),
         ]).start();
-    }, []);
-
-    // FAB entrance — delayed slightly
-    const fabScale = useRef(
-        new Animated.Value(reducedMotion ? 1 : 0)
-    ).current;
-    useEffect(() => {
-        if (reducedMotion) return;
-        Animated.timing(fabScale, {
-            toValue: 1,
-            duration: 300,
-            delay: 400,
-            easing: Easing.out(Easing.cubic),
-            useNativeDriver,
-        }).start();
     }, []);
 
     const handleRefresh = useCallback(() => {
@@ -1391,26 +1392,28 @@ export default function PlansScreen() {
                                 </Text>
                             </YStack>
 
-                            <YStack
-                                paddingHorizontal="$3"
-                                paddingVertical="$1.5"
-                                borderRadius="$4"
-                                onPress={handleSignOut}
-                                pressStyle={{ opacity: 0.6 }}
-                                accessibilityRole="button"
-                                accessibilityLabel="Sign out"
-                                cursor="pointer"
-                                minHeight={36}
+                            <View
+                                width={36}
+                                height={36}
+                                borderRadius={18}
+                                backgroundColor="$colorTertiary"
                                 justifyContent="center"
+                                alignItems="center"
+                                onPress={handleSignOut}
+                                pressStyle={{ opacity: 0.7, scale: 0.95 }}
+                                accessibilityRole="button"
+                                accessibilityLabel="Account menu"
+                                cursor="pointer"
                             >
                                 <Text
                                     fontFamily="$body"
-                                    fontSize="$3"
-                                    color="$colorTertiary"
+                                    fontSize={14}
+                                    fontWeight="600"
+                                    color="white"
                                 >
-                                    Sign Out
+                                    Y
                                 </Text>
-                            </YStack>
+                            </View>
                         </XStack>
 
                         {/* Plan count subtitle */}
@@ -1428,57 +1431,60 @@ export default function PlansScreen() {
                         ) : null}
                     </YStack>
 
-                    {/* ---- Filter chips ---- */}
+                    {/* ---- Segmented filter control ---- */}
                     <XStack
-                        gap="$2"
                         paddingHorizontal="$6"
                         paddingTop="$2"
                         paddingBottom="$3"
                     >
-                        {STATE_FILTERS.map((filter, i) => {
-                            const isActive = i === activeFilter;
-                            return (
-                                <YStack
-                                    key={filter.label}
-                                    paddingHorizontal="$3"
-                                    paddingVertical="$1.5"
-                                    borderRadius="$12"
-                                    backgroundColor={
-                                        isActive
-                                            ? "$accentBackground"
-                                            : "transparent"
-                                    }
-                                    borderWidth={isActive ? 0 : 1}
-                                    borderColor="$borderColor"
-                                    onPress={() => setActiveFilter(i)}
-                                    pressStyle={{
-                                        scale: 0.95,
-                                        opacity: 0.8,
-                                    }}
-                                    // @ts-ignore
-                                    animation="fast"
-                                    accessibilityRole="button"
-                                    accessibilityLabel={`Filter by ${filter.label}`}
-                                    accessibilityState={{ selected: isActive }}
-                                    cursor="pointer"
-                                    minHeight={34}
-                                    justifyContent="center"
-                                >
-                                    <Text
-                                        fontFamily="$body"
-                                        fontSize="$3"
-                                        fontWeight="500"
-                                        color={
+                        <XStack
+                            backgroundColor="$backgroundStrong"
+                            borderRadius="$12"
+                            padding={2}
+                        >
+                            {STATE_FILTERS.map((filter, i) => {
+                                const isActive = i === activeFilter;
+                                return (
+                                    <YStack
+                                        key={filter.label}
+                                        paddingHorizontal="$4"
+                                        paddingVertical="$1.5"
+                                        borderRadius="$12"
+                                        backgroundColor={
                                             isActive
-                                                ? "$accentColor"
-                                                : "$colorSecondary"
+                                                ? "$accentBackground"
+                                                : "transparent"
                                         }
+                                        onPress={() => setActiveFilter(i)}
+                                        pressStyle={{
+                                            scale: 0.95,
+                                            opacity: 0.8,
+                                        }}
+                                        // @ts-ignore
+                                        animation="fast"
+                                        accessibilityRole="button"
+                                        accessibilityLabel={`Filter by ${filter.label}`}
+                                        accessibilityState={{ selected: isActive }}
+                                        cursor="pointer"
+                                        minHeight={32}
+                                        justifyContent="center"
                                     >
-                                        {filter.label}
-                                    </Text>
-                                </YStack>
-                            );
-                        })}
+                                        <Text
+                                            fontFamily="$body"
+                                            fontSize="$3"
+                                            fontWeight={isActive ? "600" : "500"}
+                                            color={
+                                                isActive
+                                                    ? "$accentColor"
+                                                    : "$colorSecondary"
+                                            }
+                                        >
+                                            {filter.label}
+                                        </Text>
+                                    </YStack>
+                                );
+                            })}
+                        </XStack>
                     </XStack>
                 </Animated.View>
 
@@ -1523,7 +1529,7 @@ export default function PlansScreen() {
                         contentContainerStyle={{
                             paddingHorizontal: 24,
                             paddingTop: 12,
-                            paddingBottom: 120,
+                            paddingBottom: 16,
                         }}
                         showsVerticalScrollIndicator={false}
                         onRefresh={handleRefresh}
@@ -1533,25 +1539,24 @@ export default function PlansScreen() {
                     />
                 )}
 
-                {/* ---- FAB: New Plan with frosted effect ---- */}
-                <Animated.View
-                    style={{
-                        position: "absolute",
-                        bottom: 32,
-                        right: 24,
-                        transform: [{ scale: fabScale }],
-                    }}
+                {/* ---- Bottom bar: New Plan CTA ---- */}
+                <YStack
+                    paddingHorizontal="$6"
+                    paddingTop="$3"
+                    paddingBottom="$2"
+                    backgroundColor="$background"
+                    borderTopWidth={1}
+                    borderTopColor="$borderColorSubtle"
                 >
                     <YStack
-                        height={56}
-                        paddingHorizontal="$5"
-                        borderRadius="$12"
+                        height={48}
+                        borderRadius="$6"
                         backgroundColor="$accentBackground"
                         justifyContent="center"
                         alignItems="center"
                         onPress={() => setSheetOpen(true)}
                         pressStyle={{
-                            scale: 0.93,
+                            scale: 0.98,
                             backgroundColor: "$accentBackgroundPress",
                         }}
                         // @ts-ignore
@@ -1561,11 +1566,10 @@ export default function PlansScreen() {
                         cursor="pointer"
                         // @ts-ignore
                         shadowColor="#B8860B"
-                        shadowOffset={{ width: 0, height: 6 }}
-                        shadowOpacity={0.25}
-                        shadowRadius={18}
-                        elevation={8}
-                        opacity={0.95}
+                        shadowOffset={{ width: 0, height: 3 }}
+                        shadowOpacity={0.12}
+                        shadowRadius={8}
+                        elevation={3}
                     >
                         <XStack alignItems="center" gap="$1.5">
                             <Text
@@ -1586,7 +1590,7 @@ export default function PlansScreen() {
                             </Text>
                         </XStack>
                     </YStack>
-                </Animated.View>
+                </YStack>
 
                 {/* ---- Create sheet ---- */}
                 <CreatePlanSheet
