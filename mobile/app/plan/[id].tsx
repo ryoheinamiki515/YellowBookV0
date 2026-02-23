@@ -4,7 +4,6 @@ import {
     Animated,
     Easing,
     Keyboard,
-    Modal,
     Platform,
     Pressable,
     ScrollView,
@@ -325,223 +324,186 @@ function WhenSheet({
     );
 
     return (
-        <Modal
-            visible={open}
-            transparent
-            animationType="slide"
-            onRequestClose={() => onOpenChange(false)}
-        >
-            <Pressable
-                style={{ flex: 1, backgroundColor: "rgba(42,36,32,0.35)" }}
-                onPress={() => onOpenChange(false)}
-            />
-            <YStack
-                position="absolute"
-                bottom={0}
-                left={0}
-                right={0}
-                backgroundColor="$surface"
-                borderTopLeftRadius="$8"
-                borderTopRightRadius="$8"
-                padding="$6"
-                paddingBottom="$11"
-                // @ts-ignore
-                shadowColor="rgba(0,0,0,0.15)"
-                shadowOffset={{ width: 0, height: -4 }}
-                shadowOpacity={1}
-                shadowRadius={20}
-                elevation={12}
+        <BottomSheetModal open={open} onOpenChange={onOpenChange}>
+            <Text
+                fontFamily="$heading"
+                fontSize="$8"
+                color="$color"
+                marginBottom="$4"
             >
-                {/* Drag handle */}
-                <XStack justifyContent="center" marginBottom="$4">
-                    <View
-                        width={36}
-                        height={4}
-                        borderRadius="$12"
-                        backgroundColor="$borderColor"
-                    />
-                </XStack>
+                When?
+            </Text>
 
-                <Text
-                    fontFamily="$heading"
-                    fontSize="$8"
-                    color="$color"
-                    marginBottom="$4"
-                >
-                    When?
-                </Text>
-
-                {mode === "menu" ? (
-                    <YStack gap="$3">
-                        <Pressable onPress={handlePickDay}>
-                            <YStack
-                                backgroundColor="$backgroundStrong"
-                                padding="$4"
-                                borderRadius="$5"
+            {mode === "menu" ? (
+                <YStack gap="$3">
+                    <Pressable onPress={handlePickDay}>
+                        <YStack
+                            backgroundColor="$backgroundStrong"
+                            padding="$4"
+                            borderRadius="$5"
+                        >
+                            <Text
+                                fontFamily="$body"
+                                fontSize="$5"
+                                fontWeight="500"
+                                color="$color"
                             >
-                                <Text
-                                    fontFamily="$body"
-                                    fontSize="$5"
-                                    fontWeight="500"
-                                    color="$color"
-                                >
-                                    Pick a day
-                                </Text>
-                                <Text
-                                    fontFamily="$body"
-                                    fontSize="$2"
-                                    color="$colorTertiary"
-                                    marginTop="$1"
-                                >
-                                    Choose a date for this plan
-                                </Text>
-                            </YStack>
-                        </Pressable>
-
-                        <Pressable onPress={handlePickWindow}>
-                            <YStack
-                                backgroundColor="$backgroundStrong"
-                                padding="$4"
-                                borderRadius="$5"
+                                Pick a day
+                            </Text>
+                            <Text
+                                fontFamily="$body"
+                                fontSize="$2"
+                                color="$colorTertiary"
+                                marginTop="$1"
                             >
-                                <Text
-                                    fontFamily="$body"
-                                    fontSize="$5"
-                                    fontWeight="500"
-                                    color="$color"
-                                >
-                                    Rough window
-                                </Text>
-                                <Text
-                                    fontFamily="$body"
-                                    fontSize="$2"
-                                    color="$colorTertiary"
-                                    marginTop="$1"
-                                >
-                                    Set an earliest and latest date
-                                </Text>
-                            </YStack>
-                        </Pressable>
-
-                        <Pressable onPress={handlePickExact}>
-                            <YStack
-                                backgroundColor="$backgroundStrong"
-                                padding="$4"
-                                borderRadius="$5"
-                            >
-                                <Text
-                                    fontFamily="$body"
-                                    fontSize="$5"
-                                    fontWeight="500"
-                                    color="$color"
-                                >
-                                    Specific time
-                                </Text>
-                                <Text
-                                    fontFamily="$body"
-                                    fontSize="$2"
-                                    color="$colorTertiary"
-                                    marginTop="$1"
-                                >
-                                    Pick a date and time
-                                </Text>
-                            </YStack>
-                        </Pressable>
-
-                        <Pressable onPress={handleNoDate}>
-                            <YStack
-                                backgroundColor="$backgroundStrong"
-                                padding="$4"
-                                borderRadius="$5"
-                            >
-                                <Text
-                                    fontFamily="$body"
-                                    fontSize="$5"
-                                    fontWeight="500"
-                                    color="$color"
-                                >
-                                    No date yet
-                                </Text>
-                                <Text
-                                    fontFamily="$body"
-                                    fontSize="$2"
-                                    color="$colorTertiary"
-                                    marginTop="$1"
-                                >
-                                    We'll figure it out later
-                                </Text>
-                            </YStack>
-                        </Pressable>
-                    </YStack>
-                ) : mode === "window" ? (
-                    <ScrollView
-                        showsVerticalScrollIndicator={false}
-                        keyboardShouldPersistTaps="handled"
-                    >
-                        <YStack gap="$4">
-                            <YStack>
-                                <Text
-                                    fontFamily="$body"
-                                    fontSize="$3"
-                                    fontWeight="600"
-                                    color="$colorSecondary"
-                                    marginBottom="$2"
-                                >
-                                    Earliest date
-                                </Text>
-                                <DateTimePicker
-                                    value={windowStart}
-                                    mode="date"
-                                    display="inline"
-                                    onChange={(_event, date) => {
-                                        if (date) setWindowStart(date);
-                                    }}
-                                    style={{ width: "100%" }}
-                                />
-                            </YStack>
-
-                            <YStack>
-                                <Text
-                                    fontFamily="$body"
-                                    fontSize="$3"
-                                    fontWeight="600"
-                                    color="$colorSecondary"
-                                    marginBottom="$2"
-                                >
-                                    Latest date
-                                </Text>
-                                <DateTimePicker
-                                    value={windowEnd}
-                                    mode="date"
-                                    display="inline"
-                                    minimumDate={windowStart}
-                                    onChange={(_event, date) => {
-                                        if (date) setWindowEnd(date);
-                                    }}
-                                    style={{ width: "100%" }}
-                                />
-                            </YStack>
-
-                            {renderBackConfirmButtons(handleWindowConfirm)}
+                                Choose a date for this plan
+                            </Text>
                         </YStack>
-                    </ScrollView>
-                ) : (
-                    <YStack gap="$4" alignItems="center">
-                        <DateTimePicker
-                            value={pickedDate}
-                            mode={mode === "datetime" ? "datetime" : "date"}
-                            display="inline"
-                            onChange={(_event, date) => {
-                                if (date) setPickedDate(date);
-                            }}
-                            style={{ width: "100%" }}
-                        />
+                    </Pressable>
 
-                        {renderBackConfirmButtons(handleDateConfirm)}
+                    <Pressable onPress={handlePickWindow}>
+                        <YStack
+                            backgroundColor="$backgroundStrong"
+                            padding="$4"
+                            borderRadius="$5"
+                        >
+                            <Text
+                                fontFamily="$body"
+                                fontSize="$5"
+                                fontWeight="500"
+                                color="$color"
+                            >
+                                Rough window
+                            </Text>
+                            <Text
+                                fontFamily="$body"
+                                fontSize="$2"
+                                color="$colorTertiary"
+                                marginTop="$1"
+                            >
+                                Set an earliest and latest date
+                            </Text>
+                        </YStack>
+                    </Pressable>
+
+                    <Pressable onPress={handlePickExact}>
+                        <YStack
+                            backgroundColor="$backgroundStrong"
+                            padding="$4"
+                            borderRadius="$5"
+                        >
+                            <Text
+                                fontFamily="$body"
+                                fontSize="$5"
+                                fontWeight="500"
+                                color="$color"
+                            >
+                                Specific time
+                            </Text>
+                            <Text
+                                fontFamily="$body"
+                                fontSize="$2"
+                                color="$colorTertiary"
+                                marginTop="$1"
+                            >
+                                Pick a date and time
+                            </Text>
+                        </YStack>
+                    </Pressable>
+
+                    <Pressable onPress={handleNoDate}>
+                        <YStack
+                            backgroundColor="$backgroundStrong"
+                            padding="$4"
+                            borderRadius="$5"
+                        >
+                            <Text
+                                fontFamily="$body"
+                                fontSize="$5"
+                                fontWeight="500"
+                                color="$color"
+                            >
+                                No date yet
+                            </Text>
+                            <Text
+                                fontFamily="$body"
+                                fontSize="$2"
+                                color="$colorTertiary"
+                                marginTop="$1"
+                            >
+                                We&apos;ll figure it out later
+                            </Text>
+                        </YStack>
+                    </Pressable>
+                </YStack>
+            ) : mode === "window" ? (
+                <ScrollView
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                >
+                    <YStack gap="$4">
+                        <YStack>
+                            <Text
+                                fontFamily="$body"
+                                fontSize="$3"
+                                fontWeight="600"
+                                color="$colorSecondary"
+                                marginBottom="$2"
+                            >
+                                Earliest date
+                            </Text>
+                            <DateTimePicker
+                                value={windowStart}
+                                mode="date"
+                                display="inline"
+                                onChange={(_event, date) => {
+                                    if (date) setWindowStart(date);
+                                }}
+                                style={{ width: "100%" }}
+                            />
+                        </YStack>
+
+                        <YStack>
+                            <Text
+                                fontFamily="$body"
+                                fontSize="$3"
+                                fontWeight="600"
+                                color="$colorSecondary"
+                                marginBottom="$2"
+                            >
+                                Latest date
+                            </Text>
+                            <DateTimePicker
+                                value={windowEnd}
+                                mode="date"
+                                display="inline"
+                                minimumDate={windowStart}
+                                onChange={(_event, date) => {
+                                    if (date) setWindowEnd(date);
+                                }}
+                                style={{ width: "100%" }}
+                            />
+                        </YStack>
+
+                        {renderBackConfirmButtons(handleWindowConfirm)}
                     </YStack>
-                )}
-            </YStack>
-        </Modal>
+                </ScrollView>
+            ) : (
+                <YStack gap="$4" alignItems="center">
+                    <DateTimePicker
+                        value={pickedDate}
+                        mode={mode === "datetime" ? "datetime" : "date"}
+                        display="inline"
+                        onChange={(_event, date) => {
+                            if (date) setPickedDate(date);
+                        }}
+                        style={{ width: "100%" }}
+                    />
+
+                    {renderBackConfirmButtons(handleDateConfirm)}
+                </YStack>
+            )}
+        </BottomSheetModal>
     );
 }
 

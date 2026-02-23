@@ -1,5 +1,15 @@
 import React from "react";
-import { Keyboard, Modal, Pressable } from "react-native";
+import {
+    Animated,
+    Dimensions,
+    Easing,
+    Keyboard,
+    Modal,
+    Platform,
+    Pressable,
+    StyleSheet,
+} from "react-native";
+import type { KeyboardEvent } from "react-native";
 import { Input, Spinner, Text, View, XStack, YStack } from "tamagui";
 
 const SHEET_SHADOW_STYLE = {
@@ -18,6 +28,12 @@ const PRIMARY_BUTTON_SHADOW_STYLE = {
     elevation: 3,
 } as const;
 
+const BACKDROP_COLOR = "rgba(42,36,32,0.35)";
+const SHEET_ANIMATION_DURATION_MS = 280;
+const SHEET_HIDDEN_OFFSET = Dimensions.get("window").height;
+const SCREEN_HEIGHT = Dimensions.get("screen").height;
+const KEYBOARD_SHEET_OVERLAP_PX = 20;
+
 type BottomSheetModalProps = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -31,47 +47,182 @@ export function BottomSheetModal({
     children,
     minHeight,
 }: BottomSheetModalProps) {
+    const [visible, setVisible] = React.useState(open);
+    const transition = React.useRef(new Animated.Value(open ? 1 : 0)).current;
+    const keyboardOffset = React.useRef(new Animated.Value(0)).current;
+
+    const animateKeyboardOffset = React.useCallback(
+        (toValue: number, duration = 250) => {
+            keyboardOffset.stopAnimation();
+
+            Animated.timing(keyboardOffset, {
+                toValue,
+                duration,
+                easing: Easing.out(Easing.cubic),
+                useNativeDriver: true,
+            }).start();
+        },
+        [keyboardOffset]
+    );
+
+    React.useEffect(() => {
+        if (open) {
+            setVisible(true);
+        }
+    }, [open]);
+
+    React.useEffect(() => {
+        if (!visible) {
+            return;
+        }
+
+        let cancelled = false;
+        transition.stopAnimation();
+
+        const animation = Animated.timing(transition, {
+            toValue: open ? 1 : 0,
+            duration: SHEET_ANIMATION_DURATION_MS,
+            easing: open ? Easing.out(Easing.cubic) : Easing.in(Easing.cubic),
+            useNativeDriver: true,
+        });
+
+        animation.start(({ finished }) => {
+            if (cancelled || !finished) {
+                return;
+            }
+
+            if (!open) {
+                setVisible(false);
+            }
+        });
+
+        return () => {
+            cancelled = true;
+            animation.stop();
+        };
+    }, [open, transition, visible]);
+
+    React.useEffect(() => {
+        const showEvent =
+            Platform.OS === "ios" ? "keyboardWillChangeFrame" : "keyboardDidShow";
+        const hideEvent =
+            Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+        const showSubscription = Keyboard.addListener(showEvent, (event) => {
+            const height =
+                Platform.OS === "ios"
+                    ? Math.max(0, SCREEN_HEIGHT - event.endCoordinates.screenY)
+                    : event.endCoordinates.height;
+
+            animateKeyboardOffset(height, event.duration || 250);
+        });
+
+        const hideSubscription = Keyboard.addListener(
+            hideEvent,
+            (event: KeyboardEvent) => {
+                animateKeyboardOffset(0, event.duration || 250);
+            }
+        );
+
+        return () => {
+            showSubscription.remove();
+            hideSubscription.remove();
+        };
+    }, [animateKeyboardOffset]);
+
+    React.useEffect(() => {
+        if (!visible) {
+            keyboardOffset.setValue(0);
+        }
+    }, [keyboardOffset, visible]);
+
     const handleClose = () => {
         Keyboard.dismiss();
         onOpenChange(false);
     };
 
+    const sheetTranslateY = transition.interpolate({
+        inputRange: [0, 1],
+        outputRange: [SHEET_HIDDEN_OFFSET, 0],
+    });
+    const keyboardLift = keyboardOffset.interpolate({
+        inputRange: [0, KEYBOARD_SHEET_OVERLAP_PX, SCREEN_HEIGHT],
+        outputRange: [0, 0, SCREEN_HEIGHT - KEYBOARD_SHEET_OVERLAP_PX],
+        extrapolate: "clamp",
+    });
+    const keyboardFillTranslateY = Animated.add(
+        Animated.multiply(keyboardLift, -1),
+        SCREEN_HEIGHT
+    );
+
+    if (!visible) {
+        return null;
+    }
+
     return (
         <Modal
-            visible={open}
+            visible={visible}
             transparent
-            animationType="slide"
+            animationType="none"
             onRequestClose={handleClose}
         >
             <Pressable
-                style={{ flex: 1, backgroundColor: "rgba(42,36,32,0.35)" }}
+                style={StyleSheet.absoluteFill}
                 onPress={handleClose}
-            />
-
-            <YStack
-                position="absolute"
-                bottom={0}
-                left={0}
-                right={0}
-                backgroundColor="$surface"
-                borderTopLeftRadius="$8"
-                borderTopRightRadius="$8"
-                padding="$6"
-                paddingBottom="$11"
-                minHeight={minHeight}
-                style={SHEET_SHADOW_STYLE}
             >
-                <XStack justifyContent="center" marginBottom="$4">
-                    <View
-                        width={36}
-                        height={4}
-                        borderRadius="$12"
-                        backgroundColor="$borderColor"
-                    />
-                </XStack>
+                <Animated.View
+                    pointerEvents="none"
+                    style={[
+                        StyleSheet.absoluteFill,
+                        {
+                            backgroundColor: BACKDROP_COLOR,
+                            opacity: transition,
+                        },
+                    ]}
+                />
+            </Pressable>
 
-                {children}
-            </YStack>
+            <Animated.View
+                pointerEvents="none"
+                style={{
+                    position: "absolute",
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    height: SCREEN_HEIGHT,
+                    transform: [
+                        { translateY: sheetTranslateY },
+                        { translateY: keyboardFillTranslateY },
+                    ],
+                }}
+            >
+                <YStack flex={1} backgroundColor="$surface" />
+            </Animated.View>
+
+            <Animated.View
+                style={{
+                    position: "absolute",
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    transform: [
+                        { translateY: sheetTranslateY },
+                        { translateY: Animated.multiply(keyboardLift, -1) },
+                    ],
+                }}
+            >
+                <YStack
+                    backgroundColor="$surface"
+                    borderTopLeftRadius="$8"
+                    borderTopRightRadius="$8"
+                    padding="$6"
+                    paddingBottom="$11"
+                    minHeight={minHeight}
+                    style={SHEET_SHADOW_STYLE}
+                >
+                    {children}
+                </YStack>
+            </Animated.View>
         </Modal>
     );
 }
