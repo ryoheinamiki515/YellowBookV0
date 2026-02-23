@@ -781,10 +781,9 @@ components:
     Person:
       type: object
       description: |
-        Minimal Person record for linking plans to the user's People Library.
-
-        This is intentionally minimal in this spec; YellowBook may extend it additively
-        (birthday, neighborhood, vibes, notes, etc.) without breaking clients.
+        Private People Library record for linking plans to the user's people.
+        Stores only user-authored, lightweight context.
+        No inferred scores, rankings, or passive social graph metadata.
       properties:
         id:
           $ref: "#/components/schemas/Uuid"
@@ -792,6 +791,37 @@ components:
           type: string
           minLength: 1
           maxLength: 120
+        pronouns:
+          type: [string, "null"]
+          minLength: 1
+          maxLength: 80
+        neighborhood:
+          type: [string, "null"]
+          minLength: 1
+          maxLength: 120
+        notes:
+          type: [string, "null"]
+          maxLength: 20000
+        birthday:
+          type: [object, "null"]
+          additionalProperties: false
+          properties:
+            month:
+              type: integer
+              minimum: 1
+              maximum: 12
+            day:
+              type: integer
+              minimum: 1
+              maximum: 31
+            year:
+              type: [integer, "null"]
+              minimum: 1900
+              maximum: 2100
+          required: [month, day]
+        archivedAt:
+          type: [string, "null"]
+          format: date-time
         createdAt:
           type: string
           format: date-time
@@ -973,6 +1003,34 @@ components:
           type: string
           minLength: 1
           maxLength: 120
+        pronouns:
+          type: [string, "null"]
+          minLength: 1
+          maxLength: 80
+        neighborhood:
+          type: [string, "null"]
+          minLength: 1
+          maxLength: 120
+        notes:
+          type: [string, "null"]
+          maxLength: 20000
+        birthday:
+          type: [object, "null"]
+          additionalProperties: false
+          properties:
+            month:
+              type: integer
+              minimum: 1
+              maximum: 12
+            day:
+              type: integer
+              minimum: 1
+              maximum: 31
+            year:
+              type: [integer, "null"]
+              minimum: 1900
+              maximum: 2100
+          required: [month, day]
       required: [displayName]
 
     PersonPatchRequest:
@@ -983,6 +1041,37 @@ components:
           type: string
           minLength: 1
           maxLength: 120
+        pronouns:
+          type: [string, "null"]
+          minLength: 1
+          maxLength: 80
+        neighborhood:
+          type: [string, "null"]
+          minLength: 1
+          maxLength: 120
+        notes:
+          type: [string, "null"]
+          maxLength: 20000
+        birthday:
+          type: [object, "null"]
+          additionalProperties: false
+          properties:
+            month:
+              type: integer
+              minimum: 1
+              maximum: 12
+            day:
+              type: integer
+              minimum: 1
+              maximum: 31
+            year:
+              type: [integer, "null"]
+              minimum: 1900
+              maximum: 2100
+          required: [month, day]
+        archivedAt:
+          type: [string, "null"]
+          format: date-time
 
     # -----------------------
     # Response envelopes

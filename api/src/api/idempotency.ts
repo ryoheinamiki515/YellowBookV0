@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from "express";
 import crypto from "crypto";
 import { PrismaClient } from "@prisma/client";
 import { serializeSocialPlan } from "./serializers/socialPlan.js";
+import { serializePerson } from "./serializers/person.js";
 import { planEtag } from "./etag.js";
 
 export function hashBody(body: any) {
@@ -21,6 +22,11 @@ export function makeWithIdempotency(prisma: PrismaClient) {
             const requestHash = hashBody(req.body);
 
             try {
+                const resourceTypeByScope: Record<string, "SocialPlan" | "Person"> = {
+                    "POST /v1/plans": "SocialPlan",
+                    "POST /v1/people": "Person",
+                };
+
                 // Try to reserve this key
                 await prisma.idempotencyKey.create({
                     data: { ownerId, key, scope, requestHash },
@@ -30,11 +36,16 @@ export function makeWithIdempotency(prisma: PrismaClient) {
                 const originalJson = res.json.bind(res);
                 res.json = (async (payload: any) => {
                     // Expect your handler returns { data: { id: ... } }
-                    const resourceId = payload?.data?.id;
+                    const resourceId = typeof payload?.data?.id === "string" ? payload.data.id : undefined;
+                    const resourceType = resourceTypeByScope[scope];
                     if (resourceId) {
+                        const updateData: { resourceId: string; resourceType?: "SocialPlan" | "Person" } = { resourceId };
+                        if (resourceType) {
+                            updateData.resourceType = resourceType;
+                        }
                         await prisma.idempotencyKey.update({
                             where: { ownerId_key_scope: { ownerId, key, scope } },
-                            data: { resourceType: "SocialPlan", resourceId },
+                            data: updateData,
                         });
                     }
                     return originalJson(payload);
@@ -63,6 +74,17 @@ export function makeWithIdempotency(prisma: PrismaClient) {
                         res.setHeader("ETag", planEtag(plan));
                         res.status(201);
                         return res.json({ data: serializeSocialPlan(plan) });
+                    }
+
+                    if (record?.resourceType === "Person" && record.resourceId) {
+                        const person = await prisma.person.findFirst({
+                            where: { id: record.resourceId, ownerId },
+                        });
+                        if (!person) return next({ status: 409, expose: true, message: "idempotent_resource_missing" });
+
+                        res.setHeader("Location", `/v1/people/${person.id}`);
+                        res.status(201);
+                        return res.json({ data: serializePerson(person) });
                     }
 
                     // Key reserved but not completed (rare race) — fail fast

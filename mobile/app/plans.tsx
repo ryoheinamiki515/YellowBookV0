@@ -1392,28 +1392,53 @@ export default function PlansScreen() {
                                 </Text>
                             </YStack>
 
-                            <View
-                                width={36}
-                                height={36}
-                                borderRadius={18}
-                                backgroundColor="$colorTertiary"
-                                justifyContent="center"
-                                alignItems="center"
-                                onPress={handleSignOut}
-                                pressStyle={{ opacity: 0.7, scale: 0.95 }}
-                                accessibilityRole="button"
-                                accessibilityLabel="Account menu"
-                                cursor="pointer"
-                            >
-                                <Text
-                                    fontFamily="$body"
-                                    fontSize={14}
-                                    fontWeight="600"
-                                    color="white"
+                            <XStack alignItems="center" gap="$2">
+                                <Pressable
+                                    onPress={() => router.push("/people")}
+                                    hitSlop={8}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Go to People"
                                 >
-                                    Y
-                                </Text>
-                            </View>
+                                    <View
+                                        paddingHorizontal="$3"
+                                        paddingVertical="$1.5"
+                                        borderRadius="$10"
+                                        backgroundColor="$backgroundStrong"
+                                    >
+                                        <Text
+                                            fontFamily="$body"
+                                            fontSize="$3"
+                                            fontWeight="500"
+                                            color="$colorSecondary"
+                                        >
+                                            People
+                                        </Text>
+                                    </View>
+                                </Pressable>
+
+                                <View
+                                    width={36}
+                                    height={36}
+                                    borderRadius={18}
+                                    backgroundColor="$colorTertiary"
+                                    justifyContent="center"
+                                    alignItems="center"
+                                    onPress={handleSignOut}
+                                    pressStyle={{ opacity: 0.7, scale: 0.95 }}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Account menu"
+                                    cursor="pointer"
+                                >
+                                    <Text
+                                        fontFamily="$body"
+                                        fontSize={14}
+                                        fontWeight="600"
+                                        color="white"
+                                    >
+                                        Y
+                                    </Text>
+                                </View>
+                            </XStack>
                         </XStack>
 
                         {/* Plan count subtitle */}
