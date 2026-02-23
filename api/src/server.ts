@@ -4,9 +4,10 @@ import express from "express";
 import cookieParser from "cookie-parser";
 import type { Request, Response, NextFunction } from "express";
 import { z } from "zod";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, type Prisma } from "@prisma/client";
 import { middleware as openapiValidator } from "express-openapi-validator";
 import { serializeSocialPlan } from "./api/serializers/socialPlan.js";
+import { serializePerson } from "./api/serializers/person.js";
 import { makeRequireUser } from "./middleware/requireUser.js";
 import { planEtag, ifMatchFailed } from "./api/etag.js";
 import { makeWithIdempotency } from "./api/idempotency.js";
@@ -99,6 +100,86 @@ const SocialPlanConstraints = z
             });
         }
     });
+
+const PersonBirthdaySchema = z
+    .object({
+        month: z.number().int().min(1).max(12),
+        day: z.number().int().min(1).max(31),
+        year: z.number().int().min(1900).max(2100).nullable().optional(),
+    })
+    .superRefine((data, ctx) => {
+        // Validate actual calendar day while allowing yearless birthdays.
+        const year = data.year ?? 2000; // leap-safe reference year
+        const dt = new Date(Date.UTC(year, data.month - 1, data.day));
+        const valid =
+            dt.getUTCFullYear() === year &&
+            dt.getUTCMonth() === data.month - 1 &&
+            dt.getUTCDate() === data.day;
+
+        if (!valid) {
+            ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "birthday is not a valid calendar date",
+                path: ["day"],
+            });
+        }
+    });
+
+const CreatePersonSchema = z.object({
+    displayName: z.string().trim().min(1).max(120),
+    pronouns: z.string().trim().min(1).max(80).nullable().optional(),
+    neighborhood: z.string().trim().min(1).max(120).nullable().optional(),
+    notes: z.string().trim().max(20000).nullable().optional(),
+    birthday: PersonBirthdaySchema.nullable().optional(),
+});
+
+const PatchPersonSchema = z.object({
+    displayName: z.string().trim().min(1).max(120).optional(),
+    pronouns: z.string().trim().min(1).max(80).nullable().optional(),
+    neighborhood: z.string().trim().min(1).max(120).nullable().optional(),
+    notes: z.string().trim().max(20000).nullable().optional(),
+    birthday: PersonBirthdaySchema.nullable().optional(),
+    archivedAt: z.string().datetime().nullable().optional(),
+});
+
+function nullIfBlank(value: string | null | undefined) {
+    if (value == null) return null;
+    const trimmed = value.trim();
+    return trimmed.length ? trimmed : null;
+}
+
+function toPersonCreateData(ownerId: string, input: z.infer<typeof CreatePersonSchema>): Prisma.PersonUncheckedCreateInput {
+    return {
+        ownerId,
+        displayName: input.displayName,
+        pronouns: nullIfBlank(input.pronouns),
+        neighborhood: nullIfBlank(input.neighborhood),
+        notes: nullIfBlank(input.notes),
+        birthdayMonth: input.birthday?.month ?? null,
+        birthdayDay: input.birthday?.day ?? null,
+        birthdayYear: input.birthday?.year ?? null,
+        archivedAt: null,
+    };
+}
+
+function toPersonPatchData(patch: z.infer<typeof PatchPersonSchema>): Prisma.PersonUncheckedUpdateInput {
+    const data: Prisma.PersonUncheckedUpdateInput = {};
+
+    if ("displayName" in patch && patch.displayName !== undefined) data.displayName = patch.displayName;
+    if ("pronouns" in patch) data.pronouns = nullIfBlank(patch.pronouns);
+    if ("neighborhood" in patch) data.neighborhood = nullIfBlank(patch.neighborhood);
+    if ("notes" in patch) data.notes = nullIfBlank(patch.notes);
+    if ("birthday" in patch) {
+        data.birthdayMonth = patch.birthday?.month ?? null;
+        data.birthdayDay = patch.birthday?.day ?? null;
+        data.birthdayYear = patch.birthday?.year ?? null;
+    }
+    if ("archivedAt" in patch) {
+        data.archivedAt = patch.archivedAt ? new Date(patch.archivedAt) : null;
+    }
+
+    return data;
+}
 
 // ---------------------------------------------------------------------------
 // POST /plans — Create a social plan
@@ -233,7 +314,10 @@ v1.get("/plans/:planId", ...requireUser(["read:socialplans"]), async (req, res, 
         const ownerId = (req as any).userId as string;
         const planId = req.params.planId;
 
-        const plan = await prisma.socialPlan.findFirst({ where: { id: planId, ownerId } });
+        const plan = await prisma.socialPlan.findFirst({
+            where: { id: planId, ownerId },
+            include: { participants: true },
+        });
         if (!plan) return next({ status: 404, expose: true, message: "not_found" });
 
         res.setHeader("ETag", planEtag(plan));
@@ -287,6 +371,346 @@ v1.patch("/plans/:planId", ...requireUser(["create:socialplans"]), async (req: a
 
         res.setHeader("ETag", planEtag(updated));
         res.json({ data: serializeSocialPlan(updated) });
+    } catch (e) {
+        next(e);
+    }
+});
+
+// ---------------------------------------------------------------------------
+// DELETE /v1/plans/:planId — Permanently delete a social plan
+// ---------------------------------------------------------------------------
+v1.delete("/plans/:planId", ...requireUser(["create:socialplans"]), async (req, res, next) => {
+    try {
+        const ownerId = (req as any).userId as string;
+        const planId = req.params.planId as string;
+
+        const result = await prisma.socialPlan.deleteMany({
+            where: { id: planId, ownerId },
+        });
+
+        if (result.count === 0) {
+            return next({ status: 404, expose: true, message: "not_found" });
+        }
+
+        res.status(204).end();
+    } catch (e) {
+        next(e);
+    }
+});
+
+// ---------------------------------------------------------------------------
+// POST /v1/plans/:planId/participants — Add a participant to a plan
+// ---------------------------------------------------------------------------
+const AddParticipantSchema = z.object({
+    personId: z.string().uuid().nullable().optional(),
+    displayName: z.string().max(120).nullable().optional(),
+    isPrimary: z.boolean().default(false),
+}).refine(
+    (d) => d.personId || d.displayName,
+    { message: "At least one of personId or displayName is required" }
+);
+
+v1.post(
+    "/plans/:planId/participants",
+    ...requireUser(["create:socialplans"]),
+    withIdempotency("POST /v1/plans/:planId/participants", async (req, res, next) => {
+        try {
+            const ownerId = (req as any).userId as string;
+            const planId = req.params.planId as string;
+
+            const plan = await prisma.socialPlan.findFirst({ where: { id: planId, ownerId } });
+            if (!plan) return next({ status: 404, expose: true, message: "not_found" });
+
+            const data = AddParticipantSchema.parse(req.body);
+
+            // If personId provided, verify the person belongs to this user
+            if (data.personId) {
+                const person = await prisma.person.findFirst({
+                    where: { id: data.personId, ownerId },
+                });
+                if (!person) return next({ status: 404, expose: true, message: "person_not_found" });
+            }
+
+            const participant = await prisma.socialPlanParticipant.create({
+                data: {
+                    planId: planId,
+                    personId: data.personId ?? null,
+                    displayName: data.displayName ?? null,
+                    isPrimary: data.isPrimary,
+                },
+            });
+
+            res.setHeader("Location", `/v1/plans/${planId}/participants/${participant.id}`);
+            res.status(201).json({
+                data: {
+                    id: participant.id,
+                    planId: participant.planId,
+                    personId: participant.personId,
+                    displayName: participant.displayName,
+                    isPrimary: participant.isPrimary,
+                    createdAt: participant.createdAt.toISOString(),
+                },
+            });
+        } catch (e: any) {
+            // Unique constraint violation → 409 Conflict
+            if (e?.code === "P2002") {
+                return next({ status: 409, expose: true, message: "participant_already_exists" });
+            }
+            next(e);
+        }
+    })
+);
+
+// ---------------------------------------------------------------------------
+// PATCH /v1/plans/:planId/participants/:participantId — Update a participant
+// ---------------------------------------------------------------------------
+const PatchParticipantSchema = z.object({
+    displayName: z.string().max(120).nullable().optional(),
+    isPrimary: z.boolean().optional(),
+});
+
+v1.patch("/plans/:planId/participants/:participantId", ...requireUser(["create:socialplans"]), async (req, res, next) => {
+    try {
+        const ownerId = (req as any).userId as string;
+        const planId = req.params.planId as string;
+        const participantId = req.params.participantId as string;
+
+        const plan = await prisma.socialPlan.findFirst({ where: { id: planId, ownerId } });
+        if (!plan) return next({ status: 404, expose: true, message: "not_found" });
+
+        const existing = await prisma.socialPlanParticipant.findFirst({
+            where: { id: participantId, planId },
+        });
+        if (!existing) return next({ status: 404, expose: true, message: "not_found" });
+
+        const patch = PatchParticipantSchema.parse(req.body);
+        const updateData: Record<string, unknown> = {};
+        if ("displayName" in patch) updateData.displayName = patch.displayName ?? null;
+        if ("isPrimary" in patch) updateData.isPrimary = patch.isPrimary;
+
+        if (Object.keys(updateData).length === 0) {
+            return res.json({
+                data: {
+                    id: existing.id,
+                    planId: existing.planId,
+                    personId: existing.personId,
+                    displayName: existing.displayName,
+                    isPrimary: existing.isPrimary,
+                    createdAt: existing.createdAt.toISOString(),
+                },
+            });
+        }
+
+        const updated = await prisma.socialPlanParticipant.update({
+            where: { id: participantId },
+            data: updateData,
+        });
+
+        res.json({
+            data: {
+                id: updated.id,
+                planId: updated.planId,
+                personId: updated.personId,
+                displayName: updated.displayName,
+                isPrimary: updated.isPrimary,
+                createdAt: updated.createdAt.toISOString(),
+            },
+        });
+    } catch (e) {
+        next(e);
+    }
+});
+
+// ---------------------------------------------------------------------------
+// DELETE /v1/plans/:planId/participants/:participantId — Remove a participant
+// ---------------------------------------------------------------------------
+v1.delete("/plans/:planId/participants/:participantId", ...requireUser(["create:socialplans"]), async (req, res, next) => {
+    try {
+        const ownerId = (req as any).userId as string;
+        const planId = req.params.planId as string;
+        const participantId = req.params.participantId as string;
+
+        const plan = await prisma.socialPlan.findFirst({ where: { id: planId, ownerId } });
+        if (!plan) return next({ status: 404, expose: true, message: "not_found" });
+
+        const result = await prisma.socialPlanParticipant.deleteMany({
+            where: { id: participantId, planId },
+        });
+
+        if (result.count === 0) {
+            return next({ status: 404, expose: true, message: "not_found" });
+        }
+
+        res.status(204).end();
+    } catch (e) {
+        next(e);
+    }
+});
+
+// ---------------------------------------------------------------------------
+// GET /v1/people — List people in the user's People Library
+// ---------------------------------------------------------------------------
+v1.get("/people", ...requireUser([]), async (req, res, next) => {
+    try {
+        const ownerId = (req as any).userId as string;
+
+        const limit = Math.min(Math.max(Number(req.query.limit ?? 50), 1), 200);
+        const cursorStr = typeof req.query.cursor === "string" ? req.query.cursor : undefined;
+        const qRaw = typeof req.query.q === "string" ? req.query.q : undefined;
+        const q = qRaw?.trim();
+
+        if (qRaw !== undefined && !q) {
+            return next({ status: 400, expose: true, message: "q must not be blank" });
+        }
+
+        let cursor: { updatedAt: Date; id: string } | null = null;
+        if (cursorStr) {
+            try {
+                const c = decodeCursor(cursorStr);
+                cursor = { updatedAt: new Date(c.updatedAt), id: c.id };
+            } catch (_e) {
+                return next({ status: 400, expose: true, message: "invalid_cursor" });
+            }
+        }
+
+        const where: Prisma.PersonWhereInput = {
+            ownerId,
+            ...(q
+                ? {
+                    displayName: {
+                        contains: q,
+                        mode: "insensitive",
+                    },
+                }
+                : {}),
+            ...(cursor
+                ? {
+                    OR: [
+                        { updatedAt: { lt: cursor.updatedAt } },
+                        {
+                            updatedAt: cursor.updatedAt,
+                            id: { lt: cursor.id },
+                        },
+                    ],
+                }
+                : {}),
+        };
+
+        const rows = await prisma.person.findMany({
+            where,
+            orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+            take: limit + 1,
+        });
+
+        const hasNext = rows.length > limit;
+        const pageRows = hasNext ? rows.slice(0, limit) : rows;
+
+        let nextCursor: string | null = null;
+        if (hasNext) {
+            const lastRow = pageRows[pageRows.length - 1];
+            if (lastRow) {
+                nextCursor = encodeCursor({
+                    updatedAt: lastRow.updatedAt.toISOString(),
+                    id: lastRow.id,
+                });
+            }
+        }
+
+        res.json({
+            data: pageRows.map(serializePerson),
+            page: { limit, nextCursor },
+        });
+    } catch (e) {
+        next(e);
+    }
+});
+
+// ---------------------------------------------------------------------------
+// POST /v1/people — Create a person in the user's People Library
+// ---------------------------------------------------------------------------
+v1.post(
+    "/people",
+    ...requireUser([]),
+    withIdempotency("POST /v1/people", async (req, res, next) => {
+        try {
+            const ownerId = (req as any).userId as string;
+            const input = CreatePersonSchema.parse(req.body);
+
+            const person = await prisma.person.create({
+                data: toPersonCreateData(ownerId, input),
+            });
+
+            res.setHeader("Location", `/v1/people/${person.id}`);
+            res.status(201).json({ data: serializePerson(person) });
+        } catch (e) {
+            next(e);
+        }
+    })
+);
+
+// ---------------------------------------------------------------------------
+// GET /v1/people/:personId — Get a person
+// ---------------------------------------------------------------------------
+v1.get("/people/:personId", ...requireUser([]), async (req, res, next) => {
+    try {
+        const ownerId = (req as any).userId as string;
+        const personId = req.params.personId;
+
+        const person = await prisma.person.findFirst({ where: { id: personId, ownerId } });
+        if (!person) return next({ status: 404, expose: true, message: "not_found" });
+
+        res.json({ data: serializePerson(person) });
+    } catch (e) {
+        next(e);
+    }
+});
+
+// ---------------------------------------------------------------------------
+// PATCH /v1/people/:personId — Update a person (JSON Merge Patch)
+// ---------------------------------------------------------------------------
+v1.patch("/people/:personId", ...requireUser([]), async (req, res, next) => {
+    try {
+        const ownerId = (req as any).userId as string;
+        const personId = req.params.personId;
+
+        const current = await prisma.person.findFirst({ where: { id: personId, ownerId } });
+        if (!current) return next({ status: 404, expose: true, message: "not_found" });
+
+        const patch = PatchPersonSchema.parse(req.body);
+        const data = toPersonPatchData(patch);
+
+        if (Object.keys(data).length === 0) {
+            return res.json({ data: serializePerson(current) });
+        }
+
+        const updated = await prisma.person.update({
+            where: { id: current.id },
+            data,
+        });
+
+        res.json({ data: serializePerson(updated) });
+    } catch (e) {
+        next(e);
+    }
+});
+
+// ---------------------------------------------------------------------------
+// DELETE /v1/people/:personId — Delete a person
+// ---------------------------------------------------------------------------
+v1.delete("/people/:personId", ...requireUser([]), async (req, res, next) => {
+    try {
+        const ownerId = (req as any).userId as string;
+        const personId = req.params.personId;
+
+        const result = await prisma.person.deleteMany({
+            where: { id: personId, ownerId },
+        });
+
+        if (result.count === 0) {
+            return next({ status: 404, expose: true, message: "not_found" });
+        }
+
+        res.status(204).end();
     } catch (e) {
         next(e);
     }

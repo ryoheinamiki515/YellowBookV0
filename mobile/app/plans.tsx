@@ -64,6 +64,46 @@ function formatRelativeDate(iso: string | null | undefined): string | null {
     });
 }
 
+function formatWhenBadge(plan: SocialPlan): string | null {
+    if (plan.timePrecision === "NONE") return "Whenever";
+    if (plan.timePrecision === "UNSPECIFIED" || !plan.anchorStart) return null;
+
+    const start = formatRelativeDate(plan.anchorStart);
+    if (!start) return null;
+
+    if (plan.timePrecision === "EXACT") {
+        const date = new Date(plan.anchorStart);
+        const timeStr = date.toLocaleTimeString(undefined, {
+            hour: "numeric",
+            minute: "2-digit",
+        });
+        return `${start}, ${timeStr}`;
+    }
+
+    // WINDOW with end date — show range
+    if (plan.anchorEnd) {
+        const endDate = new Date(plan.anchorEnd);
+        const startDate = new Date(plan.anchorStart);
+        // If same day, just show the single date
+        if (
+            startDate.getFullYear() === endDate.getFullYear() &&
+            startDate.getMonth() === endDate.getMonth() &&
+            startDate.getDate() === endDate.getDate()
+        ) {
+            return start;
+        }
+        const endStr = endDate.toLocaleDateString(undefined, {
+            month: "short",
+            day: "numeric",
+        });
+        // For relative labels like "Tomorrow", show "Tomorrow — Mar 8"
+        // For absolute labels like "Mar 5", show "Mar 5 — Mar 8"
+        return `${start} — ${endStr}`;
+    }
+
+    return start;
+}
+
 function participantNames(plan: SocialPlan): string | null {
     const names = plan.participants
         .map((p) => p.displayName)
@@ -277,7 +317,7 @@ function HeroCard({
     isUpdating: boolean;
     reducedMotion: boolean;
 }) {
-    const when = formatRelativeDate(plan.anchorStart);
+    const when = formatWhenBadge(plan);
     const accentColor = getAccentColor(plan);
     const useNativeDriver = Platform.OS !== "web";
 
@@ -514,7 +554,7 @@ function CompactCard({
     index: number;
     reducedMotion: boolean;
 }) {
-    const when = formatRelativeDate(plan.anchorStart);
+    const when = formatWhenBadge(plan);
     const isDone = plan.state === "DONE";
     const isDropped = plan.state === "DROPPED";
     const isOpen = plan.state === "OPEN";
@@ -1392,28 +1432,53 @@ export default function PlansScreen() {
                                 </Text>
                             </YStack>
 
-                            <View
-                                width={36}
-                                height={36}
-                                borderRadius={18}
-                                backgroundColor="$colorTertiary"
-                                justifyContent="center"
-                                alignItems="center"
-                                onPress={handleSignOut}
-                                pressStyle={{ opacity: 0.7, scale: 0.95 }}
-                                accessibilityRole="button"
-                                accessibilityLabel="Account menu"
-                                cursor="pointer"
-                            >
-                                <Text
-                                    fontFamily="$body"
-                                    fontSize={14}
-                                    fontWeight="600"
-                                    color="white"
+                            <XStack alignItems="center" gap="$2">
+                                <Pressable
+                                    onPress={() => router.push("/people")}
+                                    hitSlop={8}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Go to People"
                                 >
-                                    Y
-                                </Text>
-                            </View>
+                                    <View
+                                        paddingHorizontal="$3"
+                                        paddingVertical="$1.5"
+                                        borderRadius="$10"
+                                        backgroundColor="$backgroundStrong"
+                                    >
+                                        <Text
+                                            fontFamily="$body"
+                                            fontSize="$3"
+                                            fontWeight="500"
+                                            color="$colorSecondary"
+                                        >
+                                            People
+                                        </Text>
+                                    </View>
+                                </Pressable>
+
+                                <View
+                                    width={36}
+                                    height={36}
+                                    borderRadius={18}
+                                    backgroundColor="$colorTertiary"
+                                    justifyContent="center"
+                                    alignItems="center"
+                                    onPress={handleSignOut}
+                                    pressStyle={{ opacity: 0.7, scale: 0.95 }}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Account menu"
+                                    cursor="pointer"
+                                >
+                                    <Text
+                                        fontFamily="$body"
+                                        fontSize={14}
+                                        fontWeight="600"
+                                        color="white"
+                                    >
+                                        Y
+                                    </Text>
+                                </View>
+                            </XStack>
                         </XStack>
 
                         {/* Plan count subtitle */}

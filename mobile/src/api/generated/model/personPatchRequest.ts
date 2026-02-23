@@ -16,6 +16,7 @@ Non-goals for this surface (intentionally excluded):
 
  * OpenAPI spec version: 1.0.0
  */
+import type { PersonPatchRequestBirthday } from './personPatchRequestBirthday';
 
 export interface PersonPatchRequest {
   /**
@@ -23,4 +24,25 @@ export interface PersonPatchRequest {
    * @maxLength 120
    */
   displayName?: string;
+  /**
+   * @minLength 1
+   * @maxLength 80
+   * @nullable
+   */
+  pronouns?: string | null;
+  /**
+   * @minLength 1
+   * @maxLength 120
+   * @nullable
+   */
+  neighborhood?: string | null;
+  /**
+   * @maxLength 20000
+   * @nullable
+   */
+  notes?: string | null;
+  /** @nullable */
+  birthday?: PersonPatchRequestBirthday;
+  /** @nullable */
+  archivedAt?: string | null;
 }

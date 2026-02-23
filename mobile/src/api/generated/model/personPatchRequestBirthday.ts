@@ -16,31 +16,25 @@ Non-goals for this surface (intentionally excluded):
 
  * OpenAPI spec version: 1.0.0
  */
-import type { PersonCreateRequestBirthday } from './personCreateRequestBirthday';
 
-export interface PersonCreateRequest {
+/**
+ * @nullable
+ */
+export type PersonPatchRequestBirthday = {
   /**
-   * @minLength 1
-   * @maxLength 120
+   * @minimum 1
+   * @maximum 12
    */
-  displayName: string;
+  month: number;
   /**
-   * @minLength 1
-   * @maxLength 80
+   * @minimum 1
+   * @maximum 31
+   */
+  day: number;
+  /**
+   * @minimum 1900
+   * @maximum 2100
    * @nullable
    */
-  pronouns?: string | null;
-  /**
-   * @minLength 1
-   * @maxLength 120
-   * @nullable
-   */
-  neighborhood?: string | null;
-  /**
-   * @maxLength 20000
-   * @nullable
-   */
-  notes?: string | null;
-  /** @nullable */
-  birthday?: PersonCreateRequestBirthday;
-}
+  year?: number | null;
+} | null;

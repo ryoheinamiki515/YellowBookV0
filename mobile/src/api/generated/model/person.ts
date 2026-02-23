@@ -16,13 +16,13 @@ Non-goals for this surface (intentionally excluded):
 
  * OpenAPI spec version: 1.0.0
  */
+import type { PersonBirthday } from './personBirthday';
 import type { Uuid } from './uuid';
 
 /**
- * Minimal Person record for linking plans to the user's People Library.
-
-This is intentionally minimal in this spec; YellowBook may extend it additively
-(birthday, neighborhood, vibes, notes, etc.) without breaking clients.
+ * Private People Library record for linking plans to the user's people.
+Stores only user-authored, lightweight context.
+No inferred scores, rankings, or passive social graph metadata.
 
  */
 export interface Person {
@@ -32,6 +32,27 @@ export interface Person {
    * @maxLength 120
    */
   displayName: string;
+  /**
+   * @minLength 1
+   * @maxLength 80
+   * @nullable
+   */
+  pronouns?: string | null;
+  /**
+   * @minLength 1
+   * @maxLength 120
+   * @nullable
+   */
+  neighborhood?: string | null;
+  /**
+   * @maxLength 20000
+   * @nullable
+   */
+  notes?: string | null;
+  /** @nullable */
+  birthday?: PersonBirthday;
+  /** @nullable */
+  archivedAt?: string | null;
   createdAt: string;
   updatedAt: string;
   [key: string]: unknown;
