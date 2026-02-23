@@ -433,7 +433,7 @@ function AddPersonSheet({
     open: boolean;
     onOpenChange: (open: boolean) => void;
     planId: string;
-    onAdded: () => void;
+    onAdded: (participant: SocialPlanParticipant) => void;
 }) {
     const [searchText, setSearchText] = useState("");
     const [debouncedQ, setDebouncedQ] = useState("");
@@ -471,8 +471,10 @@ function AddPersonSheet({
                     data: { personId: person.id, displayName: person.displayName },
                 },
                 {
-                    onSuccess: () => {
-                        onAdded();
+                    onSuccess: (response) => {
+                        if (response.status === 201) {
+                            onAdded(response.data.data);
+                        }
                         onOpenChange(false);
                     },
                 }
@@ -487,8 +489,10 @@ function AddPersonSheet({
         addParticipant.mutate(
             { planId, data: { displayName: name } },
             {
-                onSuccess: () => {
-                    onAdded();
+                onSuccess: (response) => {
+                    if (response.status === 201) {
+                        onAdded(response.data.data);
+                    }
                     onOpenChange(false);
                 },
             }
@@ -749,6 +753,47 @@ export default function PlanDetailScreen() {
         queryClient.invalidateQueries({ queryKey: getListPlansQueryKey() });
         queryClient.invalidateQueries({ queryKey: getGetPlanQueryKey(id!) });
     }, [queryClient, id]);
+
+    const handleParticipantAdded = useCallback(
+        (participant: SocialPlanParticipant) => {
+            queryClient.setQueryData(getGetPlanQueryKey(id!), (current: unknown) => {
+                if (
+                    !current ||
+                    typeof current !== "object" ||
+                    !("status" in current) ||
+                    !("data" in current) ||
+                    (current as { status?: number }).status !== 200
+                ) {
+                    return current;
+                }
+
+                const typedCurrent = current as unknown as {
+                    data: {
+                        data: SocialPlan;
+                    };
+                };
+                const currentPlan = typedCurrent.data.data;
+
+                if (currentPlan.participants.some((p) => p.id === participant.id)) {
+                    return current;
+                }
+
+                return {
+                    ...typedCurrent,
+                    data: {
+                        ...typedCurrent.data,
+                        data: {
+                            ...currentPlan,
+                            participants: [...currentPlan.participants, participant],
+                        },
+                    },
+                };
+            });
+
+            invalidateAll();
+        },
+        [id, invalidateAll, queryClient]
+    );
 
     // --- Patch helpers ---
 
@@ -1417,7 +1462,7 @@ export default function PlanDetailScreen() {
                     open={addPersonSheetOpen}
                     onOpenChange={setAddPersonSheetOpen}
                     planId={id!}
-                    onAdded={invalidateAll}
+                    onAdded={handleParticipantAdded}
                 />
             </YStack>
         </SafeAreaView>
