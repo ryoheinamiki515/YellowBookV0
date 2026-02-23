@@ -4,14 +4,19 @@ import {
     Animated,
     Easing,
     Keyboard,
-    Modal,
     Platform,
     Pressable,
 } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
-import { YStack, XStack, Text, View, Input, Spinner } from "tamagui";
+import { YStack, XStack, Text, View } from "tamagui";
 import { SafeAreaView } from "react-native-safe-area-context";
+import {
+    BottomSheetHeader,
+    BottomSheetModal,
+    BottomSheetPrimaryButton,
+    BottomSheetTextField,
+} from "../src/components/BottomSheetPrimitives";
 
 import {
     useListPlans,
@@ -1075,144 +1080,32 @@ function CreatePlanSheet({
     }, [intentText, createPlan, onOpenChange, onCreated]);
 
     return (
-        <Modal
-            visible={open}
-            transparent
-            animationType="slide"
-            onRequestClose={() => onOpenChange(false)}
-        >
-            {/* Overlay */}
-            <Pressable
-                style={{ flex: 1, backgroundColor: "rgba(42,36,32,0.35)" }}
-                onPress={() => {
-                    Keyboard.dismiss();
-                    onOpenChange(false);
-                }}
+        <BottomSheetModal open={open} onOpenChange={onOpenChange}>
+            <BottomSheetHeader
+                title="New plan"
+                subtitle="What would you like to do with someone?"
             />
 
-            {/* Sheet frame */}
-            <YStack
-                position="absolute"
-                bottom={0}
-                left={0}
-                right={0}
-                backgroundColor="$surface"
-                borderTopLeftRadius="$8"
-                borderTopRightRadius="$8"
-                padding="$6"
-                paddingBottom="$11"
-                // @ts-ignore
-                shadowColor="rgba(0,0,0,0.15)"
-                shadowOffset={{ width: 0, height: -4 }}
-                shadowOpacity={1}
-                shadowRadius={20}
-                elevation={12}
-            >
-                {/* Drag handle */}
-                <XStack justifyContent="center" marginBottom="$4">
-                    <View
-                        width={36}
-                        height={4}
-                        borderRadius="$12"
-                        backgroundColor="$borderColor"
-                    />
-                </XStack>
+            <BottomSheetTextField
+                placeholder="Lunch with Sam, gym Monday, call Dad..."
+                placeholderTextColor="$placeholderColor"
+                value={intentText}
+                onChangeText={setIntentText}
+                autoFocus
+                returnKeyType="done"
+                onSubmitEditing={handleCreate}
+                accessibilityLabel="What's the plan?"
+            />
 
-                <Text
-                    fontFamily="$heading"
-                    fontSize="$8"
-                    color="$color"
-                    marginBottom="$1"
-                >
-                    New plan
-                </Text>
-                <Text
-                    fontFamily="$body"
-                    fontSize="$3"
-                    color="$colorTertiary"
-                    marginBottom="$4"
-                >
-                    What would you like to do with someone?
-                </Text>
-
-                <Input
-                    fontFamily="$body"
-                    fontSize="$6"
-                    color="$color"
-                    backgroundColor="$inputBackground"
-                    borderColor="$borderColor"
-                    borderWidth={1}
-                    borderRadius="$5"
-                    paddingHorizontal="$4"
-                    paddingVertical="$3"
-                    placeholder="Lunch with Sam, gym Monday, call Dad..."
-                    placeholderTextColor="$placeholderColor"
-                    value={intentText}
-                    onChangeText={setIntentText}
-                    autoFocus
-                    returnKeyType="done"
-                    onSubmitEditing={handleCreate}
-                    focusStyle={{
-                        borderColor: "$borderColorFocus",
-                        borderWidth: 2,
-                    }}
-                    accessibilityLabel="What's the plan?"
-                />
-
-                {/* Save button */}
-                <YStack
-                    height="$12"
-                    borderRadius="$6"
-                    backgroundColor="$accentBackground"
-                    justifyContent="center"
-                    alignItems="center"
-                    marginTop="$4"
-                    onPress={handleCreate}
-                    disabled={!intentText.trim() || createPlan.isPending}
-                    opacity={
-                        !intentText.trim() || createPlan.isPending ? 0.45 : 1
-                    }
-                    pressStyle={{
-                        scale: 0.98,
-                        backgroundColor: "$accentBackgroundPress",
-                    }}
-                    // @ts-ignore
-                    animation="fast"
-                    accessibilityRole="button"
-                    accessibilityLabel="Save plan"
-                    cursor="pointer"
-                    // @ts-ignore
-                    shadowColor="#B8860B"
-                    shadowOffset={{ width: 0, height: 3 }}
-                    shadowOpacity={0.12}
-                    shadowRadius={8}
-                    elevation={3}
-                >
-                    {createPlan.isPending ? (
-                        <XStack alignItems="center" gap="$2">
-                            <Spinner size="small" color="$accentColor" />
-                            <Text
-                                fontFamily="$body"
-                                fontSize="$4"
-                                fontWeight="600"
-                                color="$accentColor"
-                            >
-                                Saving...
-                            </Text>
-                        </XStack>
-                    ) : (
-                        <Text
-                            fontFamily="$body"
-                            fontSize="$4"
-                            fontWeight="600"
-                            color="$accentColor"
-                        >
-                            Save Plan
-                        </Text>
-                    )}
-                </YStack>
-            </YStack>
-        </Modal>
+            <BottomSheetPrimaryButton
+                label="Save Plan"
+                loadingLabel="Saving..."
+                loading={createPlan.isPending}
+                onPress={handleCreate}
+                disabled={!intentText.trim() || createPlan.isPending}
+                accessibilityLabel="Save plan"
+            />
+        </BottomSheetModal>
     );
 }
 

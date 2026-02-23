@@ -3,8 +3,6 @@ import {
     Alert,
     Animated,
     Easing,
-    Keyboard,
-    Modal,
     Platform,
     Pressable,
     ScrollView,
@@ -14,6 +12,13 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { YStack, XStack, Text, View } from "tamagui";
 import { SafeAreaView } from "react-native-safe-area-context";
+import {
+    BottomSheetHeader,
+    BottomSheetModal,
+    BottomSheetPrimaryButton,
+    BottomSheetSecondaryButton,
+    BottomSheetSectionLabel,
+} from "../../src/components/BottomSheetPrimitives";
 
 import {
     useGetPerson,
@@ -220,64 +225,15 @@ function BirthdaySheet({
     const clampedDay = Math.min(day, daysInMonth);
 
     return (
-        <Modal
-            visible={open}
-            transparent
-            animationType="slide"
-            onRequestClose={() => onOpenChange(false)}
-        >
-            <Pressable
-                style={{ flex: 1, backgroundColor: "rgba(42,36,32,0.35)" }}
-                onPress={() => onOpenChange(false)}
-            />
-            <YStack
-                position="absolute"
-                bottom={0}
-                left={0}
-                right={0}
-                backgroundColor="$surface"
-                borderTopLeftRadius="$8"
-                borderTopRightRadius="$8"
-                padding="$6"
-                paddingBottom="$11"
-                // @ts-ignore
-                shadowColor="rgba(0,0,0,0.15)"
-                shadowOffset={{ width: 0, height: -4 }}
-                shadowOpacity={1}
-                shadowRadius={20}
-                elevation={12}
-            >
-                <XStack justifyContent="center" marginBottom="$4">
-                    <View
-                        width={36}
-                        height={4}
-                        borderRadius="$12"
-                        backgroundColor="$borderColor"
-                    />
-                </XStack>
-
-                <Text
-                    fontFamily="$heading"
-                    fontSize="$8"
-                    color="$color"
-                    marginBottom="$4"
-                >
-                    Birthday
-                </Text>
+        <BottomSheetModal open={open} onOpenChange={onOpenChange}>
+            <BottomSheetHeader title="Birthday" />
 
                 {/* Month picker */}
                 <YStack gap="$3">
                     <YStack gap="$1">
-                        <Text
-                            fontFamily="$body"
-                            fontSize={11}
-                            fontWeight="600"
-                            color="$colorTertiary"
-                            letterSpacing={1}
-                            textTransform="uppercase"
-                        >
+                        <BottomSheetSectionLabel marginBottom={0}>
                             Month
-                        </Text>
+                        </BottomSheetSectionLabel>
                         <ScrollView
                             horizontal
                             showsHorizontalScrollIndicator={false}
@@ -326,16 +282,9 @@ function BirthdaySheet({
 
                     {/* Day picker */}
                     <YStack gap="$1">
-                        <Text
-                            fontFamily="$body"
-                            fontSize={11}
-                            fontWeight="600"
-                            color="$colorTertiary"
-                            letterSpacing={1}
-                            textTransform="uppercase"
-                        >
+                        <BottomSheetSectionLabel marginBottom={0}>
                             Day
-                        </Text>
+                        </BottomSheetSectionLabel>
                         <ScrollView
                             horizontal
                             showsHorizontalScrollIndicator={false}
@@ -389,16 +338,9 @@ function BirthdaySheet({
 
                     {/* Year (optional) */}
                     <YStack gap="$1">
-                        <Text
-                            fontFamily="$body"
-                            fontSize={11}
-                            fontWeight="600"
-                            color="$colorTertiary"
-                            letterSpacing={1}
-                            textTransform="uppercase"
-                        >
+                        <BottomSheetSectionLabel marginBottom={0}>
                             Year (optional)
-                        </Text>
+                        </BottomSheetSectionLabel>
                         <RNTextInput
                             value={year}
                             onChangeText={setYear}
@@ -423,55 +365,23 @@ function BirthdaySheet({
                 {/* Buttons */}
                 <XStack gap="$3" marginTop="$5">
                     {currentBirthday && (
-                        <YStack
+                        <BottomSheetSecondaryButton
                             flex={1}
-                            height="$11"
-                            borderRadius="$6"
-                            borderWidth={1}
-                            borderColor="$borderColor"
-                            justifyContent="center"
-                            alignItems="center"
+                            label="Clear"
                             onPress={handleClear}
-                            pressStyle={{ opacity: 0.7 }}
-                            cursor="pointer"
-                        >
-                            <Text
-                                fontFamily="$body"
-                                fontSize="$4"
-                                color="$colorSecondary"
-                            >
-                                Clear
-                            </Text>
-                        </YStack>
+                            accessibilityLabel="Clear birthday"
+                        />
                     )}
-                    <YStack
+                    <BottomSheetPrimaryButton
                         flex={2}
                         height="$11"
-                        borderRadius="$6"
-                        backgroundColor="$accentBackground"
-                        justifyContent="center"
-                        alignItems="center"
+                        marginTop={0}
+                        label="Confirm"
                         onPress={handleConfirm}
-                        pressStyle={{
-                            scale: 0.98,
-                            backgroundColor: "$accentBackgroundPress",
-                        }}
-                        // @ts-ignore
-                        animation="fast"
-                        cursor="pointer"
-                    >
-                        <Text
-                            fontFamily="$body"
-                            fontSize="$4"
-                            fontWeight="600"
-                            color="$accentColor"
-                        >
-                            Confirm
-                        </Text>
-                    </YStack>
+                        accessibilityLabel="Confirm birthday"
+                    />
                 </XStack>
-            </YStack>
-        </Modal>
+        </BottomSheetModal>
     );
 }
 

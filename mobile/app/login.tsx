@@ -203,12 +203,18 @@ export default function LoginScreen() {
     };
 
     const handleSignUp = () => {
-        promptAsync({
-            extraParams: {
-                screen_hint: "signup",
-                audience: process.env.EXPO_PUBLIC_AUTH0_AUDIENCE!,
-            },
-        });
+        const authUrl = request?.url;
+        if (!authUrl) return;
+
+        const signupUrl = new URL(authUrl);
+        signupUrl.searchParams.set("screen_hint", "signup");
+        // Keep audience explicit in case the generated URL is reused across environments.
+        signupUrl.searchParams.set(
+            "audience",
+            process.env.EXPO_PUBLIC_AUTH0_AUDIENCE!
+        );
+
+        promptAsync({ url: signupUrl.toString() });
     };
 
     const isLoading = isExchanging || !request;
@@ -240,7 +246,7 @@ export default function LoginScreen() {
                         shadowOffset={{ width: 0, height: 6 }}
                         shadowOpacity={0.18}
                         shadowRadius={16}
-                        elevation={8}
+                        style={{ elevation: 8 }}
                     >
                         <Text
                             fontFamily="$heading"

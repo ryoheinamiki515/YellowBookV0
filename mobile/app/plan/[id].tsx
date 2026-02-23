@@ -13,9 +13,16 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { YStack, XStack, Text, View, Input } from "tamagui";
+import { YStack, XStack, Text, View } from "tamagui";
 import { SafeAreaView } from "react-native-safe-area-context";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import {
+    BottomSheetHeader,
+    BottomSheetHeaderAction,
+    BottomSheetModal,
+    BottomSheetSectionLabel,
+    BottomSheetTextField,
+} from "../../src/components/BottomSheetPrimitives";
 
 import {
     useGetPlan,
@@ -716,150 +723,94 @@ function AddPersonSheet({
         : null;
 
     return (
-        <Modal
-            visible={open}
-            transparent
-            animationType="slide"
-            onRequestClose={() => onOpenChange(false)}
+        <BottomSheetModal
+            open={open}
+            onOpenChange={onOpenChange}
+            minHeight={300}
         >
-            <Pressable
-                style={{ flex: 1, backgroundColor: "rgba(42,36,32,0.35)" }}
-                onPress={() => {
-                    Keyboard.dismiss();
-                    onOpenChange(false);
-                }}
-            />
-            <YStack
-                position="absolute"
-                bottom={0}
-                left={0}
-                right={0}
-                backgroundColor="$surface"
-                borderTopLeftRadius="$8"
-                borderTopRightRadius="$8"
-                padding="$6"
-                paddingBottom="$11"
-                minHeight={300}
-                // @ts-ignore
-                shadowColor="rgba(0,0,0,0.15)"
-                shadowOffset={{ width: 0, height: -4 }}
-                shadowOpacity={1}
-                shadowRadius={20}
-                elevation={12}
-            >
-                {/* Drag handle */}
-                <XStack justifyContent="center" marginBottom="$4">
-                    <View
-                        width={36}
-                        height={4}
-                        borderRadius="$12"
-                        backgroundColor="$borderColor"
-                    />
-                </XStack>
-
-                <XStack
-                    justifyContent="space-between"
-                    alignItems="center"
-                    marginBottom="$3"
-                >
-                    <Text
-                        fontFamily="$heading"
-                        fontSize="$8"
-                        color="$color"
-                    >
-                        Add someone
-                    </Text>
-                    <Pressable
-                        onPress={() => onOpenChange(false)}
-                        hitSlop={8}
-                        accessibilityRole="button"
+            <BottomSheetHeader
+                title="Add someone"
+                subtitle="Search your People library or type a new name to add."
+                trailingAction={
+                    <BottomSheetHeaderAction
+                        label="Done"
+                        onPress={() => {
+                            Keyboard.dismiss();
+                            onOpenChange(false);
+                        }}
                         accessibilityLabel="Done adding people"
-                    >
-                        <Text
-                            fontFamily="$body"
-                            fontSize="$4"
-                            fontWeight="600"
-                            color="$accentColor"
-                        >
-                            Done
-                        </Text>
-                    </Pressable>
-                </XStack>
+                    />
+                }
+            />
+
+            <BottomSheetTextField
+                placeholder="Search or type a name..."
+                placeholderTextColor="$placeholderColor"
+                value={searchText}
+                onChangeText={setSearchText}
+                autoFocus
+                accessibilityLabel="Search for a person"
+            />
 
                 {/* People already on this plan */}
                 {allOnPlan.length > 0 && (
-                    <XStack
-                        flexWrap="wrap"
-                        gap="$1.5"
-                        marginBottom="$3"
-                    >
-                        {allOnPlan.map((name, i) => (
-                            <XStack
-                                key={`${name}-${i}`}
-                                alignItems="center"
-                                gap="$1.5"
-                                backgroundColor="$backgroundStrong"
-                                paddingHorizontal="$2.5"
-                                paddingVertical="$1"
-                                borderRadius="$10"
-                            >
-                                <View
-                                    width={20}
-                                    height={20}
-                                    borderRadius={10}
-                                    backgroundColor={getInitialColor(name)}
-                                    justifyContent="center"
+                    <YStack marginTop="$3">
+                        <BottomSheetSectionLabel>
+                            On this plan
+                        </BottomSheetSectionLabel>
+                        <XStack
+                            flexWrap="wrap"
+                            gap="$1.5"
+                            marginBottom="$1"
+                        >
+                            {allOnPlan.map((name, i) => (
+                                <XStack
+                                    key={`${name}-${i}`}
                                     alignItems="center"
+                                    gap="$1.5"
+                                    backgroundColor="$backgroundStrong"
+                                    borderWidth={1}
+                                    borderColor="$borderColorSubtle"
+                                    paddingHorizontal="$2.5"
+                                    paddingVertical="$1"
+                                    borderRadius="$10"
                                 >
+                                    <View
+                                        width={20}
+                                        height={20}
+                                        borderRadius={10}
+                                        backgroundColor={getInitialColor(name)}
+                                        justifyContent="center"
+                                        alignItems="center"
+                                    >
+                                        <Text
+                                            fontFamily="$body"
+                                            fontSize={9}
+                                            fontWeight="600"
+                                            color="white"
+                                        >
+                                            {name.charAt(0).toUpperCase()}
+                                        </Text>
+                                    </View>
                                     <Text
                                         fontFamily="$body"
-                                        fontSize={9}
-                                        fontWeight="600"
-                                        color="white"
+                                        fontSize="$2"
+                                        color="$color"
                                     >
-                                        {name.charAt(0).toUpperCase()}
+                                        {name}
                                     </Text>
-                                </View>
-                                <Text
-                                    fontFamily="$body"
-                                    fontSize="$2"
-                                    color="$color"
-                                >
-                                    {name}
-                                </Text>
-                            </XStack>
-                        ))}
-                    </XStack>
+                                </XStack>
+                            ))}
+                        </XStack>
+                    </YStack>
                 )}
-
-                <Input
-                    fontFamily="$body"
-                    fontSize="$5"
-                    color="$color"
-                    backgroundColor="$inputBackground"
-                    borderColor="$borderColor"
-                    borderWidth={1}
-                    borderRadius="$5"
-                    paddingHorizontal="$4"
-                    paddingVertical="$3"
-                    placeholder="Search or type a name..."
-                    placeholderTextColor="$placeholderColor"
-                    value={searchText}
-                    onChangeText={setSearchText}
-                    autoFocus
-                    focusStyle={{
-                        borderColor: "$borderColorFocus",
-                        borderWidth: 2,
-                    }}
-                    accessibilityLabel="Search for a person"
-                />
 
                 <ScrollView
                     style={{ marginTop: 12, maxHeight: 240 }}
                     showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
                 >
-                    <YStack gap="$1">
+                    <YStack gap="$2" paddingBottom="$1">
                         {people.map((person) => (
                             <Pressable
                                 key={person.id}
@@ -871,6 +822,10 @@ function AddPersonSheet({
                                     gap="$3"
                                     padding="$3"
                                     borderRadius="$4"
+                                    borderWidth={1}
+                                    borderColor="$borderColorSubtle"
+                                    backgroundColor="$surface"
+                                    opacity={isAdding ? 0.6 : 1}
                                     pressStyle={{
                                         backgroundColor: "$backgroundStrong",
                                     }}
@@ -932,6 +887,9 @@ function AddPersonSheet({
                                 gap="$3"
                                 padding="$3"
                                 borderRadius="$4"
+                                borderWidth={1}
+                                borderColor="$borderColorSubtle"
+                                backgroundColor="$backgroundStrong"
                                 opacity={0.5}
                             >
                                 <View
@@ -975,7 +933,13 @@ function AddPersonSheet({
                                     gap="$3"
                                     padding="$3"
                                     borderRadius="$4"
+                                    borderWidth={1}
+                                    borderColor="$borderColorSubtle"
+                                    backgroundColor="$surface"
                                     opacity={isAdding ? 0.5 : 1}
+                                    pressStyle={{
+                                        backgroundColor: "$accentBackground",
+                                    }}
                                 >
                                     <View
                                         width={32}
@@ -1023,6 +987,8 @@ function AddPersonSheet({
                                     padding="$4"
                                     alignItems="center"
                                     gap="$1"
+                                    backgroundColor="$backgroundStrong"
+                                    borderRadius="$4"
                                 >
                                     <Text
                                         fontFamily="$body"
@@ -1044,8 +1010,7 @@ function AddPersonSheet({
                             )}
                     </YStack>
                 </ScrollView>
-            </YStack>
-        </Modal>
+        </BottomSheetModal>
     );
 }
 
