@@ -296,6 +296,7 @@ v1.get(
                 }
             }
 
+            res.setHeader("Cache-Control", "no-cache");
             res.json({
                 data: pageRows.map(serializeSocialPlan),
                 page: { limit, nextCursor },
@@ -321,6 +322,7 @@ v1.get("/plans/:planId", ...requireUser(["read:socialplans"]), async (req, res, 
         if (!plan) return next({ status: 404, expose: true, message: "not_found" });
 
         res.setHeader("ETag", planEtag(plan));
+        res.setHeader("Cache-Control", "no-cache");
         res.json({ data: serializeSocialPlan(plan) });
     } catch (e) {
         next(e);
@@ -431,14 +433,20 @@ v1.post(
                 if (!person) return next({ status: 404, expose: true, message: "person_not_found" });
             }
 
-            const participant = await prisma.socialPlanParticipant.create({
-                data: {
-                    planId: planId,
-                    personId: data.personId ?? null,
-                    displayName: data.displayName ?? null,
-                    isPrimary: data.isPrimary,
-                },
-            });
+            const [participant] = await prisma.$transaction([
+                prisma.socialPlanParticipant.create({
+                    data: {
+                        planId: planId,
+                        personId: data.personId ?? null,
+                        displayName: data.displayName ?? null,
+                        isPrimary: data.isPrimary,
+                    },
+                }),
+                prisma.socialPlan.update({
+                    where: { id: planId },
+                    data: { updatedAt: new Date() },
+                }),
+            ]);
 
             res.setHeader("Location", `/v1/plans/${planId}/participants/${participant.id}`);
             res.status(201).json({
@@ -501,10 +509,16 @@ v1.patch("/plans/:planId/participants/:participantId", ...requireUser(["create:s
             });
         }
 
-        const updated = await prisma.socialPlanParticipant.update({
-            where: { id: participantId },
-            data: updateData,
-        });
+        const [updated] = await prisma.$transaction([
+            prisma.socialPlanParticipant.update({
+                where: { id: participantId },
+                data: updateData,
+            }),
+            prisma.socialPlan.update({
+                where: { id: planId },
+                data: { updatedAt: new Date() },
+            }),
+        ]);
 
         res.json({
             data: {
@@ -540,6 +554,11 @@ v1.delete("/plans/:planId/participants/:participantId", ...requireUser(["create:
         if (result.count === 0) {
             return next({ status: 404, expose: true, message: "not_found" });
         }
+
+        await prisma.socialPlan.update({
+            where: { id: planId },
+            data: { updatedAt: new Date() },
+        });
 
         res.status(204).end();
     } catch (e) {
