@@ -304,6 +304,7 @@ const lightTheme: ThemeShape = {
 
     // Surface elevation (cards, sheets, modals)
     surface: '#FFFFFF',
+    surfaceWarm: '#FFFDF7',
     surfaceHover: palette.cream,
     surfacePress: palette.parchment,
     surfaceRaised: '#FFFFFF',
@@ -380,6 +381,7 @@ const darkTheme: ThemeShape = {
 
     // Surface elevation — lighter = higher in dark mode
     surface: palette.ash,
+    surfaceWarm: '#2A2519',
     surfaceHover: palette.ember,
     surfacePress: palette.smoke,
     surfaceRaised: palette.ember,

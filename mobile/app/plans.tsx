@@ -911,14 +911,24 @@ export default function PlansScreen() {
                 )}
 
                 {/* ---- Bottom bar: New Plan CTA ---- */}
-                <YStack
-                    paddingHorizontal="$6"
-                    paddingTop="$3"
-                    paddingBottom="$2"
-                    backgroundColor="$background"
-                    borderTopWidth={1}
-                    borderTopColor="$borderColorSubtle"
-                >
+                <YStack position="relative">
+                    {/* Fade overlay above the bar */}
+                    <View
+                        position="absolute"
+                        top={-16}
+                        left={0}
+                        right={0}
+                        height={16}
+                        backgroundColor="$background"
+                        opacity={0.85}
+                        pointerEvents="none"
+                    />
+                    <YStack
+                        paddingHorizontal="$6"
+                        paddingTop="$3"
+                        paddingBottom="$2"
+                        backgroundColor="$background"
+                    >
                     <YStack
                         height={48}
                         borderRadius="$6"
@@ -927,7 +937,7 @@ export default function PlansScreen() {
                         alignItems="center"
                         onPress={() => setSheetOpen(true)}
                         pressStyle={{
-                            scale: 0.98,
+                            scale: 0.96,
                             backgroundColor: "$accentBackgroundPress",
                         }}
                         // @ts-ignore
@@ -937,10 +947,10 @@ export default function PlansScreen() {
                         cursor="pointer"
                         // @ts-ignore
                         shadowColor="#B8860B"
-                        shadowOffset={{ width: 0, height: 3 }}
-                        shadowOpacity={0.12}
-                        shadowRadius={8}
-                        elevation={3}
+                        shadowOffset={{ width: 0, height: 4 }}
+                        shadowOpacity={0.18}
+                        shadowRadius={12}
+                        elevation={5}
                     >
                         <XStack alignItems="center" gap="$1.5">
                             <Text
@@ -960,6 +970,7 @@ export default function PlansScreen() {
                                 New Plan
                             </Text>
                         </XStack>
+                    </YStack>
                     </YStack>
                 </YStack>
 

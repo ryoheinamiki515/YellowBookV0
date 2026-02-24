@@ -210,10 +210,42 @@ function InfoPill({
     );
 }
 
-function WhenBadge({ label, compact = false }: { label: string; compact?: boolean }) {
+type WhenBadgeTone = "today" | "tomorrow" | "soon" | "pastDue" | "neutral";
+
+function getWhenBadgeTone(plan: SocialPlan): WhenBadgeTone {
+    if (plan.timePrecision === "NONE") return "neutral";
+    const days = getDaysDiff(plan.anchorStart);
+    if (days === null) return "neutral";
+    if (days < 0) return "pastDue";
+    if (days === 0) return "today";
+    if (days === 1) return "tomorrow";
+    if (days <= 7) return "soon";
+    return "neutral";
+}
+
+const whenBadgeToneStyles: Record<WhenBadgeTone, { bg: string; text: string }> = {
+    today: { bg: "rgba(245,200,66,0.18)", text: "#8E6B00" },
+    tomorrow: { bg: "rgba(232,169,74,0.16)", text: "#8E5D1A" },
+    soon: { bg: "rgba(212,128,90,0.14)", text: "#8E4E2A" },
+    pastDue: { bg: "rgba(200,112,112,0.14)", text: "#8E3A3A" },
+    neutral: { bg: "", text: "" },
+};
+
+function WhenBadge({
+    label,
+    compact = false,
+    tone = "neutral",
+}: {
+    label: string;
+    compact?: boolean;
+    tone?: WhenBadgeTone;
+}) {
+    const toneStyle = whenBadgeToneStyles[tone];
+    const hasCustomTone = tone !== "neutral";
+
     return (
         <View
-            backgroundColor="$backgroundStrong"
+            backgroundColor={hasCustomTone ? toneStyle.bg : "$backgroundStrong"}
             paddingHorizontal={compact ? "$1.5" : "$2"}
             paddingVertical={compact ? 2 : "$0.5"}
             borderRadius={compact ? "$3" : "$4"}
@@ -223,8 +255,8 @@ function WhenBadge({ label, compact = false }: { label: string; compact?: boolea
             <Text
                 fontFamily="$body"
                 fontSize={compact ? 10 : "$1"}
-                fontWeight="500"
-                color="$colorSecondary"
+                fontWeight={hasCustomTone ? "600" : "500"}
+                color={hasCustomTone ? toneStyle.text : "$colorSecondary"}
                 numberOfLines={1}
             >
                 {label}
@@ -309,10 +341,12 @@ function AvatarStack({
     plan,
     compact = false,
     inline = false,
+    hero = false,
 }: {
     plan: SocialPlan;
     compact?: boolean;
     inline?: boolean;
+    hero?: boolean;
 }) {
     const names = plan.participants
         .map((p) => p.displayName)
@@ -327,30 +361,38 @@ function AvatarStack({
     return (
         <XStack alignItems="center" marginTop={inline ? 0 : "$1"}>
             <XStack>
-                {displayed.map((name, i) => (
-                    <View
-                        key={name + i}
-                        width={avatarSize}
-                        height={avatarSize}
-                        borderRadius={radius}
-                        backgroundColor={getInitialColor(name)}
-                        justifyContent="center"
-                        alignItems="center"
-                        borderWidth={2}
-                        borderColor="$surface"
-                        marginLeft={i === 0 ? 0 : overlap}
-                        zIndex={displayed.length - i}
-                    >
-                        <Text
-                            fontFamily="$body"
-                            fontSize={compact ? 10 : 12}
-                            fontWeight="600"
-                            color="white"
+                {displayed.map((name, i) => {
+                    const bgColor = getInitialColor(name);
+                    return (
+                        <View
+                            key={name + i}
+                            width={avatarSize}
+                            height={avatarSize}
+                            borderRadius={radius}
+                            backgroundColor={bgColor}
+                            justifyContent="center"
+                            alignItems="center"
+                            borderWidth={hero ? 2.5 : 2}
+                            borderColor="$surface"
+                            marginLeft={i === 0 ? 0 : overlap}
+                            zIndex={displayed.length - i}
+                            // @ts-ignore - shadow props for hero avatar glow
+                            shadowColor={hero ? bgColor : undefined}
+                            shadowOffset={hero ? { width: 0, height: 1 } : undefined}
+                            shadowOpacity={hero ? 0.3 : 0}
+                            shadowRadius={hero ? 4 : 0}
                         >
-                            {name.charAt(0).toUpperCase()}
-                        </Text>
-                    </View>
-                ))}
+                            <Text
+                                fontFamily="$body"
+                                fontSize={compact ? 10 : 12}
+                                fontWeight="600"
+                                color="white"
+                            >
+                                {name.charAt(0).toUpperCase()}
+                            </Text>
+                        </View>
+                    );
+                })}
             </XStack>
             {names.length > 4 ? (
                 <Text
@@ -458,6 +500,7 @@ export function PlanCard({
 }) {
     const isHero = variant === "hero";
     const when = formatWhenBadge(plan);
+    const whenTone = getWhenBadgeTone(plan);
     const isDropped = plan.state === "DROPPED";
     const isInactive = plan.state === "DONE" || isDropped;
     const accentColor = getAccentColor(plan);
@@ -482,7 +525,7 @@ export function PlanCard({
         >
             <Animated.View style={{ backgroundColor: flashBg, borderRadius: cornerRadius }}>
                 <YStack
-                    backgroundColor="$surface"
+                    backgroundColor={isHero ? "$surfaceWarm" : "$surface"}
                     borderRadius={isHero ? "$8" : "$7"}
                     borderWidth={1}
                     borderColor="$borderColorSubtle"
@@ -490,14 +533,34 @@ export function PlanCard({
                     overflow="hidden"
                     // @ts-ignore - Tamagui animation prop
                     animation="fast"
+                    // @ts-ignore - shadow props
+                    shadowColor={isInactive ? undefined : "#2A2420"}
+                    shadowOffset={isHero ? { width: 0, height: 4 } : (!isInactive ? { width: 0, height: 2 } : undefined)}
+                    shadowOpacity={isHero ? 0.08 : (!isInactive ? 0.05 : 0)}
+                    shadowRadius={isHero ? 12 : (!isInactive ? 6 : 0)}
+                    elevation={isHero ? 4 : (!isInactive ? 2 : 0)}
                 >
+                    {/* Decorative warm glow — hero only */}
+                    {isHero && !isInactive ? (
+                        <View
+                            position="absolute"
+                            top={-20}
+                            right={-20}
+                            width={80}
+                            height={80}
+                            borderRadius={40}
+                            backgroundColor="rgba(253,233,168,0.12)"
+                            pointerEvents="none"
+                        />
+                    ) : null}
+
                     {!isInactive ? (
                         <View
                             position="absolute"
                             top={0}
                             left={0}
                             bottom={0}
-                            width={4}
+                            width={isHero ? 5 : 4}
                             backgroundColor={accentColor}
                             borderTopLeftRadius={cornerRadius}
                             borderBottomLeftRadius={cornerRadius}
@@ -540,7 +603,7 @@ export function PlanCard({
                             >
                                 <Text
                                     fontFamily="$heading"
-                                    fontSize={isHero ? "$8" : "$6"}
+                                    fontSize={isHero ? "$9" : "$6"}
                                     color="$color"
                                     numberOfLines={isHero ? 2 : 1}
                                     flex={1}
@@ -554,7 +617,7 @@ export function PlanCard({
                                     flexShrink={0}
                                 >
                                     {when ? (
-                                        <WhenBadge label={when} compact={!isHero} />
+                                        <WhenBadge label={when} compact={!isHero} tone={whenTone} />
                                     ) : null}
                                     <RowChevron compact={!isHero} />
                                 </XStack>
@@ -565,7 +628,7 @@ export function PlanCard({
                                 gap="$2"
                                 marginTop={isHero ? "$2" : "$1"}
                             >
-                                <AvatarStack plan={plan} compact={!isHero} inline />
+                                <AvatarStack plan={plan} compact={!isHero} inline hero={isHero} />
                                 <Text
                                     fontFamily="$body"
                                     fontSize={isHero ? "$2" : 11}
