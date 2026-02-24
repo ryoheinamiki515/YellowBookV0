@@ -21,15 +21,24 @@ import {
 import {
     useListPlans,
     useCreatePlan,
+    usePatchPlan,
     getListPlansQueryKey,
+    getGetPlanQueryKey,
 } from "../src/api/generated/plans/plans";
 import type { SocialPlan } from "../src/api/generated/model/socialPlan";
 import type { SocialPlanState } from "../src/api/generated/model/socialPlanState";
+import { PlanCard } from "../src/components/plans/PlanCard";
+import type { PlanQuickActionRowAction } from "../src/components/plans/PlanQuickActionRow";
+import { PlansSectionHeader } from "../src/components/plans/PlansSectionHeader";
 import { useAuth } from "../src/context/AuthContext";
 import {
-    getInitialColor,
-    useReducedMotionPreference,
-} from "../src/lib/planHelpers";
+    buildFilteredSectionItems,
+    type DerivedPlanListItem,
+    type PlanAttentionReason,
+    type PlanListSectionItem,
+    type PlanQuickActionKind,
+} from "../src/lib/planListDerivations";
+import { useReducedMotionPreference } from "../src/lib/planHelpers";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -40,256 +49,6 @@ function getGreeting(): string {
     if (hour < 12) return "Good morning";
     if (hour < 17) return "Good afternoon";
     return "Good evening";
-}
-
-function getDaysDiff(iso: string | null | undefined): number | null {
-    if (!iso) return null;
-    const date = new Date(iso);
-    if (isNaN(date.getTime())) return null;
-    const now = new Date();
-    return Math.round((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-}
-
-function formatRelativeDate(iso: string | null | undefined): string | null {
-    const diffDays = getDaysDiff(iso);
-    if (diffDays === null) return null;
-
-    if (diffDays === 0) return "Today";
-    if (diffDays === 1) return "Tomorrow";
-    if (diffDays === -1) return "Yesterday";
-    if (diffDays > 1 && diffDays <= 6) return `In ${diffDays} days`;
-    if (diffDays < -1 && diffDays >= -6)
-        return `${Math.abs(diffDays)} days ago`;
-
-    const date = new Date(iso!);
-    return date.toLocaleDateString(undefined, {
-        month: "short",
-        day: "numeric",
-    });
-}
-
-function formatWhenBadge(plan: SocialPlan): string | null {
-    if (plan.timePrecision === "NONE") return "Whenever";
-    if (plan.timePrecision === "UNSPECIFIED" || !plan.anchorStart) return null;
-
-    const start = formatRelativeDate(plan.anchorStart);
-    if (!start) return null;
-
-    if (plan.timePrecision === "EXACT") {
-        const date = new Date(plan.anchorStart);
-        const timeStr = date.toLocaleTimeString(undefined, {
-            hour: "numeric",
-            minute: "2-digit",
-        });
-        return `${start}, ${timeStr}`;
-    }
-
-    // WINDOW with end date — show range
-    if (plan.anchorEnd) {
-        const endDate = new Date(plan.anchorEnd);
-        const startDate = new Date(plan.anchorStart);
-        // If same day, just show the single date
-        if (
-            startDate.getFullYear() === endDate.getFullYear() &&
-            startDate.getMonth() === endDate.getMonth() &&
-            startDate.getDate() === endDate.getDate()
-        ) {
-            return start;
-        }
-        const endStr = endDate.toLocaleDateString(undefined, {
-            month: "short",
-            day: "numeric",
-        });
-        // For relative labels like "Tomorrow", show "Tomorrow — Mar 8"
-        // For absolute labels like "Mar 5", show "Mar 5 — Mar 8"
-        return `${start} — ${endStr}`;
-    }
-
-    return start;
-}
-
-function participantNames(plan: SocialPlan): string | null {
-    const names = plan.participants
-        .map((p) => p.displayName)
-        .filter(Boolean) as string[];
-    if (names.length === 0) return null;
-    if (names.length === 1) return `with ${names[0]}`;
-    if (names.length === 2) return `with ${names[0]} & ${names[1]}`;
-    return `with ${names[0]} & ${names.length - 1} others`;
-}
-
-function notePreview(text: string | null | undefined, maxChars = 48): string | null {
-    const normalized = text?.replace(/\s+/g, " ").trim();
-    if (!normalized) return null;
-    if (normalized.length <= maxChars) return normalized;
-    return `${normalized.slice(0, maxChars - 1).trimEnd()}…`;
-}
-
-function planSubtitleText(
-    plan: SocialPlan,
-    options?: { allowNoteFallback?: boolean }
-): string {
-    const allowNoteFallback = options?.allowNoteFallback ?? true;
-    const people = participantNames(plan);
-    const location = plan.locationText?.trim();
-    const note = notePreview(plan.contextNote);
-
-    if (people && location) return `${people} • at ${location}`;
-    if (people) return people;
-    if (location) return `at ${location}`;
-    if (allowNoteFallback && note) return `Note: ${note}`;
-    return "No people or place yet";
-}
-
-function formatRelativePastLabel(iso: string | null | undefined): string | null {
-    if (!iso) return null;
-    const diffDays = getDaysDiff(iso);
-    if (diffDays === null) return null;
-
-    if (diffDays === 0) return "today";
-    if (diffDays === -1) return "yesterday";
-    if (diffDays < -1 && diffDays >= -6) return `${Math.abs(diffDays)}d ago`;
-
-    const date = new Date(iso);
-    if (isNaN(date.getTime())) return null;
-    return date.toLocaleDateString(undefined, {
-        month: "short",
-        day: "numeric",
-    });
-}
-
-function planLifecycleText(plan: SocialPlan): string {
-    const relative = formatRelativePastLabel(plan.updatedAt) ?? "recently";
-
-    if (plan.state === "DONE") return `Completed ${relative}`;
-    if (plan.state === "DROPPED") return `Dropped ${relative}`;
-
-    const createdAt = new Date(plan.createdAt).getTime();
-    const updatedAt = new Date(plan.updatedAt).getTime();
-    const justCreated =
-        !isNaN(createdAt) &&
-        !isNaN(updatedAt) &&
-        Math.abs(updatedAt - createdAt) < 60 * 1000;
-
-    return `${justCreated ? "Added" : "Updated"} ${relative}`;
-}
-
-type PillTone = "neutral" | "success" | "warning" | "muted";
-
-type PlanSignal = {
-    label: string;
-    tone: PillTone;
-};
-
-function getPlanSignal(plan: SocialPlan): PlanSignal | null {
-    if (plan.state !== "OPEN") return null;
-
-    const missingPeople = plan.participants.length === 0;
-    const missingDate = !plan.anchorStart && plan.timePrecision !== "NONE";
-
-    if (missingPeople && missingDate) {
-        return { label: "Needs people + date", tone: "warning" };
-    }
-    if (missingPeople) {
-        return { label: "Needs people", tone: "warning" };
-    }
-    if (missingDate) {
-        return { label: "Needs date", tone: "warning" };
-    }
-    if (plan.timePrecision === "NONE") {
-        return { label: "Flexible timing", tone: "neutral" };
-    }
-
-    return null;
-}
-
-function InfoPill({
-    label,
-    tone = "neutral",
-    compact = false,
-}: {
-    label: string;
-    tone?: PillTone;
-    compact?: boolean;
-}) {
-    const toneStyles: Record<PillTone, { backgroundColor: string; color: string }> = {
-        neutral: { backgroundColor: "#F0ECE4", color: "#6E6258" },
-        muted: { backgroundColor: "#F5F2EC", color: "#8D8176" },
-        success: { backgroundColor: "rgba(125,174,120,0.14)", color: "#4E7A4A" },
-        warning: { backgroundColor: "rgba(212,149,106,0.16)", color: "#8E5532" },
-    };
-    const styles = toneStyles[tone];
-
-    return (
-        <XStack
-            alignItems="center"
-            justifyContent="center"
-            paddingHorizontal={compact ? "$1.5" : "$2"}
-            paddingVertical={compact ? 2 : 4}
-            borderRadius={compact ? "$3" : "$4"}
-            backgroundColor={styles.backgroundColor}
-        >
-            <Text
-                fontFamily="$body"
-                fontSize={compact ? 10 : 11}
-                fontWeight="600"
-                color={styles.color}
-            >
-                {label}
-            </Text>
-        </XStack>
-    );
-}
-
-function RowChevron({ compact = false }: { compact?: boolean }) {
-    return (
-        <Text
-            fontFamily="$body"
-            fontSize={compact ? 16 : 18}
-            fontWeight="600"
-            color="$colorTertiary"
-            opacity={0.7}
-            marginTop={compact ? -1 : 0}
-        >
-            ›
-        </Text>
-    );
-}
-
-function PlanMetaFooter({
-    plan,
-    compact = false,
-    marginTop,
-}: {
-    plan: SocialPlan;
-    compact?: boolean;
-    marginTop?: string | number;
-}) {
-    const signal = getPlanSignal(plan);
-
-    return (
-        <XStack
-            alignItems="center"
-            gap={compact ? "$1.5" : "$2"}
-            flexWrap="wrap"
-            marginTop={marginTop ?? (compact ? "$1.5" : "$3")}
-        >
-            {signal ? (
-                <InfoPill
-                    label={signal.label}
-                    tone={signal.tone}
-                    compact={compact}
-                />
-            ) : null}
-            <Text
-                fontFamily="$body"
-                fontSize={compact ? 11 : "$2"}
-                color="$colorTertiary"
-            >
-                {planLifecycleText(plan)}
-            </Text>
-        </XStack>
-    );
 }
 
 function planCountLabel(count: number, filterLabel: string): string {
@@ -303,171 +62,6 @@ function planCountLabel(count: number, filterLabel: string): string {
     return count === 1 ? "1 plan" : `${count} plans`;
 }
 
-function blurPressTargetOnWeb(event: unknown) {
-    if (Platform.OS !== "web") return;
-    const target =
-        (event as { currentTarget?: { blur?: () => void } } | null)
-            ?.currentTarget ??
-        (event as { target?: { blur?: () => void } } | null)?.target;
-    target?.blur?.();
-}
-
-// ---------------------------------------------------------------------------
-// Layer helpers: accent colors, time grouping
-// ---------------------------------------------------------------------------
-
-function getAccentColor(plan: SocialPlan): string {
-    if (plan.state === "DONE" || plan.state === "DROPPED") return "transparent";
-    const days = getDaysDiff(plan.anchorStart);
-    if (days === null) return "#E2D9CC"; // fog/border — no date
-    if (days <= 1) return "#F5C842";     // honey gold — today/tomorrow
-    if (days <= 7) return "#D4956A";     // terracotta light — this week
-    return "#E2D9CC";                    // fog — later
-}
-
-type TimeSection = "Coming Up" | "This Week" | "Later" | "Someday";
-type SectionItem =
-    | { type: "section-header"; title: TimeSection; key: string }
-    | { type: "hero"; plan: SocialPlan; key: string }
-    | { type: "card"; plan: SocialPlan; key: string };
-
-function getTimeSection(plan: SocialPlan): TimeSection {
-    const days = getDaysDiff(plan.anchorStart);
-    if (days === null) return "Someday";
-    if (days <= 1) return "Coming Up";
-    if (days <= 7) return "This Week";
-    return "Later";
-}
-
-function groupPlansByTime(plans: SocialPlan[], filterLabel: string): SectionItem[] {
-    if (plans.length === 0) return [];
-
-    // For Done/All filters, don't group — just show cards
-    if (filterLabel !== "Open") {
-        return plans.map((plan) => ({
-            type: "card" as const,
-            plan,
-            key: plan.id,
-        }));
-    }
-
-    // Find the hero plan: first OPEN plan (soonest upcoming, or most recently updated)
-    const openPlans = plans.filter((p) => p.state === "OPEN");
-    const heroCandidate = openPlans.length > 0 ? openPlans[0] : null;
-
-    const sections: TimeSection[] = ["Coming Up", "This Week", "Later", "Someday"];
-    const grouped = new Map<TimeSection, SocialPlan[]>();
-    for (const s of sections) grouped.set(s, []);
-
-    for (const plan of plans) {
-        const section = getTimeSection(plan);
-        grouped.get(section)!.push(plan);
-    }
-
-    // Count how many sections actually have plans — if only one, skip headers
-    const populatedSections = sections.filter((s) => grouped.get(s)!.length > 0);
-    const showHeaders = populatedSections.length > 1;
-
-    const items: SectionItem[] = [];
-    for (const section of sections) {
-        const sectionPlans = grouped.get(section)!;
-        if (sectionPlans.length === 0) continue;
-
-        if (showHeaders) {
-            items.push({
-                type: "section-header",
-                title: section,
-                key: `header-${section}`,
-            });
-        }
-
-        for (const plan of sectionPlans) {
-            if (heroCandidate && plan.id === heroCandidate.id) {
-                items.push({ type: "hero", plan, key: plan.id });
-            } else {
-                items.push({ type: "card", plan, key: plan.id });
-            }
-        }
-    }
-
-    return items;
-}
-
-// ---------------------------------------------------------------------------
-// Avatar Stack — overlapping initial circles
-// ---------------------------------------------------------------------------
-
-function AvatarStack({ plan }: { plan: SocialPlan }) {
-    const names = plan.participants
-        .map((p) => p.displayName)
-        .filter(Boolean) as string[];
-    if (names.length === 0) return null;
-
-    const displayed = names.slice(0, 4);
-
-    return (
-        <XStack alignItems="center" marginTop="$1">
-            <XStack>
-                {displayed.map((name, i) => (
-                    <View
-                        key={name + i}
-                        width={28}
-                        height={28}
-                        borderRadius={14}
-                        backgroundColor={getInitialColor(name)}
-                        justifyContent="center"
-                        alignItems="center"
-                        borderWidth={2}
-                        borderColor="$surface"
-                        marginLeft={i === 0 ? 0 : -8}
-                        zIndex={displayed.length - i}
-                    >
-                        <Text
-                            fontFamily="$body"
-                            fontSize={12}
-                            fontWeight="600"
-                            color="white"
-                        >
-                            {name.charAt(0).toUpperCase()}
-                        </Text>
-                    </View>
-                ))}
-            </XStack>
-            {names.length > 4 && (
-                <Text
-                    fontFamily="$body"
-                    fontSize="$1"
-                    color="$colorSecondary"
-                    marginLeft="$1.5"
-                >
-                    +{names.length - 4}
-                </Text>
-            )}
-        </XStack>
-    );
-}
-
-// ---------------------------------------------------------------------------
-// Section Header
-// ---------------------------------------------------------------------------
-
-function SectionHeader({ title }: { title: string }) {
-    return (
-        <Text
-            fontFamily="$body"
-            fontSize={11}
-            fontWeight="600"
-            color="$colorTertiary"
-            letterSpacing={1.2}
-            textTransform="uppercase"
-            marginTop="$4"
-            marginBottom="$2"
-        >
-            {title}
-        </Text>
-    );
-}
-
 // ---------------------------------------------------------------------------
 // State filter chips
 // ---------------------------------------------------------------------------
@@ -478,404 +72,40 @@ const STATE_FILTERS: { label: string; value: SocialPlanState[] }[] = [
     { label: "Done", value: ["DONE"] },
 ];
 
-// ---------------------------------------------------------------------------
-// Hero Card — spotlight treatment for first open plan
-// ---------------------------------------------------------------------------
+type PlanDetailFocusTarget = "when" | "people";
 
-function HeroCard({
-    plan,
-    onPress,
-    reducedMotion,
-}: {
-    plan: SocialPlan;
-    onPress: (plan: SocialPlan) => void;
-    reducedMotion: boolean;
-}) {
-    const when = formatWhenBadge(plan);
-    const accentColor = getAccentColor(plan);
-    const useNativeDriver = Platform.OS !== "web";
-
-    const fadeAnim = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
-    const slideAnim = useRef(new Animated.Value(reducedMotion ? 0 : 20)).current;
-
-    useEffect(() => {
-        if (reducedMotion) return;
-        Animated.parallel([
-            Animated.timing(fadeAnim, {
-                toValue: 1,
-                duration: 350,
-                easing: Easing.out(Easing.cubic),
-                useNativeDriver,
-            }),
-            Animated.timing(slideAnim, {
-                toValue: 0,
-                duration: 350,
-                easing: Easing.out(Easing.cubic),
-                useNativeDriver,
-            }),
-        ]).start();
-    }, []);
-
-    // Completion success flash (e.g. after returning from the detail screen)
-    const flashAnim = useRef(new Animated.Value(0)).current;
-    const prevStateRef = useRef(plan.state);
-    useEffect(() => {
-        if (prevStateRef.current === "OPEN" && plan.state === "DONE") {
-            Animated.sequence([
-                Animated.timing(flashAnim, {
-                    toValue: 1,
-                    duration: 200,
-                    useNativeDriver: false,
-                }),
-                Animated.timing(flashAnim, {
-                    toValue: 0,
-                    duration: 600,
-                    easing: Easing.out(Easing.cubic),
-                    useNativeDriver: false,
-                }),
-            ]).start();
-        }
-        prevStateRef.current = plan.state;
-    }, [plan.state]);
-
-    const flashBg = flashAnim.interpolate({
-        inputRange: [0, 1],
-        outputRange: ["rgba(125,174,120,0)", "rgba(125,174,120,0.12)"],
-    });
-
-    return (
-        <Animated.View
-            style={{
-                opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }],
-                marginBottom: 16,
-            }}
-        >
-            <Animated.View style={{ backgroundColor: flashBg, borderRadius: 16 }}>
-                <YStack
-                    backgroundColor="$surface"
-                    borderRadius="$8"
-                    padding="$5"
-                    borderWidth={1}
-                    borderColor="$borderColorSubtle"
-                    overflow="hidden"
-                    onPress={(event) => {
-                        blurPressTargetOnWeb(event);
-                        onPress(plan);
-                    }}
-                    pressStyle={{ scale: 0.985, backgroundColor: "$surfaceHover" }}
-                    // @ts-ignore - web-only CSS property
-                    style={
-                        Platform.OS === "web"
-                            ? { WebkitTapHighlightColor: "transparent" }
-                            : undefined
-                    }
-                    focusStyle={{
-                        borderColor: "$borderColorSubtle",
-                        outlineWidth: 0,
-                        outlineColor: "transparent",
-                    }}
-                    focusVisibleStyle={{
-                        borderColor: "$borderColorFocus",
-                        borderWidth: 2,
-                        outlineWidth: 0,
-                        outlineColor: "transparent",
-                    }}
-                    // @ts-ignore – Tamagui animation prop
-                    animation="fast"
-                    // @ts-ignore
-                    shadowColor="rgba(42,36,32,0.10)"
-                    shadowOffset={{ width: 0, height: 4 }}
-                    shadowOpacity={1}
-                    shadowRadius={16}
-                    elevation={4}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Open plan: ${plan.intentText}`}
-                >
-                    {/* Left accent bar */}
-                    <View
-                        position="absolute"
-                        top={0}
-                        left={0}
-                        bottom={0}
-                        width={4}
-                        backgroundColor={accentColor}
-                        borderTopLeftRadius={16}
-                        borderBottomLeftRadius={16}
-                    />
-
-                    {/* Top row: intent + time badge + chevron */}
-                    <XStack
-                        justifyContent="space-between"
-                        alignItems="flex-start"
-                        gap="$3"
-                    >
-                        <Text
-                            fontFamily="$heading"
-                            fontSize="$8"
-                            color="$color"
-                            flex={1}
-                        >
-                            {plan.intentText}
-                        </Text>
-
-                        <XStack alignItems="center" gap="$2" flexShrink={0}>
-                            {when && (
-                                <View
-                                    backgroundColor="$backgroundStrong"
-                                    paddingHorizontal="$2"
-                                    paddingVertical="$0.5"
-                                    borderRadius="$4"
-                                    flexShrink={0}
-                                >
-                                    <Text
-                                        fontFamily="$body"
-                                        fontSize="$1"
-                                        fontWeight="500"
-                                        color="$colorSecondary"
-                                    >
-                                        {when}
-                                    </Text>
-                                </View>
-                            )}
-                            <RowChevron />
-                        </XStack>
-                    </XStack>
-
-                    {/* People / place summary */}
-                    <AvatarStack plan={plan} />
-                    <Text
-                        fontFamily="$body"
-                        fontSize="$2"
-                        color="$colorTertiary"
-                        marginTop="$1"
-                    >
-                        {planSubtitleText(plan, { allowNoteFallback: false })}
-                    </Text>
-
-                    {/* Context note — no truncation for hero */}
-                    {plan.contextNote && (
-                        <Text
-                            fontFamily="$body"
-                            fontSize="$3"
-                            color="$colorTertiary"
-                            lineHeight="$3"
-                            marginTop="$2"
-                        >
-                            {plan.contextNote}
-                        </Text>
-                    )}
-
-                    <PlanMetaFooter plan={plan} />
-                </YStack>
-            </Animated.View>
-        </Animated.View>
-    );
+function quickActionLabel(
+    kind: PlanQuickActionKind,
+    attentionReason: PlanAttentionReason | null
+): string {
+    switch (kind) {
+        case "focus-people":
+            return "Add who";
+        case "focus-when":
+            return attentionReason === "past-due" ? "Reschedule" : "Pick day";
+        case "let-go":
+            return "Let go";
+        case "mark-done":
+            return "Done";
+        case "open":
+        default:
+            return "Open";
+    }
 }
 
-// ---------------------------------------------------------------------------
-// Compact Card — denser card for non-hero plans
-// ---------------------------------------------------------------------------
-
-function CompactCard({
-    plan,
-    onPress,
-    index,
-    reducedMotion,
-}: {
-    plan: SocialPlan;
-    onPress: (plan: SocialPlan) => void;
-    index: number;
-    reducedMotion: boolean;
-}) {
-    const when = formatWhenBadge(plan);
-    const isDropped = plan.state === "DROPPED";
-    const isInactive = plan.state === "DONE" || isDropped;
-    const accentColor = getAccentColor(plan);
-    const useNativeDriver = Platform.OS !== "web";
-
-    const fadeAnim = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
-    const slideAnim = useRef(
-        new Animated.Value(reducedMotion ? 0 : 16)
-    ).current;
-
-    useEffect(() => {
-        if (reducedMotion) return;
-        const delay = Math.min(index * 50, 250);
-        Animated.parallel([
-            Animated.timing(fadeAnim, {
-                toValue: 1,
-                duration: 280,
-                delay,
-                easing: Easing.out(Easing.cubic),
-                useNativeDriver,
-            }),
-            Animated.timing(slideAnim, {
-                toValue: 0,
-                duration: 280,
-                delay,
-                easing: Easing.out(Easing.cubic),
-                useNativeDriver,
-            }),
-        ]).start();
-    }, []);
-
-    // Completion success flash (e.g. after returning from the detail screen)
-    const flashAnim = useRef(new Animated.Value(0)).current;
-    const prevStateRef = useRef(plan.state);
-    useEffect(() => {
-        if (prevStateRef.current === "OPEN" && plan.state === "DONE") {
-            Animated.sequence([
-                Animated.timing(flashAnim, {
-                    toValue: 1,
-                    duration: 200,
-                    useNativeDriver: false,
-                }),
-                Animated.timing(flashAnim, {
-                    toValue: 0,
-                    duration: 600,
-                    easing: Easing.out(Easing.cubic),
-                    useNativeDriver: false,
-                }),
-            ]).start();
-        }
-        prevStateRef.current = plan.state;
-    }, [plan.state]);
-
-    const flashBg = flashAnim.interpolate({
-        inputRange: [0, 1],
-        outputRange: ["rgba(125,174,120,0)", "rgba(125,174,120,0.12)"],
-    });
-
-    return (
-        <Animated.View
-            style={{
-                opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }],
-                marginBottom: 10,
-            }}
-        >
-            <Animated.View style={{ backgroundColor: flashBg, borderRadius: 14 }}>
-                <YStack
-                    backgroundColor="$surface"
-                    borderRadius="$7"
-                    paddingVertical="$3"
-                    paddingLeft={isInactive ? "$4" : "$4"}
-                    paddingRight="$3.5"
-                    borderWidth={1}
-                    borderColor="$borderColorSubtle"
-                    opacity={isInactive ? 0.65 : 1}
-                    overflow="hidden"
-                    onPress={(event) => {
-                        blurPressTargetOnWeb(event);
-                        onPress(plan);
-                    }}
-                    pressStyle={{ scale: 0.985, backgroundColor: "$surfaceHover" }}
-                    // @ts-ignore - web-only CSS property
-                    style={
-                        Platform.OS === "web"
-                            ? { WebkitTapHighlightColor: "transparent" }
-                            : undefined
-                    }
-                    focusStyle={{
-                        borderColor: "$borderColorSubtle",
-                        outlineWidth: 0,
-                        outlineColor: "transparent",
-                    }}
-                    focusVisibleStyle={{
-                        borderColor: "$borderColorFocus",
-                        borderWidth: 2,
-                        outlineWidth: 0,
-                        outlineColor: "transparent",
-                    }}
-                    // @ts-ignore
-                    animation="fast"
-                    // @ts-ignore
-                    shadowColor="rgba(42,36,32,0.05)"
-                    shadowOffset={{ width: 0, height: 1 }}
-                    shadowOpacity={1}
-                    shadowRadius={6}
-                    elevation={1}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Open plan: ${plan.intentText}`}
-                >
-                    {/* Left accent bar — only for active plans */}
-                    {!isInactive && (
-                        <View
-                            position="absolute"
-                            top={0}
-                            left={0}
-                            bottom={0}
-                            width={4}
-                            backgroundColor={accentColor}
-                            borderTopLeftRadius={14}
-                            borderBottomLeftRadius={14}
-                        />
-                    )}
-
-                    <YStack flex={1} gap="$0.5">
-                        <XStack
-                            justifyContent="space-between"
-                            alignItems="center"
-                            gap="$2"
-                        >
-                            <XStack
-                                alignItems="center"
-                                gap="$2"
-                                flex={1}
-                                flexShrink={1}
-                            >
-                                <Text
-                                    fontFamily="$heading"
-                                    fontSize="$6"
-                                    color="$color"
-                                    numberOfLines={1}
-                                    flex={1}
-                                >
-                                    {plan.intentText}
-                                </Text>
-                                {when && (
-                                    <View
-                                        backgroundColor="$backgroundStrong"
-                                        paddingHorizontal="$1.5"
-                                        paddingVertical={2}
-                                        borderRadius="$3"
-                                        flexShrink={0}
-                                    >
-                                        <Text
-                                            fontFamily="$body"
-                                            fontSize={10}
-                                            fontWeight="500"
-                                            color="$colorSecondary"
-                                        >
-                                            {when}
-                                        </Text>
-                                    </View>
-                                )}
-                            </XStack>
-                            <RowChevron compact />
-                        </XStack>
-
-                        {/* Subtitle: people + place summary */}
-                        <XStack alignItems="center" gap="$2">
-                            <AvatarStack plan={plan} />
-                            <Text
-                                fontFamily="$body"
-                                fontSize={11}
-                                color="$colorTertiary"
-                                numberOfLines={1}
-                                flex={1}
-                            >
-                                {planSubtitleText(plan)}
-                            </Text>
-                        </XStack>
-
-                        <PlanMetaFooter plan={plan} compact />
-                    </YStack>
-                </YStack>
-            </Animated.View>
-        </Animated.View>
-    );
+function quickActionTone(kind: PlanQuickActionKind): PlanQuickActionRowAction["tone"] {
+    switch (kind) {
+        case "focus-people":
+        case "focus-when":
+            return "accent";
+        case "mark-done":
+            return "success";
+        case "let-go":
+            return "danger";
+        case "open":
+        default:
+            return "neutral";
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1200,16 +430,22 @@ export default function PlansScreen() {
     const { signOut } = useAuth();
     const router = useRouter();
     const queryClient = useQueryClient();
+    const patchPlan = usePatchPlan();
     const reducedMotion = useReducedMotionPreference();
     const useNativeDriver = Platform.OS !== "web";
 
     const [activeFilter, setActiveFilter] = useState(1); // Default to "Open"
     const [sheetOpen, setSheetOpen] = useState(false);
+    const [pendingListMutation, setPendingListMutation] = useState<{
+        planId: string;
+        kind: PlanQuickActionKind;
+    } | null>(null);
 
     const {
         data: plansResponse,
         isLoading,
         isError,
+        isRefetching,
         refetch,
     } = useListPlans({
         state: STATE_FILTERS[activeFilter].value,
@@ -1224,7 +460,7 @@ export default function PlansScreen() {
 
     // Group plans into section items
     const sectionItems = useMemo(
-        () => groupPlansByTime(plans, STATE_FILTERS[activeFilter].label),
+        () => buildFilteredSectionItems(plans, STATE_FILTERS[activeFilter].label),
         [plans, activeFilter]
     );
 
@@ -1276,9 +512,21 @@ export default function PlansScreen() {
         refetch();
     }, [refetch]);
 
+    const invalidatePlanCaches = useCallback(
+        (planId?: string) => {
+            queryClient.invalidateQueries({ queryKey: getListPlansQueryKey() });
+            if (planId) {
+                queryClient.invalidateQueries({
+                    queryKey: getGetPlanQueryKey(planId),
+                });
+            }
+        },
+        [queryClient]
+    );
+
     const handleCreated = useCallback(() => {
-        queryClient.invalidateQueries({ queryKey: getListPlansQueryKey() });
-    }, [queryClient]);
+        invalidatePlanCaches();
+    }, [invalidatePlanCaches]);
 
     const handleSignOut = useCallback(() => {
         Alert.alert("Sign out?", "You can always sign back in.", [
@@ -1287,47 +535,154 @@ export default function PlansScreen() {
         ]);
     }, [signOut]);
 
-    const handlePlanPress = useCallback(
-        (plan: SocialPlan) => {
-            router.push(`/plan/${plan.id}`);
+    const handleOpenPlan = useCallback(
+        (planId: string, focus?: PlanDetailFocusTarget) => {
+            const query = focus ? `?focus=${focus}` : "";
+            router.push(`/plan/${planId}${query}`);
         },
         [router]
+    );
+
+    const handlePlanPress = useCallback(
+        (plan: SocialPlan) => {
+            handleOpenPlan(plan.id);
+        },
+        [handleOpenPlan]
+    );
+
+    const mutatePlanStateFromList = useCallback(
+        (planId: string, state: "DONE" | "DROPPED", kind: PlanQuickActionKind) => {
+            setPendingListMutation({ planId, kind });
+            patchPlan.mutate(
+                { planId, data: { state } },
+                {
+                    onSettled: () => {
+                        invalidatePlanCaches(planId);
+                        setPendingListMutation((current) =>
+                            current?.planId === planId ? null : current
+                        );
+                    },
+                }
+            );
+        },
+        [patchPlan, invalidatePlanCaches]
+    );
+
+    const handleMarkDoneFromList = useCallback(
+        (planId: string) => {
+            mutatePlanStateFromList(planId, "DONE", "mark-done");
+        },
+        [mutatePlanStateFromList]
+    );
+
+    const handleLetGoFromList = useCallback(
+        (planId: string) => {
+            Alert.alert("Let go of this plan?", "You can always find it later.", [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Let Go",
+                    style: "destructive",
+                    onPress: () => {
+                        mutatePlanStateFromList(planId, "DROPPED", "let-go");
+                    },
+                },
+            ]);
+        },
+        [mutatePlanStateFromList]
+    );
+
+    const handleQuickAction = useCallback(
+        (derived: DerivedPlanListItem, kind: PlanQuickActionKind) => {
+            switch (kind) {
+                case "focus-people":
+                    handleOpenPlan(derived.plan.id, "people");
+                    return;
+                case "focus-when":
+                    handleOpenPlan(derived.plan.id, "when");
+                    return;
+                case "let-go":
+                    handleLetGoFromList(derived.plan.id);
+                    return;
+                case "mark-done":
+                    handleMarkDoneFromList(derived.plan.id);
+                    return;
+                case "open":
+                default:
+                    handleOpenPlan(derived.plan.id);
+            }
+        },
+        [handleOpenPlan, handleLetGoFromList, handleMarkDoneFromList]
+    );
+
+    const buildQuickActionItems = useCallback(
+        (derived: DerivedPlanListItem): PlanQuickActionRowAction[] => {
+            if (derived.quickActions.length === 0) return [];
+
+            const isBusyPlan =
+                patchPlan.isPending && pendingListMutation?.planId === derived.plan.id;
+
+            return derived.quickActions.map((kind) => {
+                const isLoading =
+                    isBusyPlan && pendingListMutation?.kind === kind;
+                const label = quickActionLabel(kind, derived.attentionReason);
+                return {
+                    key: `${derived.plan.id}-${kind}`,
+                    label,
+                    tone: quickActionTone(kind),
+                    accessibilityLabel: `${label} for ${derived.plan.intentText}`,
+                    onPress: () => handleQuickAction(derived, kind),
+                    disabled: isBusyPlan,
+                    loading: isLoading,
+                };
+            });
+        },
+        [handleQuickAction, patchPlan.isPending, pendingListMutation]
     );
 
     // Track card index for staggered animations (excluding section headers)
     const cardIndexRef = useRef(0);
 
     const renderSectionItem = useCallback(
-        ({ item }: { item: SectionItem }) => {
+        ({ item }: { item: PlanListSectionItem }) => {
             if (item.type === "section-header") {
                 cardIndexRef.current = 0;
-                return <SectionHeader title={item.title} />;
+                return <PlansSectionHeader title={item.title} count={item.count} />;
             }
 
-            if (item.type === "hero") {
+            const derived = item.derived;
+            const plan = derived.plan;
+            const quickActions = buildQuickActionItems(derived);
+
+            if (derived.isHeroCandidate) {
                 return (
-                    <HeroCard
-                        plan={item.plan}
+                    <PlanCard
+                        plan={plan}
                         onPress={handlePlanPress}
+                        variant="hero"
                         reducedMotion={reducedMotion}
+                        attentionReason={derived.attentionReason}
+                        quickActions={quickActions}
                     />
                 );
             }
 
             const idx = cardIndexRef.current++;
             return (
-                <CompactCard
-                    plan={item.plan}
+                <PlanCard
+                    plan={plan}
                     onPress={handlePlanPress}
+                    variant="compact"
                     index={idx}
                     reducedMotion={reducedMotion}
+                    attentionReason={derived.attentionReason}
+                    quickActions={quickActions}
                 />
             );
         },
-        [handlePlanPress, reducedMotion]
+        [buildQuickActionItems, handlePlanPress, reducedMotion]
     );
 
-    const keyExtractor = useCallback((item: SectionItem) => item.key, []);
+    const keyExtractor = useCallback((item: PlanListSectionItem) => item.key, []);
 
     const countLabel = planCountLabel(
         plans.length,
@@ -1549,7 +904,7 @@ export default function PlansScreen() {
                         }}
                         showsVerticalScrollIndicator={false}
                         onRefresh={handleRefresh}
-                        refreshing={false}
+                        refreshing={Boolean(isRefetching && !isLoading)}
                         onScroll={onScroll}
                         scrollEventThrottle={16}
                     />

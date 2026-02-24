@@ -1130,7 +1130,10 @@ function formatWhenDisplay(
 // ---------------------------------------------------------------------------
 
 export default function PlanDetailScreen() {
-    const { id } = useLocalSearchParams<{ id: string }>();
+    const { id, focus } = useLocalSearchParams<{
+        id: string;
+        focus?: string | string[];
+    }>();
     const router = useRouter();
     const queryClient = useQueryClient();
     const reducedMotion = useReducedMotionPreference();
@@ -1149,6 +1152,22 @@ export default function PlanDetailScreen() {
     // Bottom sheet states
     const [whenSheetOpen, setWhenSheetOpen] = useState(false);
     const [addPersonSheetOpen, setAddPersonSheetOpen] = useState(false);
+    const didApplyInitialFocusRef = useRef(false);
+
+    const focusTarget = Array.isArray(focus) ? focus[0] : focus;
+
+    useEffect(() => {
+        if (didApplyInitialFocusRef.current) return;
+        if (!plan) return;
+
+        if (focusTarget === "when") {
+            setWhenSheetOpen(true);
+        } else if (focusTarget === "people") {
+            setAddPersonSheetOpen(true);
+        }
+
+        didApplyInitialFocusRef.current = true;
+    }, [plan, focusTarget]);
 
     // Entrance animation
     const fadeAnim = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
