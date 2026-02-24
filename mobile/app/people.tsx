@@ -17,6 +17,7 @@ import {
     BottomSheetPrimaryButton,
     BottomSheetTextField,
 } from "../src/components/BottomSheetPrimitives";
+import { useNativeKeyboardAppearance } from "../src/components/AppTextInput";
 
 import {
     useListPeople,
@@ -526,6 +527,7 @@ export default function PeopleScreen() {
     const queryClient = useQueryClient();
     const reducedMotion = useReducedMotionPreference();
     const useNativeDriver = Platform.OS !== "web";
+    const keyboardAppearance = useNativeKeyboardAppearance();
 
     const [sheetOpen, setSheetOpen] = useState(false);
     const [searchText, setSearchText] = useState("");
@@ -694,6 +696,7 @@ export default function PeopleScreen() {
                             placeholderTextColor="$placeholderColor"
                             value={searchText}
                             onChangeText={setSearchText}
+                            keyboardAppearance={keyboardAppearance}
                             focusStyle={{
                                 borderColor: "$borderColorFocus",
                                 borderWidth: 2,

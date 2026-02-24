@@ -8,9 +8,13 @@ import {
     Platform,
     Pressable,
     StyleSheet,
+    useWindowDimensions,
 } from "react-native";
 import type { KeyboardEvent } from "react-native";
 import { Input, Spinner, Text, View, XStack, YStack } from "tamagui";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { useNativeKeyboardAppearance } from "./AppTextInput";
 
 const SHEET_SHADOW_STYLE = {
     shadowColor: "rgba(0,0,0,0.15)",
@@ -33,6 +37,8 @@ const SHEET_ANIMATION_DURATION_MS = 280;
 const SHEET_HIDDEN_OFFSET = Dimensions.get("window").height;
 const SCREEN_HEIGHT = Dimensions.get("screen").height;
 const KEYBOARD_SHEET_OVERLAP_PX = 20;
+const SHEET_TOP_SAFE_GAP_PX = 12;
+const SHEET_BOTTOM_PADDING_PX = 20;
 
 type BottomSheetModalProps = {
     open: boolean;
@@ -47,9 +53,20 @@ export function BottomSheetModal({
     children,
     minHeight,
 }: BottomSheetModalProps) {
+    const insets = useSafeAreaInsets();
+    const { height: windowHeight } = useWindowDimensions();
     const [visible, setVisible] = React.useState(open);
     const transition = React.useRef(new Animated.Value(open ? 1 : 0)).current;
     const keyboardOffset = React.useRef(new Animated.Value(0)).current;
+    const safeTopInset = Math.max(insets.top, 0);
+    const maxSheetHeight = Math.max(
+        120,
+        windowHeight - safeTopInset - SHEET_TOP_SAFE_GAP_PX
+    );
+    const resolvedMinHeight =
+        typeof minHeight === "number"
+            ? Math.min(minHeight, maxSheetHeight)
+            : minHeight;
 
     const animateKeyboardOffset = React.useCallback(
         (toValue: number, duration = 250) => {
@@ -216,8 +233,10 @@ export function BottomSheetModal({
                     borderTopLeftRadius="$8"
                     borderTopRightRadius="$8"
                     padding="$6"
-                    paddingBottom="$11"
-                    minHeight={minHeight}
+                    paddingBottom={Math.max(insets.bottom, 0) + SHEET_BOTTOM_PADDING_PX}
+                    minHeight={resolvedMinHeight}
+                    maxHeight={maxSheetHeight}
+                    flexShrink={1}
                     style={SHEET_SHADOW_STYLE}
                 >
                     {children}
@@ -369,8 +388,11 @@ type BottomSheetTextFieldProps = React.ComponentProps<typeof Input>;
 
 export function BottomSheetTextField({
     focusStyle,
+    keyboardAppearance,
     ...props
 }: BottomSheetTextFieldProps) {
+    const nativeKeyboardAppearance = useNativeKeyboardAppearance();
+
     return (
         <Input
             fontFamily="$body"
@@ -382,6 +404,7 @@ export function BottomSheetTextField({
             borderRadius="$5"
             paddingHorizontal="$4"
             paddingVertical="$3"
+            keyboardAppearance={keyboardAppearance ?? nativeKeyboardAppearance}
             {...props}
             focusStyle={
                 focusStyle ?? {
