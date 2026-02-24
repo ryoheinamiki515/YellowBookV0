@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, TextInput as RNTextInput } from "react-native";
-import { Text } from "tamagui";
+import { Text, XStack, YStack } from "tamagui";
 
 import { AppTextInput } from "./AppTextInput";
 
@@ -11,6 +11,8 @@ type EditableTextProps = {
     multiline?: boolean;
     textStyle?: Record<string, unknown>;
     placeholderColor?: string;
+    showMultilineDoneAction?: boolean;
+    multilineDoneLabel?: string;
 };
 
 export function EditableText({
@@ -20,6 +22,8 @@ export function EditableText({
     multiline = false,
     textStyle,
     placeholderColor = "$colorTertiary",
+    showMultilineDoneAction = true,
+    multilineDoneLabel = "Done",
 }: EditableTextProps) {
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState(value);
@@ -49,28 +53,63 @@ export function EditableText({
         setDraft(value);
     }, [draft, value, onSave]);
 
+    const handleDonePress = useCallback(() => {
+        inputRef.current?.blur();
+    }, []);
+
     if (editing) {
         return (
-            <AppTextInput
-                ref={inputRef}
-                value={draft}
-                onChangeText={setDraft}
-                onBlur={handleBlur}
-                multiline={multiline}
-                returnKeyType={multiline ? "default" : "done"}
-                onSubmitEditing={multiline ? undefined : handleBlur}
-                style={[
-                    {
-                        fontFamily: "System",
-                        color: "#2A2420",
-                        padding: 0,
-                        margin: 0,
-                        textAlignVertical: multiline ? "top" : "center",
-                    },
-                    textStyle as any,
-                ]}
-                blurOnSubmit={!multiline}
-            />
+            <YStack gap={multiline && showMultilineDoneAction ? "$2" : 0}>
+                <AppTextInput
+                    ref={inputRef}
+                    value={draft}
+                    onChangeText={setDraft}
+                    onBlur={handleBlur}
+                    multiline={multiline}
+                    returnKeyType={multiline ? "default" : "done"}
+                    onSubmitEditing={multiline ? undefined : handleBlur}
+                    style={[
+                        {
+                            fontFamily: "System",
+                            color: "#2A2420",
+                            padding: 0,
+                            margin: 0,
+                            textAlignVertical: multiline ? "top" : "center",
+                        },
+                        textStyle as any,
+                    ]}
+                    blurOnSubmit={!multiline}
+                />
+
+                {multiline && showMultilineDoneAction ? (
+                    <XStack justifyContent="flex-end">
+                        <Pressable
+                            onPress={handleDonePress}
+                            hitSlop={8}
+                            accessibilityRole="button"
+                            accessibilityLabel="Done editing text"
+                        >
+                            <XStack
+                                paddingHorizontal="$3"
+                                paddingVertical="$1.5"
+                                borderRadius="$10"
+                                backgroundColor="$backgroundStrong"
+                                borderWidth={1}
+                                borderColor="$borderColor"
+                            >
+                                <Text
+                                    fontFamily="$body"
+                                    fontSize="$2"
+                                    fontWeight="600"
+                                    color="$accentColor"
+                                >
+                                    {multilineDoneLabel}
+                                </Text>
+                            </XStack>
+                        </Pressable>
+                    </XStack>
+                ) : null}
+            </YStack>
         );
     }
 

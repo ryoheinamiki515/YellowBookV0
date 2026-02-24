@@ -14,9 +14,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { YStack, XStack, Text, View } from "tamagui";
 import { SafeAreaView } from "react-native-safe-area-context";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { Calendar } from "react-native-calendars";
+import type { CalendarProps, DateData } from "react-native-calendars";
 import {
     BottomSheetHeader,
     BottomSheetHeaderAction,
+    BottomSheetListRow,
     BottomSheetModal,
     BottomSheetSectionLabel,
     BottomSheetTextField,
@@ -47,6 +50,56 @@ import {
     formatFullDate,
     useReducedMotionPreference,
 } from "../../src/lib/planHelpers";
+
+type PlanPersonIdentity = {
+    personId?: string | null;
+    displayName?: string | null;
+};
+
+function normalizePersonDisplayName(
+    name: string | null | undefined
+): string | null {
+    const normalized = name?.trim().toLowerCase();
+    return normalized ? normalized : null;
+}
+
+function mergeUniquePlanPeople(
+    ...groups: PlanPersonIdentity[][]
+): PlanPersonIdentity[] {
+    const merged: PlanPersonIdentity[] = [];
+    const seenPersonIds = new Set<string>();
+    const seenDisplayNames = new Set<string>();
+
+    for (const group of groups) {
+        for (const person of group) {
+            const personId = person.personId ?? null;
+            const displayName = person.displayName?.trim() || null;
+            const normalizedDisplayName = normalizePersonDisplayName(displayName);
+
+            if (!personId && !normalizedDisplayName) continue;
+
+            const isDuplicate =
+                (personId ? seenPersonIds.has(personId) : false) ||
+                (normalizedDisplayName
+                    ? seenDisplayNames.has(normalizedDisplayName)
+                    : false);
+
+            if (isDuplicate) continue;
+
+            if (personId) seenPersonIds.add(personId);
+            if (normalizedDisplayName) {
+                seenDisplayNames.add(normalizedDisplayName);
+            }
+
+            merged.push({
+                personId,
+                displayName,
+            });
+        }
+    }
+
+    return merged;
+}
 
 // ---------------------------------------------------------------------------
 // FieldRow — tappable row with label + value/placeholder
@@ -89,6 +142,214 @@ function FieldRow({
     );
 }
 
+type WindowRangeSelectionStep = "start" | "end";
+type CalendarMarkedDates = NonNullable<CalendarProps["markedDates"]>;
+type WindowRangeMarking = CalendarMarkedDates[string];
+
+const RANGE_ENDPOINT_COLOR = "#C17A56";
+const RANGE_TEXT_COLOR = "#FFFFFF";
+const RANGE_CALENDAR_SURFACE_COLOR = "#221D19";
+const RANGE_CALENDAR_TEXT_COLOR = "#F2E9DF";
+const RANGE_CALENDAR_MUTED_TEXT_COLOR = "#A99C90";
+const RANGE_CALENDAR_DISABLED_TEXT_COLOR = "#6F645A";
+
+function formatWindowPickerDate(date: Date): string {
+    return date.toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+    });
+}
+
+function normalizeDateOnly(date: Date): Date {
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function compareDateOnly(a: Date, b: Date): number {
+    return normalizeDateOnly(a).getTime() - normalizeDateOnly(b).getTime();
+}
+
+function toCalendarDateKey(date: Date): string {
+    const local = normalizeDateOnly(date);
+    const year = local.getFullYear();
+    const month = `${local.getMonth() + 1}`.padStart(2, "0");
+    const day = `${local.getDate()}`.padStart(2, "0");
+    return `${year}-${month}-${day}`;
+}
+
+function dateFromCalendarPress(day: DateData): Date {
+    return new Date(day.year, day.month - 1, day.day);
+}
+
+function buildWindowRangeMarkedDates(
+    startDate: Date,
+    endDate: Date
+): CalendarMarkedDates {
+    const start = normalizeDateOnly(startDate);
+    const end = normalizeDateOnly(endDate);
+    const markings: CalendarMarkedDates = {};
+    const cursor = new Date(start);
+
+    while (cursor <= end) {
+        const key = toCalendarDateKey(cursor);
+        const isStart = compareDateOnly(cursor, start) === 0;
+        const isEnd = compareDateOnly(cursor, end) === 0;
+
+        const marking: WindowRangeMarking = {
+            color: RANGE_ENDPOINT_COLOR,
+            textColor: RANGE_TEXT_COLOR,
+        };
+
+        if (isStart) marking.startingDay = true;
+        if (isEnd) marking.endingDay = true;
+
+        markings[key] = marking;
+        cursor.setDate(cursor.getDate() + 1);
+    }
+
+    return markings;
+}
+
+function WindowRangeCalendarSelector({
+    startDate,
+    endDate,
+    selectionStep,
+    onSelectionStepChange,
+    onStartDateChange,
+    onEndDateChange,
+}: {
+    startDate: Date;
+    endDate: Date;
+    selectionStep: WindowRangeSelectionStep;
+    onSelectionStepChange: (step: WindowRangeSelectionStep) => void;
+    onStartDateChange: (date: Date) => void;
+    onEndDateChange: (date: Date) => void;
+}) {
+    const markedDates = buildWindowRangeMarkedDates(startDate, endDate);
+
+    const handleDayPress = useCallback(
+        (day: DateData) => {
+            const selectedDate = dateFromCalendarPress(day);
+
+            if (selectionStep === "start") {
+                onStartDateChange(selectedDate);
+                onEndDateChange(selectedDate);
+                onSelectionStepChange("end");
+                return;
+            }
+
+            if (compareDateOnly(selectedDate, startDate) < 0) {
+                onStartDateChange(selectedDate);
+                onEndDateChange(selectedDate);
+                onSelectionStepChange("end");
+                return;
+            }
+
+            onEndDateChange(selectedDate);
+            onSelectionStepChange("start");
+        },
+        [
+            onEndDateChange,
+            onSelectionStepChange,
+            onStartDateChange,
+            selectionStep,
+            startDate,
+        ]
+    );
+
+    const isAwaitingEndSelection = selectionStep === "end";
+    const hasMultiDayRange = compareDateOnly(startDate, endDate) !== 0;
+    const helperText = isAwaitingEndSelection
+        ? "Tap the latest date to finish the window."
+        : hasMultiDayRange
+          ? "Range selected. Tap any date to start a new range."
+          : "Tap a date to start your range.";
+
+    const renderSummaryCard = useCallback(
+        (title: string, value: Date) => (
+            <YStack
+                flex={1}
+                padding="$3"
+                borderRadius="$4"
+                borderWidth={1}
+                borderColor="$borderColor"
+                backgroundColor="$backgroundStrong"
+                gap="$1"
+            >
+                <Text
+                    fontFamily="$body"
+                    fontSize="$2"
+                    fontWeight="600"
+                    color="$colorSecondary"
+                    textTransform="uppercase"
+                    letterSpacing={0.8}
+                >
+                    {title}
+                </Text>
+                <Text
+                    fontFamily="$body"
+                    fontSize="$4"
+                    fontWeight="600"
+                    color="$color"
+                >
+                    {formatWindowPickerDate(value)}
+                </Text>
+            </YStack>
+        ),
+        []
+    );
+
+    return (
+        <YStack gap="$3">
+            <Text fontFamily="$body" fontSize="$3" color="$colorSecondary">
+                {helperText}
+            </Text>
+
+            <XStack gap="$2">
+                {renderSummaryCard("Earliest", startDate)}
+                {renderSummaryCard("Latest", endDate)}
+            </XStack>
+
+            <YStack
+                borderWidth={1}
+                borderColor="$borderColor"
+                borderRadius="$5"
+                overflow="hidden"
+                backgroundColor="$backgroundStrong"
+                padding="$2.5"
+            >
+                <Calendar
+                    current={toCalendarDateKey(startDate)}
+                    enableSwipeMonths
+                    hideExtraDays
+                    markingType="period"
+                    markedDates={markedDates}
+                    onDayPress={handleDayPress}
+                    headerStyle={{
+                        borderBottomWidth: 0,
+                        paddingBottom: 6,
+                        marginBottom: 2,
+                    }}
+                    theme={{
+                        calendarBackground: RANGE_CALENDAR_SURFACE_COLOR,
+                        monthTextColor: RANGE_CALENDAR_TEXT_COLOR,
+                        dayTextColor: RANGE_CALENDAR_TEXT_COLOR,
+                        textDisabledColor: RANGE_CALENDAR_DISABLED_TEXT_COLOR,
+                        textInactiveColor: RANGE_CALENDAR_DISABLED_TEXT_COLOR,
+                        textSectionTitleColor: RANGE_CALENDAR_MUTED_TEXT_COLOR,
+                        todayTextColor: "#F0B881",
+                        arrowColor: "#F0B881",
+                        textDayFontSize: 16,
+                        textMonthFontSize: 17,
+                        textDayHeaderFontSize: 12,
+                    }}
+                    style={{ width: "100%" }}
+                />
+            </YStack>
+        </YStack>
+    );
+}
+
 // ---------------------------------------------------------------------------
 // WhenSheet — bottom sheet for time picking
 // ---------------------------------------------------------------------------
@@ -98,12 +359,14 @@ function WhenSheet({
     onOpenChange,
     currentPrecision,
     currentAnchorStart,
+    currentAnchorEnd,
     onSave,
 }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     currentPrecision: string;
     currentAnchorStart: string | null | undefined;
+    currentAnchorEnd: string | null | undefined;
     onSave: (data: {
         timePrecision: string;
         anchorStart: string | null;
@@ -116,16 +379,20 @@ function WhenSheet({
     );
     const [windowStart, setWindowStart] = useState(new Date());
     const [windowEnd, setWindowEnd] = useState(new Date());
+    const [windowSelectionStep, setWindowSelectionStep] =
+        useState<WindowRangeSelectionStep>("start");
 
     useEffect(() => {
         if (open) {
             setMode("menu");
             const initial = currentAnchorStart ? new Date(currentAnchorStart) : new Date();
+            const initialEnd = currentAnchorEnd ? new Date(currentAnchorEnd) : initial;
             setPickedDate(initial);
             setWindowStart(initial);
-            setWindowEnd(initial);
+            setWindowEnd(initialEnd < initial ? initial : initialEnd);
+            setWindowSelectionStep("start");
         }
-    }, [open, currentAnchorStart]);
+    }, [open, currentAnchorStart, currentAnchorEnd, currentPrecision]);
 
     const handlePickDay = useCallback(() => {
         setMode("date");
@@ -353,48 +620,14 @@ function WhenSheet({
                     keyboardShouldPersistTaps="handled"
                 >
                     <YStack gap="$4">
-                        <YStack>
-                            <Text
-                                fontFamily="$body"
-                                fontSize="$3"
-                                fontWeight="600"
-                                color="$colorSecondary"
-                                marginBottom="$2"
-                            >
-                                Earliest date
-                            </Text>
-                            <DateTimePicker
-                                value={windowStart}
-                                mode="date"
-                                display="inline"
-                                onChange={(_event, date) => {
-                                    if (date) setWindowStart(date);
-                                }}
-                                style={{ width: "100%" }}
-                            />
-                        </YStack>
-
-                        <YStack>
-                            <Text
-                                fontFamily="$body"
-                                fontSize="$3"
-                                fontWeight="600"
-                                color="$colorSecondary"
-                                marginBottom="$2"
-                            >
-                                Latest date
-                            </Text>
-                            <DateTimePicker
-                                value={windowEnd}
-                                mode="date"
-                                display="inline"
-                                minimumDate={windowStart}
-                                onChange={(_event, date) => {
-                                    if (date) setWindowEnd(date);
-                                }}
-                                style={{ width: "100%" }}
-                            />
-                        </YStack>
+                        <WindowRangeCalendarSelector
+                            startDate={windowStart}
+                            endDate={windowEnd}
+                            selectionStep={windowSelectionStep}
+                            onSelectionStepChange={setWindowSelectionStep}
+                            onStartDateChange={setWindowStart}
+                            onEndDateChange={setWindowEnd}
+                        />
 
                         {renderBackConfirmButtons(handleWindowConfirm)}
                     </YStack>
@@ -470,37 +703,37 @@ function AddPersonSheet({
             ? (peopleResponse.data as { data: Person[] }).data
             : [];
 
-    // Build sets for filtering: by personId and by displayName (lowercased)
-    // Include both server-side existing participants AND locally-added ones
+    // Merge server state + local optimistic state into a single deduped source.
+    // This prevents newly-added people from rendering twice after a refetch.
+    const allPlanPeople = mergeUniquePlanPeople(existingParticipants, justAdded);
     const existingPersonIds = new Set(
-        [
-            ...existingParticipants.map((p) => p.personId),
-            ...justAdded.map((p) => p.personId),
-        ].filter(Boolean) as string[]
+        allPlanPeople
+            .map((p) => p.personId)
+            .filter(Boolean) as string[]
     );
     const existingDisplayNames = new Set(
-        [
-            ...existingParticipants.map((p) => p.displayName?.toLowerCase()),
-            ...justAdded.map((p) => p.displayName.toLowerCase()),
-        ].filter(Boolean) as string[]
+        allPlanPeople
+            .map((p) => normalizePersonDisplayName(p.displayName))
+            .filter(Boolean) as string[]
     );
 
     // Filter out people already added as participants (by personId or displayName)
     const people = allPeople.filter(
-        (p) =>
-            !existingPersonIds.has(p.id) &&
-            !existingDisplayNames.has(p.displayName.toLowerCase())
+        (p) => {
+            const normalizedName = normalizePersonDisplayName(p.displayName);
+            return (
+                !existingPersonIds.has(p.id) &&
+                !(normalizedName && existingDisplayNames.has(normalizedName))
+            );
+        }
     );
 
     const isAdding = addParticipant.isPending || createPerson.isPending;
 
-    // All names on the plan (existing + just added) for display
-    const allOnPlan = [
-        ...existingParticipants
-            .map((p) => p.displayName)
-            .filter(Boolean) as string[],
-        ...justAdded.map((p) => p.displayName),
-    ];
+    const allOnPlan = allPlanPeople.filter(
+        (p): p is { personId?: string | null; displayName: string } =>
+            Boolean(p.displayName)
+    );
 
     const handleSelectPerson = useCallback(
         (person: Person) => {
@@ -585,13 +818,14 @@ function AddPersonSheet({
     }, [createPerson, addParticipant, planId, searchText, queryClient, onAdded]);
 
     // Check if typed name already exists as a participant or matches an existing person
-    const trimmedSearch = searchText.trim().toLowerCase();
-    const nameAlreadyOnPlan = trimmedSearch
-        ? existingDisplayNames.has(trimmedSearch)
+    const normalizedSearch = normalizePersonDisplayName(searchText);
+    const nameAlreadyOnPlan = normalizedSearch
+        ? existingDisplayNames.has(normalizedSearch)
         : false;
-    const exactMatchInLibrary = trimmedSearch
+    const exactMatchInLibrary = normalizedSearch
         ? people.find(
-              (p) => p.displayName.toLowerCase() === trimmedSearch
+              (p) =>
+                  normalizePersonDisplayName(p.displayName) === normalizedSearch
           )
         : null;
 
@@ -625,20 +859,26 @@ function AddPersonSheet({
                 accessibilityLabel="Search for a person"
             />
 
-                {/* People already on this plan */}
-                {allOnPlan.length > 0 && (
-                    <YStack marginTop="$3">
-                        <BottomSheetSectionLabel>
-                            On this plan
-                        </BottomSheetSectionLabel>
-                        <XStack
-                            flexWrap="wrap"
-                            gap="$1.5"
-                            marginBottom="$1"
-                        >
-                            {allOnPlan.map((name, i) => (
+            {/* People already on this plan */}
+            {allOnPlan.length > 0 && (
+                <YStack marginTop="$3">
+                    <BottomSheetSectionLabel>
+                        On this plan
+                    </BottomSheetSectionLabel>
+                    <XStack
+                        flexWrap="wrap"
+                        gap="$1.5"
+                        marginBottom="$1"
+                    >
+                        {allOnPlan.map((person) => {
+                            const name = person.displayName;
+                            const nameKey =
+                                normalizePersonDisplayName(name) || name;
+                            const chipKey = person.personId || `name:${nameKey}`;
+
+                            return (
                                 <XStack
-                                    key={`${name}-${i}`}
+                                    key={chipKey}
                                     alignItems="center"
                                     gap="$1.5"
                                     backgroundColor="$backgroundStrong"
@@ -673,10 +913,11 @@ function AddPersonSheet({
                                         {name}
                                     </Text>
                                 </XStack>
-                            ))}
-                        </XStack>
-                    </YStack>
-                )}
+                            );
+                        })}
+                    </XStack>
+                </YStack>
+            )}
 
                 <ScrollView
                     style={{ marginTop: 12, maxHeight: 240 }}
@@ -685,24 +926,12 @@ function AddPersonSheet({
                 >
                     <YStack gap="$2" paddingBottom="$1">
                         {people.map((person) => (
-                            <Pressable
+                            <BottomSheetListRow
                                 key={person.id}
                                 onPress={() => handleSelectPerson(person)}
                                 disabled={isAdding}
-                            >
-                                <XStack
-                                    alignItems="center"
-                                    gap="$3"
-                                    padding="$3"
-                                    borderRadius="$4"
-                                    borderWidth={1}
-                                    borderColor="$borderColorSubtle"
-                                    backgroundColor="$surface"
-                                    opacity={isAdding ? 0.6 : 1}
-                                    pressStyle={{
-                                        backgroundColor: "$backgroundStrong",
-                                    }}
-                                >
+                                accessibilityLabel={`Add ${person.displayName} to this plan`}
+                                leading={
                                     <View
                                         width={32}
                                         height={32}
@@ -724,96 +953,56 @@ function AddPersonSheet({
                                                 .toUpperCase()}
                                         </Text>
                                     </View>
-                                    <YStack flex={1}>
-                                        <Text
-                                            fontFamily="$body"
-                                            fontSize="$4"
-                                            color="$color"
-                                        >
-                                            {person.displayName}
-                                        </Text>
-                                        {(person.pronouns ||
-                                            person.neighborhood) && (
-                                            <Text
-                                                fontFamily="$body"
-                                                fontSize={11}
-                                                color="$colorTertiary"
-                                                numberOfLines={1}
-                                            >
-                                                {[
-                                                    person.pronouns,
-                                                    person.neighborhood,
-                                                ]
-                                                    .filter(Boolean)
-                                                    .join(" · ")}
-                                            </Text>
-                                        )}
-                                    </YStack>
-                                </XStack>
-                            </Pressable>
+                                }
+                                title={person.displayName}
+                                subtitle={
+                                    person.pronouns || person.neighborhood
+                                        ? [person.pronouns, person.neighborhood]
+                                              .filter(Boolean)
+                                              .join(" · ")
+                                        : undefined
+                                }
+                            />
                         ))}
 
                         {/* "Already on this plan" hint */}
                         {searchText.trim().length > 0 && nameAlreadyOnPlan && (
-                            <XStack
-                                alignItems="center"
-                                gap="$3"
-                                padding="$3"
-                                borderRadius="$4"
-                                borderWidth={1}
-                                borderColor="$borderColorSubtle"
-                                backgroundColor="$backgroundStrong"
-                                opacity={0.5}
-                            >
-                                <View
-                                    width={32}
-                                    height={32}
-                                    borderRadius={16}
-                                    backgroundColor="$backgroundStrong"
-                                    justifyContent="center"
-                                    alignItems="center"
-                                >
-                                    <Text
-                                        fontFamily="$body"
-                                        fontSize={13}
-                                        fontWeight="600"
-                                        color="$colorTertiary"
+                            <BottomSheetListRow
+                                tone="muted"
+                                title={searchText.trim()}
+                                subtitle="Already on this plan"
+                                leading={
+                                    <View
+                                        width={32}
+                                        height={32}
+                                        borderRadius={16}
+                                        backgroundColor="$surface"
+                                        justifyContent="center"
+                                        alignItems="center"
                                     >
-                                        {searchText.trim().charAt(0).toUpperCase()}
-                                    </Text>
-                                </View>
-                                <Text
-                                    fontFamily="$body"
-                                    fontSize="$3"
-                                    color="$colorTertiary"
-                                    fontStyle="italic"
-                                >
-                                    Already on this plan
-                                </Text>
-                            </XStack>
+                                        <Text
+                                            fontFamily="$body"
+                                            fontSize={13}
+                                            fontWeight="600"
+                                            color="$colorTertiary"
+                                        >
+                                            {searchText.trim().charAt(0).toUpperCase()}
+                                        </Text>
+                                    </View>
+                                }
+                            />
                         )}
 
                         {/* Create new person + add to plan */}
                         {searchText.trim().length > 0 &&
                             !exactMatchInLibrary &&
                             !nameAlreadyOnPlan && (
-                            <Pressable
+                            <BottomSheetListRow
                                 onPress={handleCreateAndAdd}
                                 disabled={isAdding}
-                            >
-                                <XStack
-                                    alignItems="center"
-                                    gap="$3"
-                                    padding="$3"
-                                    borderRadius="$4"
-                                    borderWidth={1}
-                                    borderColor="$borderColorSubtle"
-                                    backgroundColor="$surface"
-                                    opacity={isAdding ? 0.5 : 1}
-                                    pressStyle={{
-                                        backgroundColor: "$accentBackground",
-                                    }}
-                                >
+                                tone="accent"
+                                accessibilityLabel={`Create ${searchText.trim()} and add to this plan`}
+                                leading={
                                     <View
                                         width={32}
                                         height={32}
@@ -830,27 +1019,33 @@ function AddPersonSheet({
                                             +
                                         </Text>
                                     </View>
-                                    <YStack>
+                                }
+                                title={
+                                    isAdding
+                                        ? "Adding..."
+                                        : `Add "${searchText.trim()}"`
+                                }
+                                subtitle="Saves to your People library and adds to this plan"
+                                trailing={
+                                    <XStack
+                                        borderRadius="$10"
+                                        backgroundColor="$backgroundStrong"
+                                        borderWidth={1}
+                                        borderColor="$borderColorSubtle"
+                                        paddingHorizontal="$2.5"
+                                        paddingVertical="$1"
+                                    >
                                         <Text
                                             fontFamily="$body"
-                                            fontSize="$4"
-                                            color="$accentColor"
-                                            fontWeight="500"
+                                            fontSize="$2"
+                                            color="$colorSecondary"
+                                            fontWeight="600"
                                         >
-                                            {isAdding
-                                                ? "Adding..."
-                                                : `Add "${searchText.trim()}"`}
+                                            New
                                         </Text>
-                                        <Text
-                                            fontFamily="$body"
-                                            fontSize={11}
-                                            color="$colorTertiary"
-                                        >
-                                            Saves to your People & adds to plan
-                                        </Text>
-                                    </YStack>
-                                </XStack>
-                            </Pressable>
+                                    </XStack>
+                                }
+                            />
                         )}
 
                         {/* Empty state when no people exist */}
@@ -1645,6 +1840,7 @@ export default function PlanDetailScreen() {
                     onOpenChange={setWhenSheetOpen}
                     currentPrecision={plan.timePrecision}
                     currentAnchorStart={plan.anchorStart}
+                    currentAnchorEnd={plan.anchorEnd}
                     onSave={handleSaveWhen}
                 />
 

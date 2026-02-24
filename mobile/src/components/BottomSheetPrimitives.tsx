@@ -335,26 +335,28 @@ export function BottomSheetHeaderAction({
 }: BottomSheetHeaderActionProps) {
     return (
         <YStack
-            height="$9"
-            paddingHorizontal="$3.5"
-            borderRadius="$5"
-            borderWidth={1}
-            borderColor="$borderColor"
-            backgroundColor="$backgroundStrong"
+            minWidth={44}
+            height="$8"
+            paddingHorizontal="$2.5"
+            borderRadius="$4"
+            backgroundColor="transparent"
             justifyContent="center"
             alignItems="center"
             onPress={onPress}
             disabled={disabled}
             opacity={disabled ? 0.45 : 1}
-            pressStyle={{ opacity: 0.8 }}
+            pressStyle={{
+                opacity: 0.65,
+                backgroundColor: "$backgroundStrong",
+            }}
             accessibilityRole="button"
             accessibilityLabel={accessibilityLabel}
         >
             <Text
                 fontFamily="$body"
-                fontSize="$3"
+                fontSize="$4"
                 fontWeight="600"
-                color="$colorSecondary"
+                color="$color"
             >
                 {label}
             </Text>
@@ -413,6 +415,88 @@ export function BottomSheetTextField({
                 }
             }
         />
+    );
+}
+
+type BottomSheetListRowTone = "default" | "accent" | "muted";
+
+type BottomSheetListRowProps = {
+    title: string;
+    subtitle?: string;
+    leading?: React.ReactNode;
+    trailing?: React.ReactNode;
+    onPress?: () => void;
+    accessibilityLabel?: string;
+    disabled?: boolean;
+    tone?: BottomSheetListRowTone;
+};
+
+export function BottomSheetListRow({
+    title,
+    subtitle,
+    leading,
+    trailing,
+    onPress,
+    accessibilityLabel,
+    disabled = false,
+    tone = "default",
+}: BottomSheetListRowProps) {
+    const isMuted = tone === "muted";
+    const isAccent = tone === "accent";
+    const isInteractive = Boolean(onPress) && !disabled;
+
+    return (
+        <XStack
+            alignItems="center"
+            gap="$3"
+            padding="$3"
+            borderRadius="$4"
+            borderWidth={1}
+            borderColor={isAccent ? "$borderColor" : "$borderColorSubtle"}
+            backgroundColor={isMuted ? "$backgroundStrong" : "$surface"}
+            opacity={disabled ? 0.6 : 1}
+            onPress={onPress}
+            disabled={!isInteractive}
+            pressStyle={
+                isInteractive
+                    ? {
+                          backgroundColor: isAccent
+                              ? "$surfaceHover"
+                              : "$backgroundStrong",
+                          scale: 0.995,
+                      }
+                    : undefined
+            }
+            accessibilityRole={isInteractive ? "button" : undefined}
+            accessibilityLabel={accessibilityLabel}
+        >
+            {leading ? leading : null}
+
+            <YStack flex={1} minWidth={0}>
+                <Text
+                    fontFamily="$body"
+                    fontSize="$4"
+                    color={isMuted ? "$colorTertiary" : "$color"}
+                    fontWeight="500"
+                    numberOfLines={1}
+                >
+                    {title}
+                </Text>
+
+                {subtitle ? (
+                    <Text
+                        fontFamily="$body"
+                        fontSize={11}
+                        color="$colorTertiary"
+                        numberOfLines={1}
+                    >
+                        {subtitle}
+                    </Text>
+                ) : null}
+            </YStack>
+
+            {trailing ? trailing : null}
+        </XStack>
     );
 }
 
