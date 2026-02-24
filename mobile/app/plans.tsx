@@ -21,7 +21,6 @@ import {
 import {
     useListPlans,
     useCreatePlan,
-    usePatchPlan,
     getListPlansQueryKey,
 } from "../src/api/generated/plans/plans";
 import type { SocialPlan } from "../src/api/generated/model/socialPlan";
@@ -117,6 +116,180 @@ function participantNames(plan: SocialPlan): string | null {
     if (names.length === 1) return `with ${names[0]}`;
     if (names.length === 2) return `with ${names[0]} & ${names[1]}`;
     return `with ${names[0]} & ${names.length - 1} others`;
+}
+
+function notePreview(text: string | null | undefined, maxChars = 48): string | null {
+    const normalized = text?.replace(/\s+/g, " ").trim();
+    if (!normalized) return null;
+    if (normalized.length <= maxChars) return normalized;
+    return `${normalized.slice(0, maxChars - 1).trimEnd()}…`;
+}
+
+function planSubtitleText(
+    plan: SocialPlan,
+    options?: { allowNoteFallback?: boolean }
+): string {
+    const allowNoteFallback = options?.allowNoteFallback ?? true;
+    const people = participantNames(plan);
+    const location = plan.locationText?.trim();
+    const note = notePreview(plan.contextNote);
+
+    if (people && location) return `${people} • at ${location}`;
+    if (people) return people;
+    if (location) return `at ${location}`;
+    if (allowNoteFallback && note) return `Note: ${note}`;
+    return "No people or place yet";
+}
+
+function formatRelativePastLabel(iso: string | null | undefined): string | null {
+    if (!iso) return null;
+    const diffDays = getDaysDiff(iso);
+    if (diffDays === null) return null;
+
+    if (diffDays === 0) return "today";
+    if (diffDays === -1) return "yesterday";
+    if (diffDays < -1 && diffDays >= -6) return `${Math.abs(diffDays)}d ago`;
+
+    const date = new Date(iso);
+    if (isNaN(date.getTime())) return null;
+    return date.toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+    });
+}
+
+function planLifecycleText(plan: SocialPlan): string {
+    const relative = formatRelativePastLabel(plan.updatedAt) ?? "recently";
+
+    if (plan.state === "DONE") return `Completed ${relative}`;
+    if (plan.state === "DROPPED") return `Dropped ${relative}`;
+
+    const createdAt = new Date(plan.createdAt).getTime();
+    const updatedAt = new Date(plan.updatedAt).getTime();
+    const justCreated =
+        !isNaN(createdAt) &&
+        !isNaN(updatedAt) &&
+        Math.abs(updatedAt - createdAt) < 60 * 1000;
+
+    return `${justCreated ? "Added" : "Updated"} ${relative}`;
+}
+
+type PillTone = "neutral" | "success" | "warning" | "muted";
+
+type PlanSignal = {
+    label: string;
+    tone: PillTone;
+};
+
+function getPlanSignal(plan: SocialPlan): PlanSignal | null {
+    if (plan.state !== "OPEN") return null;
+
+    const missingPeople = plan.participants.length === 0;
+    const missingDate = !plan.anchorStart && plan.timePrecision !== "NONE";
+
+    if (missingPeople && missingDate) {
+        return { label: "Needs people + date", tone: "warning" };
+    }
+    if (missingPeople) {
+        return { label: "Needs people", tone: "warning" };
+    }
+    if (missingDate) {
+        return { label: "Needs date", tone: "warning" };
+    }
+    if (plan.timePrecision === "NONE") {
+        return { label: "Flexible timing", tone: "neutral" };
+    }
+
+    return null;
+}
+
+function InfoPill({
+    label,
+    tone = "neutral",
+    compact = false,
+}: {
+    label: string;
+    tone?: PillTone;
+    compact?: boolean;
+}) {
+    const toneStyles: Record<PillTone, { backgroundColor: string; color: string }> = {
+        neutral: { backgroundColor: "#F0ECE4", color: "#6E6258" },
+        muted: { backgroundColor: "#F5F2EC", color: "#8D8176" },
+        success: { backgroundColor: "rgba(125,174,120,0.14)", color: "#4E7A4A" },
+        warning: { backgroundColor: "rgba(212,149,106,0.16)", color: "#8E5532" },
+    };
+    const styles = toneStyles[tone];
+
+    return (
+        <XStack
+            alignItems="center"
+            justifyContent="center"
+            paddingHorizontal={compact ? "$1.5" : "$2"}
+            paddingVertical={compact ? 2 : 4}
+            borderRadius={compact ? "$3" : "$4"}
+            backgroundColor={styles.backgroundColor}
+        >
+            <Text
+                fontFamily="$body"
+                fontSize={compact ? 10 : 11}
+                fontWeight="600"
+                color={styles.color}
+            >
+                {label}
+            </Text>
+        </XStack>
+    );
+}
+
+function RowChevron({ compact = false }: { compact?: boolean }) {
+    return (
+        <Text
+            fontFamily="$body"
+            fontSize={compact ? 16 : 18}
+            fontWeight="600"
+            color="$colorTertiary"
+            opacity={0.7}
+            marginTop={compact ? -1 : 0}
+        >
+            ›
+        </Text>
+    );
+}
+
+function PlanMetaFooter({
+    plan,
+    compact = false,
+    marginTop,
+}: {
+    plan: SocialPlan;
+    compact?: boolean;
+    marginTop?: string | number;
+}) {
+    const signal = getPlanSignal(plan);
+
+    return (
+        <XStack
+            alignItems="center"
+            gap={compact ? "$1.5" : "$2"}
+            flexWrap="wrap"
+            marginTop={marginTop ?? (compact ? "$1.5" : "$3")}
+        >
+            {signal ? (
+                <InfoPill
+                    label={signal.label}
+                    tone={signal.tone}
+                    compact={compact}
+                />
+            ) : null}
+            <Text
+                fontFamily="$body"
+                fontSize={compact ? 11 : "$2"}
+                color="$colorTertiary"
+            >
+                {planLifecycleText(plan)}
+            </Text>
+        </XStack>
+    );
 }
 
 function planCountLabel(count: number, filterLabel: string): string {
@@ -311,15 +484,11 @@ const STATE_FILTERS: { label: string; value: SocialPlanState[] }[] = [
 
 function HeroCard({
     plan,
-    onMarkDone,
     onPress,
-    isUpdating,
     reducedMotion,
 }: {
     plan: SocialPlan;
-    onMarkDone: (plan: SocialPlan) => void;
     onPress: (plan: SocialPlan) => void;
-    isUpdating: boolean;
     reducedMotion: boolean;
 }) {
     const when = formatWhenBadge(plan);
@@ -347,7 +516,7 @@ function HeroCard({
         ]).start();
     }, []);
 
-    // Mark-done success flash
+    // Completion success flash (e.g. after returning from the detail screen)
     const flashAnim = useRef(new Animated.Value(0)).current;
     const prevStateRef = useRef(plan.state);
     useEffect(() => {
@@ -421,7 +590,7 @@ function HeroCard({
                     shadowRadius={16}
                     elevation={4}
                     accessibilityRole="button"
-                    accessibilityLabel={`Plan: ${plan.intentText}`}
+                    accessibilityLabel={`Open plan: ${plan.intentText}`}
                 >
                     {/* Left accent bar */}
                     <View
@@ -435,7 +604,7 @@ function HeroCard({
                         borderBottomLeftRadius={16}
                     />
 
-                    {/* Top row: intent + time badge */}
+                    {/* Top row: intent + time badge + chevron */}
                     <XStack
                         justifyContent="space-between"
                         alignItems="flex-start"
@@ -450,40 +619,39 @@ function HeroCard({
                             {plan.intentText}
                         </Text>
 
-                        {when && (
-                            <View
-                                backgroundColor="$backgroundStrong"
-                                paddingHorizontal="$2"
-                                paddingVertical="$0.5"
-                                borderRadius="$4"
-                                flexShrink={0}
-                            >
-                                <Text
-                                    fontFamily="$body"
-                                    fontSize="$1"
-                                    fontWeight="500"
-                                    color="$colorSecondary"
+                        <XStack alignItems="center" gap="$2" flexShrink={0}>
+                            {when && (
+                                <View
+                                    backgroundColor="$backgroundStrong"
+                                    paddingHorizontal="$2"
+                                    paddingVertical="$0.5"
+                                    borderRadius="$4"
+                                    flexShrink={0}
                                 >
-                                    {when}
-                                </Text>
-                            </View>
-                        )}
+                                    <Text
+                                        fontFamily="$body"
+                                        fontSize="$1"
+                                        fontWeight="500"
+                                        color="$colorSecondary"
+                                    >
+                                        {when}
+                                    </Text>
+                                </View>
+                            )}
+                            <RowChevron />
+                        </XStack>
                     </XStack>
 
-                    {/* Avatar stack */}
+                    {/* People / place summary */}
                     <AvatarStack plan={plan} />
-
-                    {/* Location */}
-                    {plan.locationText && (
-                        <Text
-                            fontFamily="$body"
-                            fontSize="$2"
-                            color="$colorTertiary"
-                            marginTop="$1"
-                        >
-                            {plan.locationText}
-                        </Text>
-                    )}
+                    <Text
+                        fontFamily="$body"
+                        fontSize="$2"
+                        color="$colorTertiary"
+                        marginTop="$1"
+                    >
+                        {planSubtitleText(plan, { allowNoteFallback: false })}
+                    </Text>
 
                     {/* Context note — no truncation for hero */}
                     {plan.contextNote && (
@@ -498,42 +666,7 @@ function HeroCard({
                         </Text>
                     )}
 
-                    {/* Bottom row */}
-                    <XStack
-                        justifyContent="flex-end"
-                        alignItems="center"
-                        marginTop="$3"
-                    >
-                        <YStack
-                            paddingHorizontal="$3"
-                            paddingVertical="$1.5"
-                            borderRadius="$5"
-                            backgroundColor="$successBackground"
-                            onPress={() => onMarkDone(plan)}
-                            disabled={isUpdating}
-                            opacity={isUpdating ? 0.5 : 1}
-                            pressStyle={{
-                                scale: 0.95,
-                                backgroundColor: "$successColor",
-                            }}
-                            // @ts-ignore
-                            animation="fast"
-                            accessibilityRole="button"
-                            accessibilityLabel={`Mark "${plan.intentText}" as done`}
-                            cursor="pointer"
-                            minHeight={36}
-                            justifyContent="center"
-                        >
-                            <Text
-                                fontFamily="$body"
-                                fontSize="$3"
-                                fontWeight="500"
-                                color="$successColor"
-                            >
-                                {isUpdating ? "Saving..." : "Mark Done"}
-                            </Text>
-                        </YStack>
-                    </XStack>
+                    <PlanMetaFooter plan={plan} />
                 </YStack>
             </Animated.View>
         </Animated.View>
@@ -546,24 +679,18 @@ function HeroCard({
 
 function CompactCard({
     plan,
-    onMarkDone,
     onPress,
-    isUpdating,
     index,
     reducedMotion,
 }: {
     plan: SocialPlan;
-    onMarkDone: (plan: SocialPlan) => void;
     onPress: (plan: SocialPlan) => void;
-    isUpdating: boolean;
     index: number;
     reducedMotion: boolean;
 }) {
     const when = formatWhenBadge(plan);
-    const isDone = plan.state === "DONE";
     const isDropped = plan.state === "DROPPED";
-    const isOpen = plan.state === "OPEN";
-    const isInactive = isDone || isDropped;
+    const isInactive = plan.state === "DONE" || isDropped;
     const accentColor = getAccentColor(plan);
     const useNativeDriver = Platform.OS !== "web";
 
@@ -593,7 +720,7 @@ function CompactCard({
         ]).start();
     }, []);
 
-    // Mark-done success flash
+    // Completion success flash (e.g. after returning from the detail screen)
     const flashAnim = useRef(new Animated.Value(0)).current;
     const prevStateRef = useRef(plan.state);
     useEffect(() => {
@@ -670,7 +797,7 @@ function CompactCard({
                     shadowRadius={6}
                     elevation={1}
                     accessibilityRole="button"
-                    accessibilityLabel={`Plan: ${plan.intentText}`}
+                    accessibilityLabel={`Open plan: ${plan.intentText}`}
                 >
                     {/* Left accent bar — only for active plans */}
                     {!isInactive && (
@@ -686,13 +813,18 @@ function CompactCard({
                         />
                     )}
 
-                    <XStack
-                        justifyContent="space-between"
-                        alignItems="center"
-                        gap="$2"
-                    >
-                        <YStack flex={1} gap="$0.5">
-                            <XStack alignItems="center" gap="$2">
+                    <YStack flex={1} gap="$0.5">
+                        <XStack
+                            justifyContent="space-between"
+                            alignItems="center"
+                            gap="$2"
+                        >
+                            <XStack
+                                alignItems="center"
+                                gap="$2"
+                                flex={1}
+                                flexShrink={1}
+                            >
                                 <Text
                                     fontFamily="$heading"
                                     fontSize="$6"
@@ -721,74 +853,25 @@ function CompactCard({
                                     </View>
                                 )}
                             </XStack>
+                            <RowChevron compact />
+                        </XStack>
 
-                            {/* Compact metadata: avatars inline */}
-                            <XStack alignItems="center" gap="$2">
-                                <AvatarStack plan={plan} />
-                                {plan.locationText && (
-                                    <Text
-                                        fontFamily="$body"
-                                        fontSize={11}
-                                        color="$colorTertiary"
-                                        numberOfLines={1}
-                                        flex={1}
-                                    >
-                                        {plan.locationText}
-                                    </Text>
-                                )}
-                            </XStack>
-                        </YStack>
-
-                        {/* Right side: action button or status label */}
-                        {isOpen ? (
-                            <YStack
-                                paddingHorizontal="$3"
-                                paddingVertical="$1.5"
-                                borderRadius="$5"
-                                backgroundColor="$successBackground"
-                                onPress={() => onMarkDone(plan)}
-                                disabled={isUpdating}
-                                opacity={isUpdating ? 0.5 : 1}
-                                pressStyle={{
-                                    scale: 0.95,
-                                    backgroundColor: "$successColor",
-                                }}
-                                // @ts-ignore
-                                animation="fast"
-                                accessibilityRole="button"
-                                accessibilityLabel={`Mark "${plan.intentText}" as done`}
-                                cursor="pointer"
-                                minHeight={36}
-                                justifyContent="center"
+                        {/* Subtitle: people + place summary */}
+                        <XStack alignItems="center" gap="$2">
+                            <AvatarStack plan={plan} />
+                            <Text
+                                fontFamily="$body"
+                                fontSize={11}
+                                color="$colorTertiary"
+                                numberOfLines={1}
+                                flex={1}
                             >
-                                <Text
-                                    fontFamily="$body"
-                                    fontSize="$2"
-                                    fontWeight="600"
-                                    color="$successColor"
-                                >
-                                    {isUpdating ? "..." : "✓ Mark Done"}
-                                </Text>
-                            </YStack>
-                        ) : (
-                            <XStack alignItems="center" gap="$1">
-                                <Text
-                                    fontFamily="$body"
-                                    fontSize={12}
-                                    color="$colorTertiary"
-                                >
-                                    {isDone ? "✓" : "—"}
-                                </Text>
-                                <Text
-                                    fontFamily="$body"
-                                    fontSize={11}
-                                    color="$colorTertiary"
-                                >
-                                    {isDone ? "Completed" : "Dropped"}
-                                </Text>
-                            </XStack>
-                        )}
-                    </XStack>
+                                {planSubtitleText(plan)}
+                            </Text>
+                        </XStack>
+
+                        <PlanMetaFooter plan={plan} compact />
+                    </YStack>
                 </YStack>
             </Animated.View>
         </Animated.View>
@@ -1122,7 +1205,6 @@ export default function PlansScreen() {
 
     const [activeFilter, setActiveFilter] = useState(1); // Default to "Open"
     const [sheetOpen, setSheetOpen] = useState(false);
-    const [updatingPlanId, setUpdatingPlanId] = useState<string | null>(null);
 
     const {
         data: plansResponse,
@@ -1133,8 +1215,6 @@ export default function PlansScreen() {
         state: STATE_FILTERS[activeFilter].value,
         sort: "-updatedAt",
     });
-
-    const patchPlan = usePatchPlan();
 
     const responseData = plansResponse?.data;
     const plans: SocialPlan[] =
@@ -1200,24 +1280,6 @@ export default function PlansScreen() {
         queryClient.invalidateQueries({ queryKey: getListPlansQueryKey() });
     }, [queryClient]);
 
-    const handleMarkDone = useCallback(
-        (plan: SocialPlan) => {
-            setUpdatingPlanId(plan.id);
-            patchPlan.mutate(
-                { planId: plan.id, data: { state: "DONE" } },
-                {
-                    onSettled: () => {
-                        setUpdatingPlanId(null);
-                        queryClient.invalidateQueries({
-                            queryKey: getListPlansQueryKey(),
-                        });
-                    },
-                }
-            );
-        },
-        [patchPlan, queryClient]
-    );
-
     const handleSignOut = useCallback(() => {
         Alert.alert("Sign out?", "You can always sign back in.", [
             { text: "Cancel", style: "cancel" },
@@ -1246,9 +1308,7 @@ export default function PlansScreen() {
                 return (
                     <HeroCard
                         plan={item.plan}
-                        onMarkDone={handleMarkDone}
                         onPress={handlePlanPress}
-                        isUpdating={updatingPlanId === item.plan.id}
                         reducedMotion={reducedMotion}
                     />
                 );
@@ -1258,15 +1318,13 @@ export default function PlansScreen() {
             return (
                 <CompactCard
                     plan={item.plan}
-                    onMarkDone={handleMarkDone}
                     onPress={handlePlanPress}
-                    isUpdating={updatingPlanId === item.plan.id}
                     index={idx}
                     reducedMotion={reducedMotion}
                 />
             );
         },
-        [handleMarkDone, handlePlanPress, updatingPlanId, reducedMotion]
+        [handlePlanPress, reducedMotion]
     );
 
     const keyExtractor = useCallback((item: SectionItem) => item.key, []);
