@@ -30,6 +30,7 @@ import type { SocialPlanState } from "../src/api/generated/model/socialPlanState
 import { PlanCard } from "../src/components/plans/PlanCard";
 import type { PlanQuickActionRowAction } from "../src/components/plans/PlanQuickActionRow";
 import { PlansSectionHeader } from "../src/components/plans/PlansSectionHeader";
+import { TodayDateChip } from "../src/components/DateChip";
 import { useAuth } from "../src/context/AuthContext";
 import {
     buildFilteredSectionItems,
@@ -787,19 +788,26 @@ export default function PlansScreen() {
                             </XStack>
                         </XStack>
 
-                        {/* Plan count subtitle */}
-                        {!isLoading && countLabel ? (
-                            <Animated.View style={{ opacity: greetingOpacity }}>
-                                <Text
-                                    fontFamily="$body"
-                                    fontSize="$2"
-                                    color="$colorTertiary"
-                                    marginTop="$1"
-                                >
-                                    {countLabel}
-                                </Text>
-                            </Animated.View>
-                        ) : null}
+                        {/* Header meta */}
+                        <Animated.View style={{ opacity: greetingOpacity }}>
+                            <XStack
+                                alignItems="center"
+                                gap="$2"
+                                marginTop="$1"
+                                flexWrap="wrap"
+                            >
+                                <TodayDateChip />
+                                {!isLoading && countLabel ? (
+                                    <Text
+                                        fontFamily="$body"
+                                        fontSize="$2"
+                                        color="$colorTertiary"
+                                    >
+                                        {countLabel}
+                                    </Text>
+                                ) : null}
+                            </XStack>
+                        </Animated.View>
                     </YStack>
 
                     {/* ---- Segmented filter control ---- */}

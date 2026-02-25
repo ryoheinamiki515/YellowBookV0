@@ -1,6 +1,7 @@
 import { Platform } from "react-native";
 import Constants from "expo-constants";
 import { getToken } from "./../lib/tokenStorage";
+import { emitAuthSessionInvalidation } from "../auth/authSessionEvents";
 
 function getExpoMetroHostIp(): string | null {
     const c = Constants as any;
@@ -126,6 +127,14 @@ export const customFetch = async <T>(
 
     // Make non-2xx fail fast (TanStack Query wants thrown errors)
     if (!res.ok) {
+        if (res.status === 401) {
+            emitAuthSessionInvalidation({
+                kind: "unauthorized",
+                status: 401,
+                url: fullUrl,
+            });
+        }
+
         const err: any = new Error(body?.title || body?.detail || `HTTP ${res.status}`);
         err.status = res.status;
         err.problem = body; // your RFC7807 payload

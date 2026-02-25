@@ -1,5 +1,5 @@
 import { Stack, useRouter, useSegments, SplashScreen } from "expo-router";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import React, { useEffect } from "react";
 import { useFonts } from "expo-font";
 import {
@@ -23,6 +23,7 @@ function ProtectedLayout() {
     const { hasToken, isLoading } = useAuth();
     const segments = useSegments();
     const router = useRouter();
+    const queryClient = useQueryClient();
 
     useEffect(() => {
         if (isLoading) return;
@@ -34,7 +35,15 @@ function ProtectedLayout() {
         } else if (hasToken && isLogin) {
             router.replace('/plans');
         }
-    }, [hasToken, isLoading, segments]);
+    }, [hasToken, isLoading, router, segments]);
+
+    useEffect(() => {
+        if (isLoading) return;
+
+        if (!hasToken) {
+            queryClient.clear();
+        }
+    }, [hasToken, isLoading, queryClient]);
 
     if (isLoading) {
         return (

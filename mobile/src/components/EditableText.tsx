@@ -6,24 +6,28 @@ import { AppTextInput } from "./AppTextInput";
 
 type EditableTextProps = {
     value: string;
-    onSave: (text: string) => void;
+    onSave?: (text: string) => void;
+    onChangeText?: (text: string) => void;
     placeholder: string;
     multiline?: boolean;
     textStyle?: Record<string, unknown>;
     placeholderColor?: string;
     showMultilineDoneAction?: boolean;
     multilineDoneLabel?: string;
+    saveOnBlur?: boolean;
 };
 
 export function EditableText({
     value,
     onSave,
+    onChangeText,
     placeholder,
     multiline = false,
     textStyle,
     placeholderColor = "$colorTertiary",
     showMultilineDoneAction = true,
     multilineDoneLabel = "Done",
+    saveOnBlur = true,
 }: EditableTextProps) {
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState(value);
@@ -42,16 +46,28 @@ export function EditableText({
         return () => clearTimeout(timer);
     }, [editing]);
 
+    const handleChangeText = useCallback(
+        (text: string) => {
+            setDraft(text);
+            onChangeText?.(text);
+        },
+        [onChangeText]
+    );
+
     const handleBlur = useCallback(() => {
         setEditing(false);
+        if (!saveOnBlur) {
+            return;
+        }
+
         const trimmed = draft.trim();
         if (trimmed && trimmed !== value) {
-            onSave(trimmed);
+            onSave?.(trimmed);
             return;
         }
 
         setDraft(value);
-    }, [draft, value, onSave]);
+    }, [draft, value, onSave, saveOnBlur]);
 
     const handleDonePress = useCallback(() => {
         inputRef.current?.blur();
@@ -63,7 +79,7 @@ export function EditableText({
                 <AppTextInput
                     ref={inputRef}
                     value={draft}
-                    onChangeText={setDraft}
+                    onChangeText={handleChangeText}
                     onBlur={handleBlur}
                     multiline={multiline}
                     returnKeyType={multiline ? "default" : "done"}

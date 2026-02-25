@@ -42,6 +42,8 @@ import {
 } from "../../src/api/generated/people/people";
 import type { SocialPlan } from "../../src/api/generated/model/socialPlan";
 import type { SocialPlanParticipant } from "../../src/api/generated/model/socialPlanParticipant";
+import type { SocialPlanPatchRequest } from "../../src/api/generated/model/socialPlanPatchRequest";
+import type { SocialPlanTimePrecision } from "../../src/api/generated/model/socialPlanTimePrecision";
 import type { Person } from "../../src/api/generated/model/person";
 import {
     AVATAR_COLORS,
@@ -54,6 +56,27 @@ import {
 type PlanPersonIdentity = {
     personId?: string | null;
     displayName?: string | null;
+};
+
+type StagedParticipantAdd =
+    | {
+          kind: "existing-person";
+          draftId: string;
+          personId: string;
+          displayName: string;
+      }
+    | {
+          kind: "new-person";
+          draftId: string;
+          displayName: string;
+      };
+
+type DisplayPlanParticipantChip = {
+    key: string;
+    source: "server" | "staged-existing-person" | "staged-new-person";
+    participantId?: string;
+    personId?: string | null;
+    displayName: string;
 };
 
 function normalizePersonDisplayName(
@@ -99,6 +122,84 @@ function mergeUniquePlanPeople(
     }
 
     return merged;
+}
+
+function getErrorStatusCode(error: unknown): number | null {
+    if (!error || typeof error !== "object") return null;
+    const status = (error as { status?: unknown }).status;
+    return typeof status === "number" ? status : null;
+}
+
+type PlanEditableDraft = {
+    intentText: string;
+    locationText: string;
+    contextNote: string;
+    timePrecision: SocialPlanTimePrecision;
+    anchorStart: string | null;
+    anchorEnd: string | null;
+    timezone: string | null;
+};
+
+function buildPlanEditableDraft(plan: SocialPlan): PlanEditableDraft {
+    return {
+        intentText: plan.intentText ?? "",
+        locationText: plan.locationText ?? "",
+        contextNote: plan.contextNote ?? "",
+        timePrecision: plan.timePrecision,
+        anchorStart: plan.anchorStart ?? null,
+        anchorEnd: plan.anchorEnd ?? null,
+        timezone: plan.timezone ?? null,
+    };
+}
+
+function arePlanEditableDraftsEqual(
+    a: PlanEditableDraft,
+    b: PlanEditableDraft
+): boolean {
+    return (
+        a.intentText === b.intentText &&
+        a.locationText === b.locationText &&
+        a.contextNote === b.contextNote &&
+        a.timePrecision === b.timePrecision &&
+        a.anchorStart === b.anchorStart &&
+        a.anchorEnd === b.anchorEnd &&
+        a.timezone === b.timezone
+    );
+}
+
+function normalizeOptionalPlanText(value: string): string | null {
+    const trimmed = value.trim();
+    return trimmed ? trimmed : null;
+}
+
+function normalizePlanDraftForSave(draft: PlanEditableDraft): PlanEditableDraft {
+    const isUnanchored = draft.timePrecision === "NONE";
+
+    return {
+        ...draft,
+        intentText: draft.intentText.trim(),
+        locationText: normalizeOptionalPlanText(draft.locationText) ?? "",
+        contextNote: normalizeOptionalPlanText(draft.contextNote) ?? "",
+        anchorStart: isUnanchored ? null : draft.anchorStart,
+        anchorEnd: isUnanchored ? null : draft.anchorEnd,
+        timezone: isUnanchored ? null : draft.timezone,
+    };
+}
+
+function buildPlanPatchFromDraft(draft: PlanEditableDraft): SocialPlanPatchRequest {
+    const normalizedDraft = normalizePlanDraftForSave(draft);
+    const timePrecision = normalizedDraft.timePrecision;
+    const isUnanchored = timePrecision === "NONE";
+
+    return {
+        intentText: normalizedDraft.intentText,
+        locationText: normalizeOptionalPlanText(normalizedDraft.locationText),
+        contextNote: normalizeOptionalPlanText(normalizedDraft.contextNote),
+        timePrecision,
+        anchorStart: isUnanchored ? null : normalizedDraft.anchorStart,
+        anchorEnd: isUnanchored ? null : normalizedDraft.anchorEnd,
+        timezone: isUnanchored ? null : normalizedDraft.timezone,
+    };
 }
 
 // ---------------------------------------------------------------------------
@@ -364,11 +465,11 @@ function WhenSheet({
 }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    currentPrecision: string;
+    currentPrecision: SocialPlanTimePrecision;
     currentAnchorStart: string | null | undefined;
     currentAnchorEnd: string | null | undefined;
     onSave: (data: {
-        timePrecision: string;
+        timePrecision: SocialPlanTimePrecision;
         anchorStart: string | null;
         anchorEnd: string | null;
     }) => void;
@@ -658,31 +759,25 @@ function WhenSheet({
 function AddPersonSheet({
     open,
     onOpenChange,
-    planId,
-    onAdded,
-    existingParticipants,
+    currentParticipants,
+    onStageExistingPerson,
+    onStageNewPerson,
+    disabled = false,
 }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    planId: string;
-    onAdded: () => void;
-    existingParticipants: SocialPlanParticipant[];
+    currentParticipants: PlanPersonIdentity[];
+    onStageExistingPerson: (person: Person) => void;
+    onStageNewPerson: (displayName: string) => void;
+    disabled?: boolean;
 }) {
     const [searchText, setSearchText] = useState("");
     const [debouncedQ, setDebouncedQ] = useState("");
-    // Track participants added during this sheet session
-    const [justAdded, setJustAdded] = useState<
-        { personId?: string; displayName: string }[]
-    >([]);
-    const addParticipant = useAddPlanParticipant();
-    const createPerson = useCreatePerson();
-    const queryClient = useQueryClient();
 
     useEffect(() => {
         if (!open) {
             setSearchText("");
             setDebouncedQ("");
-            setJustAdded([]);
         }
     }, [open]);
 
@@ -703,9 +798,7 @@ function AddPersonSheet({
             ? (peopleResponse.data as { data: Person[] }).data
             : [];
 
-    // Merge server state + local optimistic state into a single deduped source.
-    // This prevents newly-added people from rendering twice after a refetch.
-    const allPlanPeople = mergeUniquePlanPeople(existingParticipants, justAdded);
+    const allPlanPeople = mergeUniquePlanPeople(currentParticipants);
     const existingPersonIds = new Set(
         allPlanPeople
             .map((p) => p.personId)
@@ -728,8 +821,6 @@ function AddPersonSheet({
         }
     );
 
-    const isAdding = addParticipant.isPending || createPerson.isPending;
-
     const allOnPlan = allPlanPeople.filter(
         (p): p is { personId?: string | null; displayName: string } =>
             Boolean(p.displayName)
@@ -737,85 +828,18 @@ function AddPersonSheet({
 
     const handleSelectPerson = useCallback(
         (person: Person) => {
-            addParticipant.mutate(
-                {
-                    planId,
-                    data: { personId: person.id, displayName: person.displayName },
-                },
-                {
-                    onSuccess: () => {
-                        setJustAdded((prev) => [
-                            ...prev,
-                            { personId: person.id, displayName: person.displayName },
-                        ]);
-                        setSearchText("");
-                        onAdded();
-                    },
-                    onError: () => {
-                        Alert.alert(
-                            "Couldn't add them",
-                            "Something went wrong — try again?"
-                        );
-                    },
-                }
-            );
+            onStageExistingPerson(person);
+            setSearchText("");
         },
-        [addParticipant, planId, onAdded]
+        [onStageExistingPerson]
     );
 
-    // Create a new Person in the library, then link them as participant
     const handleCreateAndAdd = useCallback(() => {
         const name = searchText.trim();
         if (!name) return;
-        createPerson.mutate(
-            { data: { displayName: name } },
-            {
-                onSuccess: (response) => {
-                    const newPerson =
-                        response?.data && "data" in response.data
-                            ? (response.data as { data: Person }).data
-                            : null;
-
-                    const participantData = newPerson
-                        ? { personId: newPerson.id, displayName: newPerson.displayName }
-                        : { displayName: name };
-
-                    addParticipant.mutate(
-                        { planId, data: participantData },
-                        {
-                            onSuccess: () => {
-                                queryClient.invalidateQueries({
-                                    queryKey: getListPeopleQueryKey(),
-                                });
-                                setJustAdded((prev) => [
-                                    ...prev,
-                                    { personId: newPerson?.id, displayName: name },
-                                ]);
-                                setSearchText("");
-                                onAdded();
-                            },
-                            onError: () => {
-                                queryClient.invalidateQueries({
-                                    queryKey: getListPeopleQueryKey(),
-                                });
-                                onAdded();
-                                Alert.alert(
-                                    "Person saved, but couldn't add to plan",
-                                    `${name} was added to your People library. Try adding them to this plan again.`
-                                );
-                            },
-                        }
-                    );
-                },
-                onError: () => {
-                    Alert.alert(
-                        "Couldn't save that",
-                        "Something went wrong — try again?"
-                    );
-                },
-            }
-        );
-    }, [createPerson, addParticipant, planId, searchText, queryClient, onAdded]);
+        onStageNewPerson(name);
+        setSearchText("");
+    }, [searchText, onStageNewPerson]);
 
     // Check if typed name already exists as a participant or matches an existing person
     const normalizedSearch = normalizePersonDisplayName(searchText);
@@ -837,7 +861,7 @@ function AddPersonSheet({
         >
             <BottomSheetHeader
                 title="Add someone"
-                subtitle="Search your People library or type a new name to add."
+                subtitle="Search your People library or type a new name. Changes save when you tap Save."
                 trailingAction={
                     <BottomSheetHeaderAction
                         label="Done"
@@ -929,7 +953,7 @@ function AddPersonSheet({
                             <BottomSheetListRow
                                 key={person.id}
                                 onPress={() => handleSelectPerson(person)}
-                                disabled={isAdding}
+                                disabled={disabled}
                                 accessibilityLabel={`Add ${person.displayName} to this plan`}
                                 leading={
                                     <View
@@ -999,7 +1023,7 @@ function AddPersonSheet({
                             !nameAlreadyOnPlan && (
                             <BottomSheetListRow
                                 onPress={handleCreateAndAdd}
-                                disabled={isAdding}
+                                disabled={disabled}
                                 tone="accent"
                                 accessibilityLabel={`Create ${searchText.trim()} and add to this plan`}
                                 leading={
@@ -1021,11 +1045,11 @@ function AddPersonSheet({
                                     </View>
                                 }
                                 title={
-                                    isAdding
-                                        ? "Adding..."
+                                    disabled
+                                        ? "Saving..."
                                         : `Add "${searchText.trim()}"`
                                 }
-                                subtitle="Saves to your People library and adds to this plan"
+                                subtitle="Will save to your People library and add to this plan when you save"
                                 trailing={
                                     <XStack
                                         borderRadius="$10"
@@ -1142,7 +1166,9 @@ export default function PlanDetailScreen() {
     const { data: planResponse, isLoading, isError } = useGetPlan(id!);
     const patchPlan = usePatchPlan();
     const deletePlan = useDeletePlan();
+    const addParticipant = useAddPlanParticipant();
     const deleteParticipant = useDeletePlanParticipant();
+    const createPerson = useCreatePerson();
 
     const plan: SocialPlan | undefined =
         planResponse?.data && "data" in planResponse.data
@@ -1152,9 +1178,28 @@ export default function PlanDetailScreen() {
     // Bottom sheet states
     const [whenSheetOpen, setWhenSheetOpen] = useState(false);
     const [addPersonSheetOpen, setAddPersonSheetOpen] = useState(false);
+    const [planDraft, setPlanDraft] = useState<PlanEditableDraft | null>(null);
+    const [removedParticipantIds, setRemovedParticipantIds] = useState<string[]>(
+        []
+    );
+    const [stagedParticipantAdds, setStagedParticipantAdds] = useState<
+        StagedParticipantAdd[]
+    >([]);
     const didApplyInitialFocusRef = useRef(false);
+    const participantDraftIdCounterRef = useRef(0);
 
     const focusTarget = Array.isArray(focus) ? focus[0] : focus;
+    const serverPlanDraft = plan ? buildPlanEditableDraft(plan) : null;
+    const effectivePlanDraft = planDraft ?? serverPlanDraft;
+    const isFieldDraftDirty = Boolean(
+        planDraft &&
+            serverPlanDraft &&
+            !arePlanEditableDraftsEqual(planDraft, serverPlanDraft)
+    );
+    const hasPendingParticipantChanges =
+        removedParticipantIds.length > 0 || stagedParticipantAdds.length > 0;
+    const isDraftDirty = isFieldDraftDirty || hasPendingParticipantChanges;
+    const canSaveDraft = Boolean(effectivePlanDraft?.intentText.trim()) && isDraftDirty;
 
     useEffect(() => {
         if (didApplyInitialFocusRef.current) return;
@@ -1168,6 +1213,18 @@ export default function PlanDetailScreen() {
 
         didApplyInitialFocusRef.current = true;
     }, [plan, focusTarget]);
+
+    useEffect(() => {
+        if (!plan) return;
+        if (planDraft && isFieldDraftDirty) return;
+
+        const nextDraft = buildPlanEditableDraft(plan);
+        if (planDraft && arePlanEditableDraftsEqual(planDraft, nextDraft)) {
+            return;
+        }
+
+        setPlanDraft(nextDraft);
+    }, [plan, planDraft, isFieldDraftDirty]);
 
     // Entrance animation
     const fadeAnim = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
@@ -1198,48 +1255,209 @@ export default function PlanDetailScreen() {
         queryClient.invalidateQueries({ queryKey: getGetPlanQueryKey(id!) });
     }, [queryClient, id]);
 
-    // --- Patch helpers ---
-
-    const handlePatchField = useCallback(
-        (data: Record<string, unknown>) => {
-            patchPlan.mutate(
-                { planId: id!, data },
-                { onSettled: invalidateAll }
-            );
+    const patchPlanDraft = useCallback(
+        (patch: Partial<PlanEditableDraft>) => {
+            setPlanDraft((currentDraft) => {
+                const baseDraft = currentDraft ?? serverPlanDraft;
+                return baseDraft ? { ...baseDraft, ...patch } : currentDraft;
+            });
         },
-        [patchPlan, id, invalidateAll]
+        [serverPlanDraft]
     );
 
-    const handleSaveIntent = useCallback(
-        (text: string) => handlePatchField({ intentText: text }),
-        [handlePatchField]
+    const handleDraftIntentChange = useCallback(
+        (text: string) => {
+            patchPlanDraft({ intentText: text });
+        },
+        [patchPlanDraft]
     );
 
-    const handleSaveLocation = useCallback(
-        (text: string) => handlePatchField({ locationText: text }),
-        [handlePatchField]
+    const handleDraftLocationChange = useCallback(
+        (text: string) => {
+            patchPlanDraft({ locationText: text });
+        },
+        [patchPlanDraft]
     );
 
-    const handleSaveNote = useCallback(
-        (text: string) => handlePatchField({ contextNote: text }),
-        [handlePatchField]
+    const handleDraftNoteChange = useCallback(
+        (text: string) => {
+            patchPlanDraft({ contextNote: text });
+        },
+        [patchPlanDraft]
     );
 
-    const handleSaveWhen = useCallback(
+    const handleDraftWhenChange = useCallback(
         (data: {
-            timePrecision: string;
+            timePrecision: SocialPlanTimePrecision;
             anchorStart: string | null;
             anchorEnd: string | null;
         }) => {
-            handlePatchField({
+            patchPlanDraft({
                 timePrecision: data.timePrecision,
                 anchorStart: data.anchorStart,
                 anchorEnd: data.anchorEnd,
-                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                timezone:
+                    data.timePrecision === "NONE"
+                        ? null
+                        : Intl.DateTimeFormat().resolvedOptions().timeZone,
             });
         },
-        [handlePatchField]
+        [patchPlanDraft]
     );
+
+    const handleCancelOrBack = useCallback(() => {
+        if (!isDraftDirty) {
+            router.back();
+            return;
+        }
+
+        Alert.alert(
+            "Discard plan edits?",
+            "Your changes haven't been saved yet.",
+            [
+                { text: "Keep Editing", style: "cancel" },
+                {
+                    text: "Discard",
+                    style: "destructive",
+                    onPress: () => {
+                        Keyboard.dismiss();
+                        router.back();
+                    },
+                },
+            ]
+        );
+    }, [isDraftDirty, router]);
+
+    const handleSavePlanDraft = useCallback(async () => {
+        if (!effectivePlanDraft || !id) return;
+        if (!isDraftDirty) return;
+
+        const normalizedDraft = normalizePlanDraftForSave(effectivePlanDraft);
+        if (!normalizedDraft.intentText) {
+            Alert.alert("Plan needs a title", "Add what the plan is first.");
+            return;
+        }
+
+        Keyboard.dismiss();
+        setPlanDraft(normalizedDraft);
+        let didSaveAnyChange = false;
+        let didCreatePeople = false;
+
+        try {
+            if (isFieldDraftDirty) {
+                await patchPlan.mutateAsync({
+                    planId: id,
+                    data: buildPlanPatchFromDraft(normalizedDraft),
+                });
+                didSaveAnyChange = true;
+            }
+
+            for (const participantId of removedParticipantIds) {
+                try {
+                    await deleteParticipant.mutateAsync({
+                        planId: id,
+                        participantId,
+                    });
+                    didSaveAnyChange = true;
+                } catch (error) {
+                    const status = getErrorStatusCode(error);
+                    if (status === 404) {
+                        // Already removed on the server; treat as applied.
+                        didSaveAnyChange = true;
+                        continue;
+                    }
+                    throw error;
+                }
+            }
+
+            for (const stagedParticipant of stagedParticipantAdds) {
+                let participantData:
+                    | { personId: string; displayName: string }
+                    | { displayName: string };
+
+                if (stagedParticipant.kind === "existing-person") {
+                    participantData = {
+                        personId: stagedParticipant.personId,
+                        displayName: stagedParticipant.displayName,
+                    };
+                } else {
+                    let createdPerson: Person | null = null;
+
+                    try {
+                        const response = await createPerson.mutateAsync({
+                            data: { displayName: stagedParticipant.displayName },
+                        });
+
+                        createdPerson =
+                            response?.data && "data" in response.data
+                                ? (response.data as { data: Person }).data
+                                : null;
+                        didCreatePeople = true;
+                        didSaveAnyChange = true;
+                    } catch (error) {
+                        const status = getErrorStatusCode(error);
+                        if (status !== 409) {
+                            throw error;
+                        }
+                    }
+
+                    participantData = createdPerson
+                        ? {
+                              personId: createdPerson.id,
+                              displayName: createdPerson.displayName,
+                          }
+                        : { displayName: stagedParticipant.displayName };
+                }
+
+                try {
+                    await addParticipant.mutateAsync({ planId: id, data: participantData });
+                    didSaveAnyChange = true;
+                } catch (error) {
+                    const status = getErrorStatusCode(error);
+                    if (status === 409) {
+                        // Already on the plan; treat as applied.
+                        didSaveAnyChange = true;
+                        continue;
+                    }
+                    throw error;
+                }
+            }
+
+            setRemovedParticipantIds([]);
+            setStagedParticipantAdds([]);
+
+            AccessibilityInfo.announceForAccessibility?.("Plan changes saved");
+        } catch (error) {
+            Alert.alert(
+                didSaveAnyChange
+                    ? "Some changes were saved"
+                    : "Couldn't save changes",
+                didSaveAnyChange
+                    ? "Some edits couldn't be saved. Review the plan and save again."
+                    : "Something went wrong — try again?"
+            );
+        } finally {
+            if (didCreatePeople) {
+                queryClient.invalidateQueries({
+                    queryKey: getListPeopleQueryKey(),
+                });
+            }
+            invalidateAll();
+        }
+    }, [
+        effectivePlanDraft,
+        id,
+        isDraftDirty,
+        isFieldDraftDirty,
+        patchPlan,
+        addParticipant,
+        deleteParticipant,
+        createPerson,
+        removedParticipantIds,
+        stagedParticipantAdds,
+        queryClient,
+        invalidateAll,
+    ]);
 
     // --- State actions ---
 
@@ -1301,26 +1519,132 @@ export default function PlanDetailScreen() {
         ]);
     }, [deletePlan, id, queryClient, router]);
 
-    // --- Participant actions ---
+    // --- Participant draft actions ---
 
-    const handleRemoveParticipant = useCallback(
-        (participant: SocialPlanParticipant) => {
+    const nextParticipantDraftId = useCallback(() => {
+        participantDraftIdCounterRef.current += 1;
+        return `draft:${participantDraftIdCounterRef.current}`;
+    }, []);
+
+    const handleStageExistingPersonParticipant = useCallback(
+        (person: Person) => {
+            const normalizedName = normalizePersonDisplayName(person.displayName);
+            const removedMatch = plan?.participants.find(
+                (participant) =>
+                    removedParticipantIds.includes(participant.id) &&
+                    ((participant.personId && participant.personId === person.id) ||
+                        (normalizedName &&
+                            normalizePersonDisplayName(participant.displayName) ===
+                                normalizedName))
+            );
+
+            if (removedMatch) {
+                setRemovedParticipantIds((prev) =>
+                    prev.filter((participantId) => participantId !== removedMatch.id)
+                );
+                return;
+            }
+
+            setStagedParticipantAdds((prev) => {
+                const duplicate = prev.some(
+                    (participant) =>
+                        (participant.kind === "existing-person" &&
+                            participant.personId === person.id) ||
+                        (normalizedName &&
+                            normalizePersonDisplayName(participant.displayName) ===
+                                normalizedName)
+                );
+
+                if (duplicate) return prev;
+
+                return [
+                    ...prev,
+                    {
+                        kind: "existing-person",
+                        draftId: nextParticipantDraftId(),
+                        personId: person.id,
+                        displayName: person.displayName,
+                    },
+                ];
+            });
+        },
+        [plan, removedParticipantIds, nextParticipantDraftId]
+    );
+
+    const handleStageNewPersonParticipant = useCallback(
+        (displayName: string) => {
+            const trimmedName = displayName.trim();
+            if (!trimmedName) return;
+
+            const normalizedName = normalizePersonDisplayName(trimmedName);
+            const removedMatch = plan?.participants.find(
+                (participant) =>
+                    removedParticipantIds.includes(participant.id) &&
+                    normalizedName &&
+                    normalizePersonDisplayName(participant.displayName) === normalizedName
+            );
+
+            if (removedMatch) {
+                setRemovedParticipantIds((prev) =>
+                    prev.filter((participantId) => participantId !== removedMatch.id)
+                );
+                return;
+            }
+
+            setStagedParticipantAdds((prev) => {
+                const duplicate = prev.some(
+                    (participant) =>
+                        normalizedName &&
+                        normalizePersonDisplayName(participant.displayName) ===
+                            normalizedName
+                );
+
+                if (duplicate) return prev;
+
+                return [
+                    ...prev,
+                    {
+                        kind: "new-person",
+                        draftId: nextParticipantDraftId(),
+                        displayName: trimmedName,
+                    },
+                ];
+            });
+        },
+        [plan, removedParticipantIds, nextParticipantDraftId]
+    );
+
+    const handleRemoveParticipantChip = useCallback(
+        (participant: DisplayPlanParticipantChip) => {
             const name = participant.displayName || "this person";
-            Alert.alert(`Remove ${name}?`, undefined, [
+            const description =
+                participant.source === "server"
+                    ? "They'll be removed when you save."
+                    : "They won't be added unless you save.";
+
+            Alert.alert(`Remove ${name}?`, description, [
                 { text: "Cancel", style: "cancel" },
                 {
                     text: "Remove",
                     style: "destructive",
                     onPress: () => {
-                        deleteParticipant.mutate(
-                            { planId: id!, participantId: participant.id },
-                            { onSettled: invalidateAll }
+                        if (participant.source === "server" && participant.participantId) {
+                            setRemovedParticipantIds((prev) =>
+                                prev.includes(participant.participantId!)
+                                    ? prev
+                                    : [...prev, participant.participantId!]
+                            );
+                            return;
+                        }
+
+                        setStagedParticipantAdds((prev) =>
+                            prev.filter((draft) => draft.draftId !== participant.key)
                         );
                     },
                 },
             ]);
         },
-        [deleteParticipant, id, invalidateAll]
+        []
     );
 
     // Loading state
@@ -1395,17 +1719,47 @@ export default function PlanDetailScreen() {
     const isDone = plan.state === "DONE";
     const isDropped = plan.state === "DROPPED";
     const isOpen = plan.state === "OPEN";
-    const isMutating = patchPlan.isPending || deletePlan.isPending;
+    const isEditSavePending =
+        patchPlan.isPending ||
+        addParticipant.isPending ||
+        deleteParticipant.isPending ||
+        createPerson.isPending;
+    const isMutating = isEditSavePending || deletePlan.isPending;
+    const stateActionsDisabled = isMutating || isDraftDirty;
+    const activePlanDraft = effectivePlanDraft ?? buildPlanEditableDraft(plan);
 
     const whenDisplay = formatWhenDisplay(
-        plan.timePrecision,
-        plan.anchorStart,
-        plan.anchorEnd
+        activePlanDraft.timePrecision,
+        activePlanDraft.anchorStart,
+        activePlanDraft.anchorEnd
     );
 
-    const participants = plan.participants.filter(
-        (p) => p.displayName || p.personId
+    const removedParticipantIdSet = new Set(removedParticipantIds);
+    const visibleServerParticipants = plan.participants.filter(
+        (p) => (p.displayName || p.personId) && !removedParticipantIdSet.has(p.id)
     );
+
+    const participants: DisplayPlanParticipantChip[] = [
+        ...visibleServerParticipants.map((participant) => ({
+            key: participant.id,
+            source: "server" as const,
+            participantId: participant.id,
+            personId: participant.personId ?? null,
+            displayName: participant.displayName || "Unknown",
+        })),
+        ...stagedParticipantAdds.map((participant) => ({
+            key: participant.draftId,
+            source:
+                participant.kind === "existing-person"
+                    ? ("staged-existing-person" as const)
+                    : ("staged-new-person" as const),
+            personId:
+                participant.kind === "existing-person"
+                    ? participant.personId
+                    : null,
+            displayName: participant.displayName,
+        })),
+    ];
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF8F3" }}>
@@ -1418,50 +1772,95 @@ export default function PlanDetailScreen() {
                     justifyContent="space-between"
                 >
                     <Pressable
-                        onPress={() => router.back()}
+                        onPress={handleCancelOrBack}
+                        disabled={isMutating}
                         hitSlop={12}
                         accessibilityRole="button"
-                        accessibilityLabel="Go back"
+                        accessibilityLabel={
+                            isDraftDirty ? "Cancel unsaved edits" : "Go back"
+                        }
                     >
                         <Text
                             fontFamily="$body"
                             fontSize="$4"
                             color="$accentColor"
                             fontWeight="500"
+                            opacity={isMutating ? 0.5 : 1}
                         >
-                            Back
+                            {isDraftDirty ? "Cancel" : "Back"}
                         </Text>
                     </Pressable>
 
-                    {/* Overflow menu */}
-                    <Pressable
-                        onPress={() => {
-                            const options: {
-                                text: string;
-                                style?: "destructive" | "cancel";
-                                onPress?: () => void;
-                            }[] = [];
-                            options.push({
-                                text: "Delete permanently",
-                                style: "destructive",
-                                onPress: handleDelete,
-                            });
-                            options.push({ text: "Cancel", style: "cancel" });
-                            Alert.alert("Options", undefined, options);
-                        }}
-                        hitSlop={12}
-                        accessibilityRole="button"
-                        accessibilityLabel="Plan options"
+                    {isDraftDirty ? (
+                        <Pressable
+                            onPress={handleSavePlanDraft}
+                            disabled={!canSaveDraft || isMutating}
+                            hitSlop={12}
+                            accessibilityRole="button"
+                            accessibilityLabel="Save plan changes"
+                        >
+                            <Text
+                                fontFamily="$body"
+                                fontSize="$4"
+                                color={
+                                    canSaveDraft && !isMutating
+                                        ? "$accentColor"
+                                        : "$colorTertiary"
+                                }
+                                fontWeight="600"
+                            >
+                                {isEditSavePending ? "Saving..." : "Save"}
+                            </Text>
+                        </Pressable>
+                    ) : (
+                        <Pressable
+                            onPress={() => {
+                                const options: {
+                                    text: string;
+                                    style?: "destructive" | "cancel";
+                                    onPress?: () => void;
+                                }[] = [];
+                                options.push({
+                                    text: "Delete permanently",
+                                    style: "destructive",
+                                    onPress: handleDelete,
+                                });
+                                options.push({
+                                    text: "Cancel",
+                                    style: "cancel",
+                                });
+                                Alert.alert("Options", undefined, options);
+                            }}
+                            hitSlop={12}
+                            accessibilityRole="button"
+                            accessibilityLabel="Plan options"
+                        >
+                            <Text
+                                fontFamily="$body"
+                                fontSize="$6"
+                                color="$colorTertiary"
+                            >
+                                ···
+                            </Text>
+                        </Pressable>
+                    )}
+                </XStack>
+
+                {isDraftDirty ? (
+                    <XStack
+                        paddingHorizontal="$6"
+                        paddingBottom="$2"
+                        alignItems="center"
                     >
                         <Text
                             fontFamily="$body"
-                            fontSize="$6"
-                            color="$colorTertiary"
+                            fontSize="$2"
+                            color="$colorSecondary"
                         >
-                            ···
+                            Unsaved changes. Save to keep them or Cancel to discard.
                         </Text>
-                    </Pressable>
-                </XStack>
+                    </XStack>
+                ) : null}
 
                 <ScrollView
                     contentContainerStyle={{
@@ -1515,8 +1914,9 @@ export default function PlanDetailScreen() {
                         {/* 1. Editable Intent Text */}
                         <YStack marginBottom="$4">
                             <EditableText
-                                value={plan.intentText}
-                                onSave={handleSaveIntent}
+                                value={activePlanDraft.intentText}
+                                onChangeText={handleDraftIntentChange}
+                                saveOnBlur={false}
                                 placeholder="What's the plan?"
                                 textStyle={{
                                     fontFamily: "$heading",
@@ -1560,8 +1960,9 @@ export default function PlanDetailScreen() {
                                 Where
                             </Text>
                             <EditableText
-                                value={plan.locationText || ""}
-                                onSave={handleSaveLocation}
+                                value={activePlanDraft.locationText}
+                                onChangeText={handleDraftLocationChange}
+                                saveOnBlur={false}
                                 placeholder="Add a place"
                                 textStyle={{
                                     fontSize: 16,
@@ -1591,16 +1992,20 @@ export default function PlanDetailScreen() {
                                     marginBottom="$2"
                                 >
                                     {participants.map((p) => {
-                                        const name =
-                                            p.displayName || "Unknown";
+                                        const name = p.displayName || "Unknown";
                                         return (
                                             <Pressable
-                                                key={p.id}
+                                                key={p.key}
                                                 onLongPress={() =>
-                                                    handleRemoveParticipant(p)
+                                                    handleRemoveParticipantChip(p)
                                                 }
+                                                disabled={isMutating}
                                                 accessibilityRole="button"
-                                                accessibilityHint="Long press to remove"
+                                                accessibilityHint={
+                                                    p.source === "server"
+                                                        ? "Long press to remove and save later"
+                                                        : "Long press to remove this staged addition"
+                                                }
                                             >
                                                 <XStack
                                                     alignItems="center"
@@ -1609,6 +2014,7 @@ export default function PlanDetailScreen() {
                                                     paddingHorizontal="$3"
                                                     paddingVertical="$1.5"
                                                     borderRadius="$10"
+                                                    opacity={isMutating ? 0.5 : 1}
                                                 >
                                                     <View
                                                         width={24}
@@ -1647,10 +2053,15 @@ export default function PlanDetailScreen() {
 
                             <Pressable
                                 onPress={() => setAddPersonSheetOpen(true)}
+                                disabled={isMutating}
                                 accessibilityRole="button"
                                 accessibilityLabel="Add someone to this plan"
                             >
-                                <XStack alignItems="center" gap="$2">
+                                <XStack
+                                    alignItems="center"
+                                    gap="$2"
+                                    opacity={isMutating ? 0.5 : 1}
+                                >
                                     <View
                                         width={28}
                                         height={28}
@@ -1696,8 +2107,9 @@ export default function PlanDetailScreen() {
                                 Notes
                             </Text>
                             <EditableText
-                                value={plan.contextNote || ""}
-                                onSave={handleSaveNote}
+                                value={activePlanDraft.contextNote}
+                                onChangeText={handleDraftNoteChange}
+                                saveOnBlur={false}
                                 placeholder="Any context? Why this matters, what to remember..."
                                 multiline
                                 textStyle={{
@@ -1761,6 +2173,16 @@ export default function PlanDetailScreen() {
                     paddingTop="$4"
                     backgroundColor="$background"
                 >
+                    {isDraftDirty ? (
+                        <Text
+                            fontFamily="$body"
+                            fontSize="$2"
+                            color="$colorSecondary"
+                            marginBottom="$2"
+                        >
+                            Save or cancel your edits before changing plan status.
+                        </Text>
+                    ) : null}
                     {isOpen ? (
                         <XStack gap="$3">
                             {/* Mark Done — primary */}
@@ -1772,8 +2194,8 @@ export default function PlanDetailScreen() {
                                 justifyContent="center"
                                 alignItems="center"
                                 onPress={handleMarkDone}
-                                disabled={isMutating}
-                                opacity={isMutating ? 0.5 : 1}
+                                disabled={stateActionsDisabled}
+                                opacity={stateActionsDisabled ? 0.5 : 1}
                                 pressStyle={{
                                     scale: 0.98,
                                     backgroundColor: "$successColor",
@@ -1804,8 +2226,8 @@ export default function PlanDetailScreen() {
                                 justifyContent="center"
                                 alignItems="center"
                                 onPress={handleDrop}
-                                disabled={isMutating}
-                                opacity={isMutating ? 0.5 : 1}
+                                disabled={stateActionsDisabled}
+                                opacity={stateActionsDisabled ? 0.5 : 1}
                                 pressStyle={{ opacity: 0.6 }}
                                 accessibilityRole="button"
                                 accessibilityLabel="Let go of this plan"
@@ -1829,8 +2251,8 @@ export default function PlanDetailScreen() {
                             justifyContent="center"
                             alignItems="center"
                             onPress={handleReopen}
-                            disabled={isMutating}
-                            opacity={isMutating ? 0.5 : 1}
+                            disabled={stateActionsDisabled}
+                            opacity={stateActionsDisabled ? 0.5 : 1}
                             pressStyle={{
                                 scale: 0.98,
                                 backgroundColor: "$backgroundStrong",
@@ -1857,18 +2279,31 @@ export default function PlanDetailScreen() {
                 <WhenSheet
                     open={whenSheetOpen}
                     onOpenChange={setWhenSheetOpen}
-                    currentPrecision={plan.timePrecision}
-                    currentAnchorStart={plan.anchorStart}
-                    currentAnchorEnd={plan.anchorEnd}
-                    onSave={handleSaveWhen}
+                    currentPrecision={activePlanDraft.timePrecision}
+                    currentAnchorStart={activePlanDraft.anchorStart}
+                    currentAnchorEnd={activePlanDraft.anchorEnd}
+                    onSave={handleDraftWhenChange}
                 />
 
                 <AddPersonSheet
                     open={addPersonSheetOpen}
                     onOpenChange={setAddPersonSheetOpen}
-                    planId={id!}
-                    onAdded={invalidateAll}
-                    existingParticipants={participants}
+                    currentParticipants={[
+                        ...visibleServerParticipants.map((participant) => ({
+                            personId: participant.personId,
+                            displayName: participant.displayName,
+                        })),
+                        ...stagedParticipantAdds.map((participant) => ({
+                            personId:
+                                participant.kind === "existing-person"
+                                    ? participant.personId
+                                    : null,
+                            displayName: participant.displayName,
+                        })),
+                    ]}
+                    onStageExistingPerson={handleStageExistingPersonParticipant}
+                    onStageNewPerson={handleStageNewPersonParticipant}
+                    disabled={isMutating}
                 />
             </YStack>
         </SafeAreaView>

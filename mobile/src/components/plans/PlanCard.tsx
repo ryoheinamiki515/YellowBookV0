@@ -3,6 +3,7 @@ import { Animated, Easing, Platform } from "react-native";
 import { Text, View, XStack, YStack } from "tamagui";
 
 import type { SocialPlan } from "../../api/generated/model/socialPlan";
+import { DisclosureChevron } from "../DisclosureChevron";
 import {
     getAttentionReason,
     getDaysDiff,
@@ -262,21 +263,6 @@ function WhenBadge({
                 {label}
             </Text>
         </View>
-    );
-}
-
-function RowChevron({ compact = false }: { compact?: boolean }) {
-    return (
-        <Text
-            fontFamily="$body"
-            fontSize={compact ? 16 : 18}
-            fontWeight="600"
-            color="$colorTertiary"
-            opacity={0.7}
-            marginTop={compact ? -1 : 0}
-        >
-            ›
-        </Text>
     );
 }
 
@@ -619,7 +605,10 @@ export function PlanCard({
                                     {when ? (
                                         <WhenBadge label={when} compact={!isHero} tone={whenTone} />
                                     ) : null}
-                                    <RowChevron compact={!isHero} />
+                                    <DisclosureChevron
+                                        size={isHero ? 16 : 14}
+                                        endInset={isHero ? 4 : 6}
+                                    />
                                 </XStack>
                             </XStack>
 
