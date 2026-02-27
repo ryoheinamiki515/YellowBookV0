@@ -9,26 +9,28 @@ import {
 } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
-import { YStack, XStack, Text, View, Input } from "tamagui";
+import { YStack, XStack, Text, View, Input, useMedia } from "tamagui";
+import { PageContainer } from "../../src/components/PageContainer";
+import { PersonDetailContent } from "../../src/components/PersonDetailContent";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
     BottomSheetHeader,
     BottomSheetModal,
     BottomSheetPrimaryButton,
     BottomSheetTextField,
-} from "../src/components/BottomSheetPrimitives";
-import { useNativeKeyboardAppearance } from "../src/components/AppTextInput";
+} from "../../src/components/BottomSheetPrimitives";
+import { useNativeKeyboardAppearance } from "../../src/components/AppTextInput";
 
 import {
     useListPeople,
     useCreatePerson,
     getListPeopleQueryKey,
-} from "../src/api/generated/people/people";
-import type { Person } from "../src/api/generated/model/person";
+} from "../../src/api/generated/people/people";
+import type { Person } from "../../src/api/generated/model/person";
 import {
     getInitialColor,
     useReducedMotionPreference,
-} from "../src/lib/planHelpers";
+} from "../../src/lib/planHelpers";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -110,6 +112,7 @@ function PersonCard({
                 alignItems="center"
                 gap="$3"
                 onPress={() => onPress(person)}
+                hoverStyle={{ backgroundColor: "$surfaceHover" }}
                 pressStyle={{ scale: 0.985, backgroundColor: "$surfaceHover" }}
                 // @ts-ignore - web-only CSS property
                 style={
@@ -525,11 +528,14 @@ function CreatePersonSheet({
 export default function PeopleScreen() {
     const router = useRouter();
     const queryClient = useQueryClient();
+    const media = useMedia();
+    const hasDesktopSidebar = media.lg && Platform.OS === "web";
     const reducedMotion = useReducedMotionPreference();
     const useNativeDriver = Platform.OS !== "web";
     const keyboardAppearance = useNativeKeyboardAppearance();
 
     const [sheetOpen, setSheetOpen] = useState(false);
+    const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
     const [searchText, setSearchText] = useState("");
     const [debouncedQ, setDebouncedQ] = useState("");
 
@@ -584,9 +590,13 @@ export default function PeopleScreen() {
 
     const handlePersonPress = useCallback(
         (person: Person) => {
-            router.push(`/person/${person.id}`);
+            if (hasDesktopSidebar) {
+                setSelectedPersonId(person.id);
+            } else {
+                router.push(`/person/${person.id}`);
+            }
         },
-        [router]
+        [router, hasDesktopSidebar]
     );
 
     const handleRefresh = useCallback(() => {
@@ -614,9 +624,8 @@ export default function PeopleScreen() {
 
     const keyExtractor = useCallback((item: Person) => item.id, []);
 
-    return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF8F3" }}>
-            <YStack flex={1} backgroundColor="$background">
+    const listContent = (
+            <>
                 {/* ---- Header ---- */}
                 <Animated.View
                     style={{
@@ -644,28 +653,55 @@ export default function PeopleScreen() {
                                 </Text>
                             </YStack>
 
-                            <Pressable
-                                onPress={() => router.push("/plans")}
-                                hitSlop={8}
-                                accessibilityRole="button"
-                                accessibilityLabel="Go to Plans"
-                            >
-                                <View
-                                    paddingHorizontal="$3"
-                                    paddingVertical="$1.5"
-                                    borderRadius="$10"
-                                    backgroundColor="$backgroundStrong"
-                                >
-                                    <Text
-                                        fontFamily="$body"
-                                        fontSize="$3"
-                                        fontWeight="500"
-                                        color="$colorSecondary"
+                            {!hasDesktopSidebar && (
+                                <XStack alignItems="center" gap="$2">
+                                    <Pressable
+                                        onPress={() => router.push("/feed")}
+                                        hitSlop={8}
+                                        accessibilityRole="button"
+                                        accessibilityLabel="Go to Feed"
                                     >
-                                        Plans
-                                    </Text>
-                                </View>
-                            </Pressable>
+                                        <View
+                                            paddingHorizontal="$3"
+                                            paddingVertical="$1.5"
+                                            borderRadius="$10"
+                                            backgroundColor="$backgroundStrong"
+                                        >
+                                            <Text
+                                                fontFamily="$body"
+                                                fontSize="$3"
+                                                fontWeight="500"
+                                                color="$colorSecondary"
+                                            >
+                                                Feed
+                                            </Text>
+                                        </View>
+                                    </Pressable>
+
+                                    <Pressable
+                                        onPress={() => router.push("/plans")}
+                                        hitSlop={8}
+                                        accessibilityRole="button"
+                                        accessibilityLabel="Go to Plans"
+                                    >
+                                        <View
+                                            paddingHorizontal="$3"
+                                            paddingVertical="$1.5"
+                                            borderRadius="$10"
+                                            backgroundColor="$backgroundStrong"
+                                        >
+                                            <Text
+                                                fontFamily="$body"
+                                                fontSize="$3"
+                                                fontWeight="500"
+                                                color="$colorSecondary"
+                                            >
+                                                Plans
+                                            </Text>
+                                        </View>
+                                    </Pressable>
+                                </XStack>
+                            )}
                         </XStack>
 
                         {countLabel ? (
@@ -729,7 +765,7 @@ export default function PeopleScreen() {
                             textAlign="center"
                             lineHeight="$7"
                         >
-                            Something went wrong.{"\n"}Pull down to try again.
+                            Something went wrong.{"\n"}{Platform.OS === "web" ? "Try again." : "Pull down to try again."}
                         </Text>
                     </YStack>
                 ) : people.length === 0 && !debouncedQ ? (
@@ -764,7 +800,7 @@ export default function PeopleScreen() {
                             paddingBottom: 16,
                         }}
                         showsVerticalScrollIndicator={false}
-                        onRefresh={handleRefresh}
+                        onRefresh={Platform.OS !== "web" ? handleRefresh : undefined}
                         refreshing={false}
                     />
                 )}
@@ -827,7 +863,45 @@ export default function PeopleScreen() {
                     onOpenChange={setSheetOpen}
                     onCreated={handleCreated}
                 />
-            </YStack>
+            </>
+    );
+
+    if (!hasDesktopSidebar) {
+        return (
+            <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF8F3" }}>
+                <PageContainer backgroundColor="$background">
+                    {listContent}
+                </PageContainer>
+            </SafeAreaView>
+        );
+    }
+
+    return (
+        <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF8F3" }}>
+            <XStack flex={1} backgroundColor="$background">
+                <YStack flex={1} minWidth={340} maxWidth={480} borderRightWidth={1} borderRightColor="$borderColorSubtle">
+                    {listContent}
+                </YStack>
+                <YStack flex={1.2}>
+                    {selectedPersonId ? (
+                        <PersonDetailContent
+                            personId={selectedPersonId}
+                            onClose={() => setSelectedPersonId(null)}
+                        />
+                    ) : (
+                        <YStack flex={1} justifyContent="center" alignItems="center" padding="$8">
+                            <Text
+                                fontFamily="$body"
+                                fontSize="$6"
+                                color="$colorTertiary"
+                                textAlign="center"
+                            >
+                                Select a person to view details
+                            </Text>
+                        </YStack>
+                    )}
+                </YStack>
+            </XStack>
         </SafeAreaView>
     );
 }

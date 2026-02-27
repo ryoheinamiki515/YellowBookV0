@@ -66,6 +66,7 @@ export function PlanActionChip({
             onPress={onPress}
             disabled={chipDisabled}
             opacity={chipDisabled ? 0.55 : 1}
+            hoverStyle={{ opacity: 0.85 }}
             pressStyle={{
                 scale: 0.98,
                 opacity: 0.9,

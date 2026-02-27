@@ -1,45 +1,47 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import {
-    Alert,
     Animated,
     Easing,
-    Keyboard,
+    type GestureResponderEvent,
     Platform,
     Pressable,
+    type LayoutChangeEvent,
 } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
-import { YStack, XStack, Text, View } from "tamagui";
+import { LinearGradient } from "@tamagui/linear-gradient";
+import { YStack, XStack, Text, View, useMedia } from "tamagui";
+import { PageContainer } from "../../src/components/PageContainer";
+import { PlanDetailContent } from "../../src/components/plans/PlanDetailContent";
+import { useConfirm } from "../../src/components/ConfirmDialog";
 import { SafeAreaView } from "react-native-safe-area-context";
-import {
-    BottomSheetHeader,
-    BottomSheetModal,
-    BottomSheetPrimaryButton,
-    BottomSheetTextField,
-} from "../src/components/BottomSheetPrimitives";
 
 import {
     useListPlans,
-    useCreatePlan,
     usePatchPlan,
     getListPlansQueryKey,
     getGetPlanQueryKey,
-} from "../src/api/generated/plans/plans";
-import type { SocialPlan } from "../src/api/generated/model/socialPlan";
-import type { SocialPlanState } from "../src/api/generated/model/socialPlanState";
-import { PlanCard } from "../src/components/plans/PlanCard";
-import type { PlanQuickActionRowAction } from "../src/components/plans/PlanQuickActionRow";
-import { PlansSectionHeader } from "../src/components/plans/PlansSectionHeader";
-import { TodayDateChip } from "../src/components/DateChip";
-import { useAuth } from "../src/context/AuthContext";
+} from "../../src/api/generated/plans/plans";
+import type { SocialPlan } from "../../src/api/generated/model/socialPlan";
+import type { SocialPlanState } from "../../src/api/generated/model/socialPlanState";
+import { PlanCard } from "../../src/components/plans/PlanCard";
+import type { PlanQuickActionRowAction } from "../../src/components/plans/PlanQuickActionRow";
+import { CreatePlanSheet } from "../../src/components/plans/CreatePlanSheet";
+import { PlansSectionHeader } from "../../src/components/plans/PlansSectionHeader";
+import { TodayDateChip } from "../../src/components/DateChip";
+import { useAuth } from "../../src/context/AuthContext";
 import {
     buildFilteredSectionItems,
     type DerivedPlanListItem,
-    type PlanAttentionReason,
     type PlanListSectionItem,
     type PlanQuickActionKind,
-} from "../src/lib/planListDerivations";
-import { useReducedMotionPreference } from "../src/lib/planHelpers";
+} from "../../src/lib/planListDerivations";
+import { useReducedMotionPreference } from "../../src/lib/planHelpers";
+import {
+    getPlanQuickActionLabel,
+    getPlanQuickActionTone,
+} from "../../src/lib/planQuickActions";
+import { useKeyboardShortcut } from "../../src/hooks/useKeyboardShortcut";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -75,39 +77,10 @@ const STATE_FILTERS: { label: string; value: SocialPlanState[] }[] = [
 
 type PlanDetailFocusTarget = "when" | "people";
 
-function quickActionLabel(
-    kind: PlanQuickActionKind,
-    attentionReason: PlanAttentionReason | null
-): string {
-    switch (kind) {
-        case "focus-people":
-            return "Add who";
-        case "focus-when":
-            return attentionReason === "past-due" ? "Reschedule" : "Pick day";
-        case "let-go":
-            return "Let go";
-        case "mark-done":
-            return "Done";
-        case "open":
-        default:
-            return "Open";
-    }
-}
-
-function quickActionTone(kind: PlanQuickActionKind): PlanQuickActionRowAction["tone"] {
-    switch (kind) {
-        case "focus-people":
-        case "focus-when":
-            return "accent";
-        case "mark-done":
-            return "success";
-        case "let-go":
-            return "danger";
-        case "open":
-        default:
-            return "neutral";
-    }
-}
+const DESKTOP_LIST_DEFAULT_WIDTH = 400;
+const DESKTOP_LIST_MIN_WIDTH = 280;
+const DESKTOP_DETAIL_MIN_WIDTH = 360;
+const DESKTOP_SPLITTER_WIDTH = 16;
 
 // ---------------------------------------------------------------------------
 // Skeleton loading cards — multi-shape
@@ -355,81 +328,15 @@ function EmptyState({
 }
 
 // ---------------------------------------------------------------------------
-// Create plan bottom sheet
-// ---------------------------------------------------------------------------
-
-function CreatePlanSheet({
-    open,
-    onOpenChange,
-    onCreated,
-}: {
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-    onCreated: () => void;
-}) {
-    const [intentText, setIntentText] = useState("");
-    const createPlan = useCreatePlan();
-
-    const handleCreate = useCallback(() => {
-        const trimmed = intentText.trim();
-        if (!trimmed) return;
-
-        Keyboard.dismiss();
-        createPlan.mutate(
-            { data: { intentText: trimmed } },
-            {
-                onSuccess: () => {
-                    setIntentText("");
-                    onOpenChange(false);
-                    onCreated();
-                },
-                onError: () => {
-                    Alert.alert(
-                        "Couldn't save that",
-                        "Something went wrong — try again?"
-                    );
-                },
-            }
-        );
-    }, [intentText, createPlan, onOpenChange, onCreated]);
-
-    return (
-        <BottomSheetModal open={open} onOpenChange={onOpenChange}>
-            <BottomSheetHeader
-                title="New plan"
-                subtitle="What would you like to do with someone?"
-            />
-
-            <BottomSheetTextField
-                placeholder="Lunch with Sam, gym Monday, call Dad..."
-                placeholderTextColor="$placeholderColor"
-                value={intentText}
-                onChangeText={setIntentText}
-                autoFocus
-                returnKeyType="done"
-                onSubmitEditing={handleCreate}
-                accessibilityLabel="What's the plan?"
-            />
-
-            <BottomSheetPrimaryButton
-                label="Save Plan"
-                loadingLabel="Saving..."
-                loading={createPlan.isPending}
-                onPress={handleCreate}
-                disabled={!intentText.trim() || createPlan.isPending}
-                accessibilityLabel="Save plan"
-            />
-        </BottomSheetModal>
-    );
-}
-
-// ---------------------------------------------------------------------------
 // Screen
 // ---------------------------------------------------------------------------
 
 export default function PlansScreen() {
     const { signOut } = useAuth();
     const router = useRouter();
+    const confirm = useConfirm();
+    const media = useMedia();
+    const hasDesktopSidebar = media.lg && Platform.OS === "web";
     const queryClient = useQueryClient();
     const patchPlan = usePatchPlan();
     const reducedMotion = useReducedMotionPreference();
@@ -437,6 +344,14 @@ export default function PlansScreen() {
 
     const [activeFilter, setActiveFilter] = useState(1); // Default to "Open"
     const [sheetOpen, setSheetOpen] = useState(false);
+    const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+    const [selectedPlanFocus, setSelectedPlanFocus] = useState<PlanDetailFocusTarget | undefined>(undefined);
+    const [desktopContainerWidth, setDesktopContainerWidth] = useState(0);
+    const [desktopListWidth, setDesktopListWidth] = useState(DESKTOP_LIST_DEFAULT_WIDTH);
+    const [isDesktopResizing, setIsDesktopResizing] = useState(false);
+    const desktopListWidthRef = useRef(DESKTOP_LIST_DEFAULT_WIDTH);
+    const desktopDragStartWidth = useRef(DESKTOP_LIST_DEFAULT_WIDTH);
+    const desktopDragStartX = useRef(0);
     const [pendingListMutation, setPendingListMutation] = useState<{
         planId: string;
         kind: PlanQuickActionKind;
@@ -465,23 +380,29 @@ export default function PlansScreen() {
         [plans, activeFilter]
     );
 
-    // Scroll-based header compression
+    // Scroll-based header compression (disabled on desktop)
     const scrollY = useRef(new Animated.Value(0)).current;
-    const greetingOpacity = scrollY.interpolate({
-        inputRange: [0, 50],
-        outputRange: [1, 0],
-        extrapolate: "clamp",
-    });
-    const headerScale = scrollY.interpolate({
-        inputRange: [0, 80],
-        outputRange: [1, 0.92],
-        extrapolate: "clamp",
-    });
-    const headerTranslateY = scrollY.interpolate({
-        inputRange: [0, 80],
-        outputRange: [0, -6],
-        extrapolate: "clamp",
-    });
+    const greetingOpacity = hasDesktopSidebar
+        ? 1
+        : scrollY.interpolate({
+              inputRange: [0, 50],
+              outputRange: [1, 0],
+              extrapolate: "clamp",
+          });
+    const headerScale = hasDesktopSidebar
+        ? 1
+        : scrollY.interpolate({
+              inputRange: [0, 80],
+              outputRange: [1, 0.92],
+              extrapolate: "clamp",
+          });
+    const headerTranslateY = hasDesktopSidebar
+        ? 0
+        : scrollY.interpolate({
+              inputRange: [0, 80],
+              outputRange: [0, -6],
+              extrapolate: "clamp",
+          });
 
     // Header entrance animation
     const headerFade = useRef(
@@ -509,6 +430,78 @@ export default function PlansScreen() {
         ]).start();
     }, []);
 
+    useEffect(() => {
+        desktopListWidthRef.current = desktopListWidth;
+    }, [desktopListWidth]);
+
+    const getDesktopListWidthBounds = useCallback((containerWidth: number) => {
+        const maxByContainer =
+            containerWidth > 0
+                ? containerWidth - DESKTOP_DETAIL_MIN_WIDTH - DESKTOP_SPLITTER_WIDTH
+                : DESKTOP_LIST_DEFAULT_WIDTH;
+        const max = Math.max(DESKTOP_LIST_MIN_WIDTH, maxByContainer);
+        return { min: DESKTOP_LIST_MIN_WIDTH, max };
+    }, []);
+
+    const clampDesktopListWidth = useCallback(
+        (width: number, containerWidth: number) => {
+            const { min, max } = getDesktopListWidthBounds(containerWidth);
+            return Math.max(min, Math.min(max, width));
+        },
+        [getDesktopListWidthBounds]
+    );
+
+    const handleDesktopContainerLayout = useCallback(
+        (event: LayoutChangeEvent) => {
+            const width = event.nativeEvent.layout.width;
+            setDesktopContainerWidth(width);
+            setDesktopListWidth((current) => clampDesktopListWidth(current, width));
+        },
+        [clampDesktopListWidth]
+    );
+
+    const handleDesktopSplitterPressIn = useCallback(
+        (event: GestureResponderEvent) => {
+            if (!hasDesktopSidebar || Platform.OS !== "web") return;
+            desktopDragStartWidth.current = desktopListWidthRef.current;
+            desktopDragStartX.current = event.nativeEvent.pageX;
+            setIsDesktopResizing(true);
+        },
+        [hasDesktopSidebar]
+    );
+
+    useEffect(() => {
+        if (!isDesktopResizing || Platform.OS !== "web") return;
+
+        const handleMouseMove = (event: MouseEvent) => {
+            const nextWidth = desktopDragStartWidth.current + (event.pageX - desktopDragStartX.current);
+            setDesktopListWidth(
+                clampDesktopListWidth(nextWidth, desktopContainerWidth)
+            );
+        };
+
+        const stopResizing = () => {
+            setIsDesktopResizing(false);
+        };
+
+        const previousUserSelect = document.body.style.userSelect;
+        const previousCursor = document.body.style.cursor;
+        document.body.style.userSelect = "none";
+        document.body.style.cursor = "col-resize";
+
+        window.addEventListener("mousemove", handleMouseMove);
+        window.addEventListener("mouseup", stopResizing);
+        window.addEventListener("blur", stopResizing);
+
+        return () => {
+            window.removeEventListener("mousemove", handleMouseMove);
+            window.removeEventListener("mouseup", stopResizing);
+            window.removeEventListener("blur", stopResizing);
+            document.body.style.userSelect = previousUserSelect;
+            document.body.style.cursor = previousCursor;
+        };
+    }, [clampDesktopListWidth, desktopContainerWidth, isDesktopResizing]);
+
     const handleRefresh = useCallback(() => {
         refetch();
     }, [refetch]);
@@ -529,19 +522,27 @@ export default function PlansScreen() {
         invalidatePlanCaches();
     }, [invalidatePlanCaches]);
 
-    const handleSignOut = useCallback(() => {
-        Alert.alert("Sign out?", "You can always sign back in.", [
-            { text: "Cancel", style: "cancel" },
-            { text: "Sign Out", style: "destructive", onPress: signOut },
-        ]);
-    }, [signOut]);
+    const handleSignOut = useCallback(async () => {
+        const confirmed = await confirm({
+            title: "Sign out?",
+            message: "You can always sign back in.",
+            confirmLabel: "Sign Out",
+            destructive: true,
+        });
+        if (confirmed) signOut();
+    }, [signOut, confirm]);
 
     const handleOpenPlan = useCallback(
         (planId: string, focus?: PlanDetailFocusTarget) => {
-            const query = focus ? `?focus=${focus}` : "";
-            router.push(`/plan/${planId}${query}`);
+            if (hasDesktopSidebar) {
+                setSelectedPlanId(planId);
+                setSelectedPlanFocus(focus);
+            } else {
+                const query = focus ? `?focus=${focus}` : "";
+                router.push(`/plan/${planId}${query}`);
+            }
         },
-        [router]
+        [router, hasDesktopSidebar]
     );
 
     const handlePlanPress = useCallback(
@@ -577,19 +578,18 @@ export default function PlansScreen() {
     );
 
     const handleLetGoFromList = useCallback(
-        (planId: string) => {
-            Alert.alert("Let go of this plan?", "You can always find it later.", [
-                { text: "Cancel", style: "cancel" },
-                {
-                    text: "Let Go",
-                    style: "destructive",
-                    onPress: () => {
-                        mutatePlanStateFromList(planId, "DROPPED", "let-go");
-                    },
-                },
-            ]);
+        async (planId: string) => {
+            const confirmed = await confirm({
+                title: "Let go of this plan?",
+                message: "You can always find it later.",
+                confirmLabel: "Let Go",
+                destructive: true,
+            });
+            if (confirmed) {
+                mutatePlanStateFromList(planId, "DROPPED", "let-go");
+            }
         },
-        [mutatePlanStateFromList]
+        [mutatePlanStateFromList, confirm]
     );
 
     const handleQuickAction = useCallback(
@@ -625,11 +625,14 @@ export default function PlansScreen() {
             return derived.quickActions.map((kind) => {
                 const isLoading =
                     isBusyPlan && pendingListMutation?.kind === kind;
-                const label = quickActionLabel(kind, derived.attentionReason);
+                const label = getPlanQuickActionLabel(
+                    kind,
+                    derived.attentionReason
+                );
                 return {
                     key: `${derived.plan.id}-${kind}`,
                     label,
-                    tone: quickActionTone(kind),
+                    tone: getPlanQuickActionTone(kind),
                     accessibilityLabel: `${label} for ${derived.plan.intentText}`,
                     onPress: () => handleQuickAction(derived, kind),
                     disabled: isBusyPlan,
@@ -699,9 +702,8 @@ export default function PlansScreen() {
         [scrollY, useNativeDriver]
     );
 
-    return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF8F3" }}>
-            <YStack flex={1} backgroundColor="$background">
+    const listContent = (
+            <>
                 {/* ---- Header ---- */}
                 <Animated.View
                     style={{
@@ -739,53 +741,78 @@ export default function PlansScreen() {
                                 </Text>
                             </YStack>
 
-                            <XStack alignItems="center" gap="$2">
-                                <Pressable
-                                    onPress={() => router.push("/people")}
-                                    hitSlop={8}
-                                    accessibilityRole="button"
-                                    accessibilityLabel="Go to People"
-                                >
+                            {!hasDesktopSidebar && (
+                                <XStack alignItems="center" gap="$2">
+                                    <Pressable
+                                        onPress={() => router.push("/feed")}
+                                        hitSlop={8}
+                                        accessibilityRole="button"
+                                        accessibilityLabel="Go to Feed"
+                                    >
+                                        <View
+                                            paddingHorizontal="$3"
+                                            paddingVertical="$1.5"
+                                            borderRadius="$10"
+                                            backgroundColor="$backgroundStrong"
+                                        >
+                                            <Text
+                                                fontFamily="$body"
+                                                fontSize="$3"
+                                                fontWeight="500"
+                                                color="$colorSecondary"
+                                            >
+                                                Feed
+                                            </Text>
+                                        </View>
+                                    </Pressable>
+
+                                    <Pressable
+                                        onPress={() => router.push("/people")}
+                                        hitSlop={8}
+                                        accessibilityRole="button"
+                                        accessibilityLabel="Go to People"
+                                    >
+                                        <View
+                                            paddingHorizontal="$3"
+                                            paddingVertical="$1.5"
+                                            borderRadius="$10"
+                                            backgroundColor="$backgroundStrong"
+                                        >
+                                            <Text
+                                                fontFamily="$body"
+                                                fontSize="$3"
+                                                fontWeight="500"
+                                                color="$colorSecondary"
+                                            >
+                                                People
+                                            </Text>
+                                        </View>
+                                    </Pressable>
+
                                     <View
-                                        paddingHorizontal="$3"
-                                        paddingVertical="$1.5"
-                                        borderRadius="$10"
-                                        backgroundColor="$backgroundStrong"
+                                        width={36}
+                                        height={36}
+                                        borderRadius={18}
+                                        backgroundColor="$colorTertiary"
+                                        justifyContent="center"
+                                        alignItems="center"
+                                        onPress={handleSignOut}
+                                        pressStyle={{ opacity: 0.7, scale: 0.95 }}
+                                        accessibilityRole="button"
+                                        accessibilityLabel="Account menu"
+                                        cursor="pointer"
                                     >
                                         <Text
                                             fontFamily="$body"
-                                            fontSize="$3"
-                                            fontWeight="500"
-                                            color="$colorSecondary"
+                                            fontSize={14}
+                                            fontWeight="600"
+                                            color="white"
                                         >
-                                            People
+                                            Y
                                         </Text>
                                     </View>
-                                </Pressable>
-
-                                <View
-                                    width={36}
-                                    height={36}
-                                    borderRadius={18}
-                                    backgroundColor="$colorTertiary"
-                                    justifyContent="center"
-                                    alignItems="center"
-                                    onPress={handleSignOut}
-                                    pressStyle={{ opacity: 0.7, scale: 0.95 }}
-                                    accessibilityRole="button"
-                                    accessibilityLabel="Account menu"
-                                    cursor="pointer"
-                                >
-                                    <Text
-                                        fontFamily="$body"
-                                        fontSize={14}
-                                        fontWeight="600"
-                                        color="white"
-                                    >
-                                        Y
-                                    </Text>
-                                </View>
-                            </XStack>
+                                </XStack>
+                            )}
                         </XStack>
 
                         {/* Header meta */}
@@ -891,7 +918,7 @@ export default function PlansScreen() {
                             textAlign="center"
                             lineHeight="$7"
                         >
-                            Something went wrong.{"\n"}Pull down to try again.
+                            Something went wrong.{"\n"}{Platform.OS === "web" ? "Try again." : "Pull down to try again."}
                         </Text>
                     </YStack>
                 ) : plans.length === 0 ? (
@@ -905,14 +932,16 @@ export default function PlansScreen() {
                         data={sectionItems}
                         renderItem={renderSectionItem}
                         keyExtractor={keyExtractor}
+                        style={{ flex: 1 }}
                         contentContainerStyle={{
                             paddingHorizontal: 24,
                             paddingTop: 12,
                             paddingBottom: 16,
                         }}
                         showsVerticalScrollIndicator={false}
-                        onRefresh={handleRefresh}
-                        refreshing={Boolean(isRefetching && !isLoading)}
+                        removeClippedSubviews={Platform.OS !== "web"}
+                        onRefresh={Platform.OS !== "web" ? handleRefresh : undefined}
+                        refreshing={Platform.OS !== "web" ? Boolean(isRefetching && !isLoading) : false}
                         onScroll={onScroll}
                         scrollEventThrottle={16}
                     />
@@ -920,16 +949,17 @@ export default function PlansScreen() {
 
                 {/* ---- Bottom bar: New Plan CTA ---- */}
                 <YStack position="relative">
-                    {/* Fade overlay above the bar */}
-                    <View
+                    <LinearGradient
+                        pointerEvents="none"
                         position="absolute"
                         top={-16}
                         left={0}
                         right={0}
                         height={16}
-                        backgroundColor="$background"
-                        opacity={0.85}
-                        pointerEvents="none"
+                        zIndex={1}
+                        colors={["rgba(251, 248, 243, 0)", "#FBF8F3"]}
+                        start={[0, 0]}
+                        end={[0, 1]}
                     />
                     <YStack
                         paddingHorizontal="$6"
@@ -937,48 +967,48 @@ export default function PlansScreen() {
                         paddingBottom="$2"
                         backgroundColor="$background"
                     >
-                    <YStack
-                        height={48}
-                        borderRadius="$6"
-                        backgroundColor="$accentBackground"
-                        justifyContent="center"
-                        alignItems="center"
-                        onPress={() => setSheetOpen(true)}
-                        pressStyle={{
-                            scale: 0.96,
-                            backgroundColor: "$accentBackgroundPress",
-                        }}
-                        // @ts-ignore
-                        animation="fast"
-                        accessibilityRole="button"
-                        accessibilityLabel="Add a new plan"
-                        cursor="pointer"
-                        // @ts-ignore
-                        shadowColor="#B8860B"
-                        shadowOffset={{ width: 0, height: 4 }}
-                        shadowOpacity={0.18}
-                        shadowRadius={12}
-                        elevation={5}
-                    >
-                        <XStack alignItems="center" gap="$1.5">
-                            <Text
-                                fontFamily="$heading"
-                                fontSize="$7"
-                                color="$accentColor"
-                                marginTop={-1}
-                            >
-                                +
-                            </Text>
-                            <Text
-                                fontFamily="$body"
-                                fontSize="$4"
-                                fontWeight="600"
-                                color="$accentColor"
-                            >
-                                New Plan
-                            </Text>
-                        </XStack>
-                    </YStack>
+                        <YStack
+                            height={48}
+                            borderRadius="$6"
+                            backgroundColor="$accentBackground"
+                            justifyContent="center"
+                            alignItems="center"
+                            onPress={() => setSheetOpen(true)}
+                            pressStyle={{
+                                scale: 0.96,
+                                backgroundColor: "$accentBackgroundPress",
+                            }}
+                            // @ts-ignore
+                            animation="fast"
+                            accessibilityRole="button"
+                            accessibilityLabel="Add a new plan"
+                            cursor="pointer"
+                            // @ts-ignore
+                            shadowColor="#B8860B"
+                            shadowOffset={{ width: 0, height: 4 }}
+                            shadowOpacity={0.18}
+                            shadowRadius={12}
+                            elevation={5}
+                        >
+                            <XStack alignItems="center" gap="$1.5">
+                                <Text
+                                    fontFamily="$heading"
+                                    fontSize="$7"
+                                    color="$accentColor"
+                                    marginTop={-1}
+                                >
+                                    +
+                                </Text>
+                                <Text
+                                    fontFamily="$body"
+                                    fontSize="$4"
+                                    fontWeight="600"
+                                    color="$accentColor"
+                                >
+                                    New Plan
+                                </Text>
+                            </XStack>
+                        </YStack>
                     </YStack>
                 </YStack>
 
@@ -988,7 +1018,71 @@ export default function PlansScreen() {
                     onOpenChange={setSheetOpen}
                     onCreated={handleCreated}
                 />
-            </YStack>
+            </>
+    );
+
+    if (!hasDesktopSidebar) {
+        return (
+            <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF8F3" }}>
+                <PageContainer backgroundColor="$background">
+                    {listContent}
+                </PageContainer>
+            </SafeAreaView>
+        );
+    }
+
+    return (
+        <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF8F3" }}>
+            <XStack
+                flex={1}
+                backgroundColor="$background"
+                onLayout={handleDesktopContainerLayout}
+            >
+                <YStack width={desktopListWidth}>
+                    {listContent}
+                </YStack>
+                <YStack
+                    width={DESKTOP_SPLITTER_WIDTH}
+                    justifyContent="center"
+                    alignItems="center"
+                    cursor="col-resize"
+                    backgroundColor={isDesktopResizing ? "$backgroundStrong" : "transparent"}
+                    hoverStyle={{ backgroundColor: "$backgroundStrong" }}
+                    accessibilityRole="adjustable"
+                    accessibilityLabel="Resize plans panel"
+                    onPressIn={handleDesktopSplitterPressIn}
+                >
+                    <View
+                        width={3}
+                        height={48}
+                        borderRadius={999}
+                        backgroundColor="$borderColorSubtle"
+                    />
+                </YStack>
+                <YStack flex={1}>
+                    {selectedPlanId ? (
+                        <PlanDetailContent
+                            planId={selectedPlanId}
+                            focusTarget={selectedPlanFocus}
+                            onClose={() => {
+                                setSelectedPlanId(null);
+                                setSelectedPlanFocus(undefined);
+                            }}
+                        />
+                    ) : (
+                        <YStack flex={1} justifyContent="center" alignItems="center" padding="$8">
+                            <Text
+                                fontFamily="$body"
+                                fontSize="$6"
+                                color="$colorTertiary"
+                                textAlign="center"
+                            >
+                                Select a plan to view details
+                            </Text>
+                        </YStack>
+                    )}
+                </YStack>
+            </XStack>
         </SafeAreaView>
     );
 }

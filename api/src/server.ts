@@ -1,6 +1,7 @@
 import "dotenv/config";
 import path from "node:path";
 import express from "express";
+import cors from "cors";
 import cookieParser from "cookie-parser";
 import type { Request, Response, NextFunction } from "express";
 import { z } from "zod";
@@ -15,6 +16,7 @@ import { decodeCursor, encodeCursor } from "./api/pagination/planCursor.js";
 import { PlanPatchSchema, toPrismaUpdate, validateTimeSemantics } from "./api/patch/planPatch.js";
 
 const app = express();
+app.use(cors());
 app.use(express.json({ type: ["application/json", "application/*+json"] }));
 app.use(cookieParser());
 app.use((req, res, next) => {

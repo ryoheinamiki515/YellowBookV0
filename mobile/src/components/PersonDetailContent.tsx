@@ -1,16 +1,13 @@
 import React, { useCallback, useRef, useEffect, useState } from "react";
 import {
-    Alert,
     Animated,
     Easing,
     Platform,
     Pressable,
     ScrollView,
 } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { YStack, XStack, Text, View } from "tamagui";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { YStack, XStack, Text, View, useMedia } from "tamagui";
 import {
     BottomSheetHeader,
     BottomSheetModal,
@@ -18,8 +15,9 @@ import {
     BottomSheetSecondaryButton,
     BottomSheetSectionLabel,
     BottomSheetTextField,
-} from "../../src/components/BottomSheetPrimitives";
-import { EditableText } from "../../src/components/EditableText";
+} from "./BottomSheetPrimitives";
+import { EditableText } from "./EditableText";
+import { useConfirm } from "./ConfirmDialog";
 
 import {
     useGetPerson,
@@ -27,13 +25,13 @@ import {
     useDeletePerson,
     getListPeopleQueryKey,
     getGetPersonQueryKey,
-} from "../../src/api/generated/people/people";
-import type { Person } from "../../src/api/generated/model/person";
-import type { PersonBirthday } from "../../src/api/generated/model/personBirthday";
+} from "../api/generated/people/people";
+import type { Person } from "../api/generated/model/person";
+import type { PersonBirthday } from "../api/generated/model/personBirthday";
 import {
     getInitialColor,
     useReducedMotionPreference,
-} from "../../src/lib/planHelpers";
+} from "../lib/planHelpers";
 
 // ---------------------------------------------------------------------------
 // FieldRow
@@ -305,9 +303,18 @@ function formatBirthdayDisplay(
 // Detail screen
 // ---------------------------------------------------------------------------
 
-export default function PersonDetailScreen() {
-    const { id } = useLocalSearchParams<{ id: string }>();
-    const router = useRouter();
+type PersonDetailContentProps = {
+    personId: string;
+    onClose: () => void;
+};
+
+export function PersonDetailContent({
+    personId: id,
+    onClose,
+}: PersonDetailContentProps) {
+    const confirm = useConfirm();
+    const media = useMedia();
+    const isDesktopWeb = media.lg && Platform.OS === "web";
     const queryClient = useQueryClient();
     const reducedMotion = useReducedMotionPreference();
     const useNativeDriver = Platform.OS !== "web";
@@ -407,95 +414,90 @@ export default function PersonDetailScreen() {
         }
     }, [person?.archivedAt, handlePatchField]);
 
-    const handleDelete = useCallback(() => {
-        Alert.alert("Delete this person?", "This can't be undone.", [
-            { text: "Cancel", style: "cancel" },
-            {
-                text: "Delete",
-                style: "destructive",
-                onPress: () => {
-                    deletePerson.mutate(
-                        { personId: id! },
-                        {
-                            onSettled: () => {
-                                queryClient.invalidateQueries({
-                                    queryKey: getListPeopleQueryKey(),
-                                });
-                                router.back();
-                            },
-                        }
-                    );
-                },
-            },
-        ]);
-    }, [deletePerson, id, queryClient, router]);
+    const handleDelete = useCallback(async () => {
+        const confirmed = await confirm({
+            title: "Delete this person?",
+            message: "This can't be undone.",
+            confirmLabel: "Delete",
+            destructive: true,
+        });
+        if (confirmed) {
+            deletePerson.mutate(
+                { personId: id! },
+                {
+                    onSettled: () => {
+                        queryClient.invalidateQueries({
+                            queryKey: getListPeopleQueryKey(),
+                        });
+                        onClose();
+                    },
+                }
+            );
+        }
+    }, [deletePerson, id, queryClient, onClose, confirm]);
 
     // Loading state
     if (isLoading) {
         return (
-            <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF8F3" }}>
-                <YStack
-                    flex={1}
-                    backgroundColor="$background"
-                    justifyContent="center"
-                    alignItems="center"
+            <YStack
+                flex={1}
+                backgroundColor="$background"
+                justifyContent="center"
+                alignItems="center"
+            >
+                <Animated.View
+                    style={{ opacity: 0.5, width: "85%", gap: 16 }}
                 >
-                    <Animated.View
-                        style={{ opacity: 0.5, width: "85%", gap: 16 }}
-                    >
-                        <View
-                            width="40%"
-                            height={16}
-                            borderRadius={8}
-                            backgroundColor="#EDE7DC"
-                        />
-                        <View
-                            width="80%"
-                            height={24}
-                            borderRadius={12}
-                            backgroundColor="#EDE7DC"
-                        />
-                        <View
-                            width="60%"
-                            height={14}
-                            borderRadius={7}
-                            backgroundColor="#EDE7DC"
-                        />
-                    </Animated.View>
-                </YStack>
-            </SafeAreaView>
+                    <View
+                        width="40%"
+                        height={16}
+                        borderRadius={8}
+                        backgroundColor="#EDE7DC"
+                    />
+                    <View
+                        width="80%"
+                        height={24}
+                        borderRadius={12}
+                        backgroundColor="#EDE7DC"
+                    />
+                    <View
+                        width="60%"
+                        height={14}
+                        borderRadius={7}
+                        backgroundColor="#EDE7DC"
+                    />
+                </Animated.View>
+            </YStack>
         );
     }
 
     if (isError || !person) {
         return (
-            <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF8F3" }}>
-                <YStack flex={1} backgroundColor="$background" padding="$6">
-                    <Pressable onPress={() => router.back()}>
-                        <Text
-                            fontFamily="$body"
-                            fontSize="$4"
-                            color="$accentColor"
-                        >
-                            Back
-                        </Text>
-                    </Pressable>
-                    <YStack
-                        flex={1}
-                        justifyContent="center"
-                        alignItems="center"
+            <YStack flex={1} backgroundColor="$background" padding="$6">
+                <Pressable onPress={onClose}>
+                    <Text
+                        fontFamily="$body"
+                        fontSize="$4"
+                        color="$accentColor"
                     >
-                        <Text
-                            fontFamily="$body"
-                            fontSize="$6"
-                            color="$colorSecondary"
-                            textAlign="center"
-                        >
-                            Couldn't load this person.
-                        </Text>
-                    </YStack>
+                        Back
+                    </Text>
+                </Pressable>
+                <YStack
+                    flex={1}
+                    justifyContent="center"
+                    alignItems="center"
+                >
+                    <Text
+                        fontFamily="$body"
+                        fontSize="$6"
+                        color="$colorSecondary"
+                        textAlign="center"
+                    >
+                        Couldn't load this person.
+                    </Text>
                 </YStack>
-            </SafeAreaView>
+            </YStack>
         );
     }
 
@@ -504,8 +506,7 @@ export default function PersonDetailScreen() {
     const birthdayDisplay = formatBirthdayDisplay(person.birthday);
 
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF8F3" }}>
-            <YStack flex={1} backgroundColor="$background">
+            <YStack flex={1} backgroundColor="$background" position="relative">
                 {/* Navigation bar */}
                 <XStack
                     paddingHorizontal="$5"
@@ -514,7 +515,7 @@ export default function PersonDetailScreen() {
                     justifyContent="space-between"
                 >
                     <Pressable
-                        onPress={() => router.back()}
+                        onPress={() => onClose()}
                         hitSlop={12}
                         accessibilityRole="button"
                         accessibilityLabel="Go back"
@@ -530,19 +531,10 @@ export default function PersonDetailScreen() {
                     </Pressable>
 
                     <Pressable
-                        onPress={() => {
-                            Alert.alert("Options", undefined, [
-                                {
-                                    text: "Delete permanently",
-                                    style: "destructive",
-                                    onPress: handleDelete,
-                                },
-                                { text: "Cancel", style: "cancel" },
-                            ]);
-                        }}
+                        onPress={handleDelete}
                         hitSlop={12}
                         accessibilityRole="button"
-                        accessibilityLabel="Person options"
+                        accessibilityLabel="Delete person"
                     >
                         <Text
                             fontFamily="$body"
@@ -557,7 +549,7 @@ export default function PersonDetailScreen() {
                 <ScrollView
                     contentContainerStyle={{
                         paddingHorizontal: 24,
-                        paddingBottom: 140,
+                        paddingBottom: isDesktopWeb ? 24 : 140,
                     }}
                     showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
@@ -754,13 +746,17 @@ export default function PersonDetailScreen() {
 
                 {/* Bottom action bar — Archive/Unarchive */}
                 <YStack
-                    position="absolute"
-                    bottom={0}
-                    left={0}
-                    right={0}
-                    paddingHorizontal="$6"
-                    paddingBottom="$8"
-                    paddingTop="$4"
+                    {...(isDesktopWeb
+                        ? { paddingHorizontal: "$6", paddingVertical: "$4" }
+                        : {
+                              position: "absolute" as const,
+                              bottom: 0,
+                              left: 0,
+                              right: 0,
+                              paddingHorizontal: "$6",
+                              paddingBottom: "$8",
+                              paddingTop: "$4",
+                          })}
                     backgroundColor="$background"
                 >
                     <YStack
@@ -808,6 +804,5 @@ export default function PersonDetailScreen() {
                     onSave={handleSaveBirthday}
                 />
             </YStack>
-        </SafeAreaView>
     );
 }

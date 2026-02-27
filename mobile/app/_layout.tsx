@@ -33,7 +33,7 @@ function ProtectedLayout() {
         if (!hasToken && !isLogin) {
             router.replace('/login');
         } else if (hasToken && isLogin) {
-            router.replace('/plans');
+            router.replace('/(main)/plans');
         }
     }, [hasToken, isLoading, router, segments]);
 

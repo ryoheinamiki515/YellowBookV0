@@ -9,10 +9,8 @@ import {
     ScrollView,
     AccessibilityInfo,
 } from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { YStack, XStack, Text, View } from "tamagui";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { YStack, XStack, Text, View, useMedia } from "tamagui";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Calendar } from "react-native-calendars";
 import type { CalendarProps, DateData } from "react-native-calendars";
@@ -23,8 +21,9 @@ import {
     BottomSheetModal,
     BottomSheetSectionLabel,
     BottomSheetTextField,
-} from "../../src/components/BottomSheetPrimitives";
-import { EditableText } from "../../src/components/EditableText";
+} from "../BottomSheetPrimitives";
+import { EditableText } from "../EditableText";
+import { useConfirm } from "../ConfirmDialog";
 
 import {
     useGetPlan,
@@ -34,24 +33,24 @@ import {
     useDeletePlanParticipant,
     getListPlansQueryKey,
     getGetPlanQueryKey,
-} from "../../src/api/generated/plans/plans";
+} from "../../api/generated/plans/plans";
 import {
     useListPeople,
     useCreatePerson,
     getListPeopleQueryKey,
-} from "../../src/api/generated/people/people";
-import type { SocialPlan } from "../../src/api/generated/model/socialPlan";
-import type { SocialPlanParticipant } from "../../src/api/generated/model/socialPlanParticipant";
-import type { SocialPlanPatchRequest } from "../../src/api/generated/model/socialPlanPatchRequest";
-import type { SocialPlanTimePrecision } from "../../src/api/generated/model/socialPlanTimePrecision";
-import type { Person } from "../../src/api/generated/model/person";
+} from "../../api/generated/people/people";
+import type { SocialPlan } from "../../api/generated/model/socialPlan";
+import type { SocialPlanParticipant } from "../../api/generated/model/socialPlanParticipant";
+import type { SocialPlanPatchRequest } from "../../api/generated/model/socialPlanPatchRequest";
+import type { SocialPlanTimePrecision } from "../../api/generated/model/socialPlanTimePrecision";
+import type { Person } from "../../api/generated/model/person";
 import {
     AVATAR_COLORS,
     getInitialColor,
     formatRelativeDate,
     formatFullDate,
     useReducedMotionPreference,
-} from "../../src/lib/planHelpers";
+} from "../../lib/planHelpers";
 
 type PlanPersonIdentity = {
     personId?: string | null;
@@ -537,7 +536,7 @@ function WhenSheet({
         if (windowEnd < windowStart) {
             Alert.alert(
                 "Window is out of order",
-                "The latest date has to be the same as or after the earliest date."
+                "The latest date has to be the same as or after the earliest date.",
             );
             return;
         }
@@ -1153,13 +1152,21 @@ function formatWhenDisplay(
 // Detail screen
 // ---------------------------------------------------------------------------
 
-export default function PlanDetailScreen() {
-    const { id, focus } = useLocalSearchParams<{
-        id: string;
-        focus?: string | string[];
-    }>();
-    const router = useRouter();
+type PlanDetailContentProps = {
+    planId: string;
+    focusTarget?: string;
+    onClose: () => void;
+};
+
+export function PlanDetailContent({
+    planId: id,
+    focusTarget: focusProp,
+    onClose,
+}: PlanDetailContentProps) {
     const queryClient = useQueryClient();
+    const confirm = useConfirm();
+    const media = useMedia();
+    const isDesktopWeb = media.lg && Platform.OS === "web";
     const reducedMotion = useReducedMotionPreference();
     const useNativeDriver = Platform.OS !== "web";
 
@@ -1188,7 +1195,7 @@ export default function PlanDetailScreen() {
     const didApplyInitialFocusRef = useRef(false);
     const participantDraftIdCounterRef = useRef(0);
 
-    const focusTarget = Array.isArray(focus) ? focus[0] : focus;
+    const focusTarget = focusProp;
     const serverPlanDraft = plan ? buildPlanEditableDraft(plan) : null;
     const effectivePlanDraft = planDraft ?? serverPlanDraft;
     const isFieldDraftDirty = Boolean(
@@ -1305,28 +1312,24 @@ export default function PlanDetailScreen() {
         [patchPlanDraft]
     );
 
-    const handleCancelOrBack = useCallback(() => {
+    const handleCancelOrBack = useCallback(async () => {
         if (!isDraftDirty) {
-            router.back();
+            onClose();
             return;
         }
 
-        Alert.alert(
-            "Discard plan edits?",
-            "Your changes haven't been saved yet.",
-            [
-                { text: "Keep Editing", style: "cancel" },
-                {
-                    text: "Discard",
-                    style: "destructive",
-                    onPress: () => {
-                        Keyboard.dismiss();
-                        router.back();
-                    },
-                },
-            ]
-        );
-    }, [isDraftDirty, router]);
+        const confirmed = await confirm({
+            title: "Discard plan edits?",
+            message: "Your changes haven't been saved yet.",
+            confirmLabel: "Discard",
+            cancelLabel: "Keep Editing",
+            destructive: true,
+        });
+        if (confirmed) {
+            Keyboard.dismiss();
+            onClose();
+        }
+    }, [isDraftDirty, onClose, confirm]);
 
     const handleSavePlanDraft = useCallback(async () => {
         if (!effectivePlanDraft || !id) return;
@@ -1334,7 +1337,7 @@ export default function PlanDetailScreen() {
 
         const normalizedDraft = normalizePlanDraftForSave(effectivePlanDraft);
         if (!normalizedDraft.intentText) {
-            Alert.alert("Plan needs a title", "Add what the plan is first.");
+            confirm({ title: "Plan needs a title", message: "Add what the plan is first.", confirmLabel: "OK" });
             return;
         }
 
@@ -1428,14 +1431,15 @@ export default function PlanDetailScreen() {
 
             AccessibilityInfo.announceForAccessibility?.("Plan changes saved");
         } catch (error) {
-            Alert.alert(
-                didSaveAnyChange
+            confirm({
+                title: didSaveAnyChange
                     ? "Some changes were saved"
                     : "Couldn't save changes",
-                didSaveAnyChange
+                message: didSaveAnyChange
                     ? "Some edits couldn't be saved. Review the plan and save again."
-                    : "Something went wrong — try again?"
-            );
+                    : "Something went wrong — try again?",
+                confirmLabel: "OK",
+            });
         } finally {
             if (didCreatePeople) {
                 queryClient.invalidateQueries({
@@ -1475,49 +1479,47 @@ export default function PlanDetailScreen() {
         );
     }, [patchPlan, id, invalidateAll]);
 
-    const handleDrop = useCallback(() => {
-        Alert.alert("Let go of this plan?", "You can always find it later.", [
-            { text: "Cancel", style: "cancel" },
-            {
-                text: "Let Go",
-                style: "destructive",
-                onPress: () => {
-                    patchPlan.mutate(
-                        { planId: id!, data: { state: "DROPPED" } },
-                        {
-                            onSettled: () => {
-                                invalidateAll();
-                                router.back();
-                            },
-                        }
-                    );
-                },
-            },
-        ]);
-    }, [patchPlan, id, invalidateAll, router]);
+    const handleDrop = useCallback(async () => {
+        const confirmed = await confirm({
+            title: "Let go of this plan?",
+            message: "You can always find it later.",
+            confirmLabel: "Let Go",
+            destructive: true,
+        });
+        if (confirmed) {
+            patchPlan.mutate(
+                { planId: id!, data: { state: "DROPPED" } },
+                {
+                    onSettled: () => {
+                        invalidateAll();
+                        onClose();
+                    },
+                }
+            );
+        }
+    }, [patchPlan, id, invalidateAll, onClose, confirm]);
 
-    const handleDelete = useCallback(() => {
-        Alert.alert("Delete this plan?", "This can't be undone.", [
-            { text: "Cancel", style: "cancel" },
-            {
-                text: "Delete",
-                style: "destructive",
-                onPress: () => {
-                    deletePlan.mutate(
-                        { planId: id! },
-                        {
-                            onSettled: () => {
-                                queryClient.invalidateQueries({
-                                    queryKey: getListPlansQueryKey(),
-                                });
-                                router.back();
-                            },
-                        }
-                    );
-                },
-            },
-        ]);
-    }, [deletePlan, id, queryClient, router]);
+    const handleDelete = useCallback(async () => {
+        const confirmed = await confirm({
+            title: "Delete this plan?",
+            message: "This can't be undone.",
+            confirmLabel: "Delete",
+            destructive: true,
+        });
+        if (confirmed) {
+            deletePlan.mutate(
+                { planId: id! },
+                {
+                    onSettled: () => {
+                        queryClient.invalidateQueries({
+                            queryKey: getListPlansQueryKey(),
+                        });
+                        onClose();
+                    },
+                }
+            );
+        }
+    }, [deletePlan, id, queryClient, onClose, confirm]);
 
     // --- Participant draft actions ---
 
@@ -1615,104 +1617,99 @@ export default function PlanDetailScreen() {
     );
 
     const handleRemoveParticipantChip = useCallback(
-        (participant: DisplayPlanParticipantChip) => {
+        async (participant: DisplayPlanParticipantChip) => {
             const name = participant.displayName || "this person";
             const description =
                 participant.source === "server"
                     ? "They'll be removed when you save."
                     : "They won't be added unless you save.";
 
-            Alert.alert(`Remove ${name}?`, description, [
-                { text: "Cancel", style: "cancel" },
-                {
-                    text: "Remove",
-                    style: "destructive",
-                    onPress: () => {
-                        if (participant.source === "server" && participant.participantId) {
-                            setRemovedParticipantIds((prev) =>
-                                prev.includes(participant.participantId!)
-                                    ? prev
-                                    : [...prev, participant.participantId!]
-                            );
-                            return;
-                        }
+            const confirmed = await confirm({
+                title: `Remove ${name}?`,
+                message: description,
+                confirmLabel: "Remove",
+                destructive: true,
+            });
+            if (confirmed) {
+                if (participant.source === "server" && participant.participantId) {
+                    setRemovedParticipantIds((prev) =>
+                        prev.includes(participant.participantId!)
+                            ? prev
+                            : [...prev, participant.participantId!]
+                    );
+                    return;
+                }
 
-                        setStagedParticipantAdds((prev) =>
-                            prev.filter((draft) => draft.draftId !== participant.key)
-                        );
-                    },
-                },
-            ]);
+                setStagedParticipantAdds((prev) =>
+                    prev.filter((draft) => draft.draftId !== participant.key)
+                );
+            }
         },
-        []
+        [confirm]
     );
 
     // Loading state
     if (isLoading) {
         return (
-            <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF8F3" }}>
-                <YStack
-                    flex={1}
-                    backgroundColor="$background"
-                    justifyContent="center"
-                    alignItems="center"
+            <YStack
+                flex={1}
+                backgroundColor="$background"
+                justifyContent="center"
+                alignItems="center"
+            >
+                <Animated.View
+                    style={{ opacity: 0.5, width: "85%", gap: 16 }}
                 >
-                    <Animated.View
-                        style={{ opacity: 0.5, width: "85%", gap: 16 }}
-                    >
-                        <View
-                            width="40%"
-                            height={16}
-                            borderRadius={8}
-                            backgroundColor="#EDE7DC"
-                        />
-                        <View
-                            width="80%"
-                            height={24}
-                            borderRadius={12}
-                            backgroundColor="#EDE7DC"
-                        />
-                        <View
-                            width="60%"
-                            height={14}
-                            borderRadius={7}
-                            backgroundColor="#EDE7DC"
-                        />
-                    </Animated.View>
-                </YStack>
-            </SafeAreaView>
+                    <View
+                        width="40%"
+                        height={16}
+                        borderRadius={8}
+                        backgroundColor="#EDE7DC"
+                    />
+                    <View
+                        width="80%"
+                        height={24}
+                        borderRadius={12}
+                        backgroundColor="#EDE7DC"
+                    />
+                    <View
+                        width="60%"
+                        height={14}
+                        borderRadius={7}
+                        backgroundColor="#EDE7DC"
+                    />
+                </Animated.View>
+            </YStack>
         );
     }
 
     if (isError || !plan) {
         return (
-            <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF8F3" }}>
-                <YStack flex={1} backgroundColor="$background" padding="$6">
-                    <Pressable onPress={() => router.back()}>
-                        <Text
-                            fontFamily="$body"
-                            fontSize="$4"
-                            color="$accentColor"
-                        >
-                            Back
-                        </Text>
-                    </Pressable>
-                    <YStack
-                        flex={1}
-                        justifyContent="center"
-                        alignItems="center"
+            <YStack flex={1} backgroundColor="$background" padding="$6">
+                <Pressable onPress={onClose}>
+                    <Text
+                        fontFamily="$body"
+                        fontSize="$4"
+                        color="$accentColor"
                     >
-                        <Text
-                            fontFamily="$body"
-                            fontSize="$6"
-                            color="$colorSecondary"
-                            textAlign="center"
-                        >
-                            Couldn't load this plan.
-                        </Text>
-                    </YStack>
+                        Back
+                    </Text>
+                </Pressable>
+                <YStack
+                    flex={1}
+                    justifyContent="center"
+                    alignItems="center"
+                >
+                    <Text
+                        fontFamily="$body"
+                        fontSize="$6"
+                        color="$colorSecondary"
+                        textAlign="center"
+                    >
+                        Couldn't load this plan.
+                    </Text>
                 </YStack>
-            </SafeAreaView>
+            </YStack>
         );
     }
 
@@ -1762,8 +1759,7 @@ export default function PlanDetailScreen() {
     ];
 
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF8F3" }}>
-            <YStack flex={1} backgroundColor="$background">
+            <YStack flex={1} backgroundColor="$background" position="relative">
                 {/* Navigation bar */}
                 <XStack
                     paddingHorizontal="$5"
@@ -1814,26 +1810,10 @@ export default function PlanDetailScreen() {
                         </Pressable>
                     ) : (
                         <Pressable
-                            onPress={() => {
-                                const options: {
-                                    text: string;
-                                    style?: "destructive" | "cancel";
-                                    onPress?: () => void;
-                                }[] = [];
-                                options.push({
-                                    text: "Delete permanently",
-                                    style: "destructive",
-                                    onPress: handleDelete,
-                                });
-                                options.push({
-                                    text: "Cancel",
-                                    style: "cancel",
-                                });
-                                Alert.alert("Options", undefined, options);
-                            }}
+                            onPress={handleDelete}
                             hitSlop={12}
                             accessibilityRole="button"
-                            accessibilityLabel="Plan options"
+                            accessibilityLabel="Delete plan"
                         >
                             <Text
                                 fontFamily="$body"
@@ -1865,7 +1845,7 @@ export default function PlanDetailScreen() {
                 <ScrollView
                     contentContainerStyle={{
                         paddingHorizontal: 24,
-                        paddingBottom: 140,
+                        paddingBottom: isDesktopWeb ? 24 : 140,
                     }}
                     showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
@@ -2164,13 +2144,17 @@ export default function PlanDetailScreen() {
 
                 {/* 6. Bottom action bar — contextual */}
                 <YStack
-                    position="absolute"
-                    bottom={0}
-                    left={0}
-                    right={0}
-                    paddingHorizontal="$6"
-                    paddingBottom="$8"
-                    paddingTop="$4"
+                    {...(isDesktopWeb
+                        ? { paddingHorizontal: "$6", paddingVertical: "$4" }
+                        : {
+                              position: "absolute" as const,
+                              bottom: 0,
+                              left: 0,
+                              right: 0,
+                              paddingHorizontal: "$6",
+                              paddingBottom: "$8",
+                              paddingTop: "$4",
+                          })}
                     backgroundColor="$background"
                 >
                     {isDraftDirty ? (
@@ -2306,6 +2290,5 @@ export default function PlanDetailScreen() {
                     disabled={isMutating}
                 />
             </YStack>
-        </SafeAreaView>
     );
 }

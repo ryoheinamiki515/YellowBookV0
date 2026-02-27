@@ -11,6 +11,7 @@ import * as WebBrowser from "expo-web-browser";
 import { useAuth } from "../src/context/AuthContext";
 import { useRouter } from "expo-router";
 import { View, Text, YStack, XStack, Spinner } from "tamagui";
+import { PageContainer } from "../src/components/PageContainer";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 WebBrowser.maybeCompleteAuthSession();
@@ -221,8 +222,7 @@ export default function LoginScreen() {
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF8F3" }}>
-            <YStack
-                flex={1}
+            <PageContainer
                 backgroundColor="$background"
                 justifyContent="center"
                 alignItems="center"
@@ -403,7 +403,7 @@ export default function LoginScreen() {
                         and Privacy Policy.
                     </Text>
                 </Animated.View>
-            </YStack>
+            </PageContainer>
         </SafeAreaView>
     );
 }

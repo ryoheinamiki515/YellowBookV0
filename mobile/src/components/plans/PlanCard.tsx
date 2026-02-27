@@ -485,6 +485,7 @@ export function PlanCard({
     index?: number;
 }) {
     const isHero = variant === "hero";
+    const compactWebMinHeight = !isHero && Platform.OS === "web" ? 72 : undefined;
     const when = formatWhenBadge(plan);
     const whenTone = getWhenBadgeTone(plan);
     const isDropped = plan.state === "DROPPED";
@@ -558,10 +559,12 @@ export function PlanCard({
                         paddingVertical={isHero ? undefined : "$3"}
                         paddingLeft={isHero ? undefined : "$4"}
                         paddingRight={isHero ? undefined : "$3.5"}
+                        minHeight={compactWebMinHeight}
                         onPress={(event) => {
                             blurPressTargetOnWeb(event);
                             onPress(plan);
                         }}
+                        hoverStyle={{ backgroundColor: "$surfaceHover" }}
                         pressStyle={{ scale: 0.985, backgroundColor: "$surfaceHover" }}
                         // @ts-ignore - web-only CSS property
                         style={
@@ -581,7 +584,7 @@ export function PlanCard({
                         accessibilityRole="button"
                         accessibilityLabel={`Open plan: ${plan.intentText}`}
                     >
-                        <YStack flex={1}>
+                        <YStack>
                             <XStack
                                 justifyContent="space-between"
                                 alignItems={isHero ? "flex-start" : "center"}

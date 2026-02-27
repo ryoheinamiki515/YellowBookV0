@@ -32,6 +32,14 @@ const PRIMARY_BUTTON_SHADOW_STYLE = {
     elevation: 3,
 } as const;
 
+const DIALOG_SHADOW_STYLE = {
+    shadowColor: "rgba(0,0,0,0.2)",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 1,
+    shadowRadius: 24,
+    elevation: 16,
+} as const;
+
 const BACKDROP_COLOR = "rgba(42,36,32,0.35)";
 const SHEET_ANIMATION_DURATION_MS = 280;
 const SHEET_HIDDEN_OFFSET = Dimensions.get("window").height;
@@ -54,7 +62,8 @@ export function BottomSheetModal({
     minHeight,
 }: BottomSheetModalProps) {
     const insets = useSafeAreaInsets();
-    const { height: windowHeight } = useWindowDimensions();
+    const { width, height: windowHeight } = useWindowDimensions();
+    const isDesktop = Platform.OS === "web" && width >= 768;
     const [visible, setVisible] = React.useState(open);
     const transition = React.useRef(new Animated.Value(open ? 1 : 0)).current;
     const keyboardOffset = React.useRef(new Animated.Value(0)).current;
@@ -120,6 +129,8 @@ export function BottomSheetModal({
     }, [open, transition, visible]);
 
     React.useEffect(() => {
+        if (isDesktop) return;
+
         const showEvent =
             Platform.OS === "ios" ? "keyboardWillChangeFrame" : "keyboardDidShow";
         const hideEvent =
@@ -145,7 +156,7 @@ export function BottomSheetModal({
             showSubscription.remove();
             hideSubscription.remove();
         };
-    }, [animateKeyboardOffset]);
+    }, [animateKeyboardOffset, isDesktop]);
 
     React.useEffect(() => {
         if (!visible) {
@@ -157,6 +168,72 @@ export function BottomSheetModal({
         Keyboard.dismiss();
         onOpenChange(false);
     };
+
+    if (!visible) {
+        return null;
+    }
+
+    if (isDesktop) {
+        const dialogScale = transition.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0.95, 1],
+        });
+
+        return (
+            <Modal
+                visible={visible}
+                transparent
+                animationType="none"
+                onRequestClose={handleClose}
+            >
+                <Pressable
+                    style={[
+                        StyleSheet.absoluteFill,
+                        {
+                            justifyContent: "center",
+                            alignItems: "center",
+                        },
+                    ]}
+                    onPress={handleClose}
+                >
+                    <Animated.View
+                        pointerEvents="none"
+                        style={[
+                            StyleSheet.absoluteFill,
+                            {
+                                backgroundColor: BACKDROP_COLOR,
+                                opacity: transition,
+                            },
+                        ]}
+                    />
+
+                    <Animated.View
+                        style={{
+                            width: "100%",
+                            maxWidth: 640,
+                            opacity: transition,
+                            transform: [{ scale: dialogScale }],
+                        }}
+                    >
+                        <Pressable onPress={(e) => e.stopPropagation()}>
+                            <YStack
+                                backgroundColor="$surface"
+                                borderRadius="$8"
+                                padding="$6"
+                                paddingBottom={SHEET_BOTTOM_PADDING_PX}
+                                minHeight={resolvedMinHeight}
+                                maxHeight={maxSheetHeight}
+                                flexShrink={1}
+                                style={DIALOG_SHADOW_STYLE}
+                            >
+                                {children}
+                            </YStack>
+                        </Pressable>
+                    </Animated.View>
+                </Pressable>
+            </Modal>
+        );
+    }
 
     const sheetTranslateY = transition.interpolate({
         inputRange: [0, 1],
@@ -171,10 +248,6 @@ export function BottomSheetModal({
         Animated.multiply(keyboardLift, -1),
         SCREEN_HEIGHT
     );
-
-    if (!visible) {
-        return null;
-    }
 
     return (
         <Modal
@@ -457,6 +530,11 @@ export function BottomSheetListRow({
             opacity={disabled ? 0.6 : 1}
             onPress={onPress}
             disabled={!isInteractive}
+            hoverStyle={
+                isInteractive
+                    ? { backgroundColor: "$surfaceHover" }
+                    : undefined
+            }
             pressStyle={
                 isInteractive
                     ? {
@@ -535,6 +613,7 @@ export function BottomSheetPrimaryButton({
             onPress={onPress}
             disabled={disabled}
             opacity={disabled ? 0.45 : 1}
+            hoverStyle={{ opacity: 0.9 }}
             pressStyle={{
                 scale: 0.98,
                 backgroundColor: "$accentBackgroundPress",
