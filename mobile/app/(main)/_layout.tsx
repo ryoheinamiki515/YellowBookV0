@@ -1,6 +1,6 @@
 import React from "react";
-import { Platform, Pressable } from "react-native";
-import { Slot, useRouter, useSegments } from "expo-router";
+import { Platform } from "react-native";
+import { Slot, Tabs, useRouter, useSegments } from "expo-router";
 import { Text, View, XStack, YStack, useMedia } from "tamagui";
 import { useAuth } from "../../src/context/AuthContext";
 import { ConfirmProvider } from "../../src/components/ConfirmDialog";
@@ -16,6 +16,20 @@ const NAV_ITEMS: NavItem[] = [
     { label: "People", segment: "people", href: "/people" },
     { label: "Feed", segment: "feed", href: "/feed" },
 ];
+
+const MOBILE_TAB_BAR_STYLE = {
+    backgroundColor: "#FBF8F3",
+    borderTopColor: "#E2D9CC",
+    borderTopWidth: 1,
+    paddingTop: 8,
+    paddingBottom: 8,
+    height: 68,
+};
+
+const MOBILE_TAB_LABEL_STYLE = {
+    fontSize: 12,
+    fontWeight: "600" as const,
+};
 
 function SidebarNavItem({
     item,
@@ -139,6 +153,61 @@ function Sidebar() {
     );
 }
 
+function MobileTabs() {
+    return (
+        <Tabs
+            initialRouteName="plans"
+            screenOptions={{
+                headerShown: false,
+                tabBarStyle: MOBILE_TAB_BAR_STYLE,
+                tabBarLabelStyle: MOBILE_TAB_LABEL_STYLE,
+                tabBarActiveTintColor: "#2A2420",
+                tabBarInactiveTintColor: "#8C7F72",
+                tabBarHideOnKeyboard: true,
+                sceneStyle: { backgroundColor: "#FBF8F3" },
+            }}
+        >
+            <Tabs.Screen
+                name="plans"
+                options={{
+                    title: "Plans",
+                    tabBarLabel: "Plans",
+                }}
+            />
+            <Tabs.Screen
+                name="people"
+                options={{
+                    title: "People",
+                    tabBarLabel: "People",
+                }}
+            />
+            <Tabs.Screen
+                name="feed"
+                options={{
+                    title: "Feed",
+                    tabBarLabel: "Feed",
+                }}
+            />
+            <Tabs.Screen
+                name="plan/[id]"
+                options={{
+                    href: null,
+                    title: "Plan",
+                    tabBarStyle: { display: "none" },
+                }}
+            />
+            <Tabs.Screen
+                name="person/[id]"
+                options={{
+                    href: null,
+                    title: "Person",
+                    tabBarStyle: { display: "none" },
+                }}
+            />
+        </Tabs>
+    );
+}
+
 export default function MainLayout() {
     const media = useMedia();
     const isDesktop = media.lg && Platform.OS === "web";
@@ -146,7 +215,7 @@ export default function MainLayout() {
     if (!isDesktop) {
         return (
             <ConfirmProvider>
-                <Slot />
+                <MobileTabs />
             </ConfirmProvider>
         );
     }

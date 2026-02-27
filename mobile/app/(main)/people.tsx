@@ -5,7 +5,6 @@ import {
     Easing,
     Keyboard,
     Platform,
-    Pressable,
 } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
@@ -653,55 +652,6 @@ export default function PeopleScreen() {
                                 </Text>
                             </YStack>
 
-                            {!hasDesktopSidebar && (
-                                <XStack alignItems="center" gap="$2">
-                                    <Pressable
-                                        onPress={() => router.push("/feed")}
-                                        hitSlop={8}
-                                        accessibilityRole="button"
-                                        accessibilityLabel="Go to Feed"
-                                    >
-                                        <View
-                                            paddingHorizontal="$3"
-                                            paddingVertical="$1.5"
-                                            borderRadius="$10"
-                                            backgroundColor="$backgroundStrong"
-                                        >
-                                            <Text
-                                                fontFamily="$body"
-                                                fontSize="$3"
-                                                fontWeight="500"
-                                                color="$colorSecondary"
-                                            >
-                                                Feed
-                                            </Text>
-                                        </View>
-                                    </Pressable>
-
-                                    <Pressable
-                                        onPress={() => router.push("/plans")}
-                                        hitSlop={8}
-                                        accessibilityRole="button"
-                                        accessibilityLabel="Go to Plans"
-                                    >
-                                        <View
-                                            paddingHorizontal="$3"
-                                            paddingVertical="$1.5"
-                                            borderRadius="$10"
-                                            backgroundColor="$backgroundStrong"
-                                        >
-                                            <Text
-                                                fontFamily="$body"
-                                                fontSize="$3"
-                                                fontWeight="500"
-                                                color="$colorSecondary"
-                                            >
-                                                Plans
-                                            </Text>
-                                        </View>
-                                    </Pressable>
-                                </XStack>
-                            )}
                         </XStack>
 
                         {countLabel ? (

@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { Alert, Pressable, RefreshControl, ScrollView } from "react-native";
+import { Alert, RefreshControl, ScrollView } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -225,52 +225,6 @@ export default function FeedScreen() {
                         </YStack>
 
                         <XStack alignItems="center" gap="$2">
-                            <Pressable
-                                onPress={() => router.push("/plans")}
-                                hitSlop={8}
-                                accessibilityRole="button"
-                                accessibilityLabel="Go to Plans"
-                            >
-                                <View
-                                    paddingHorizontal="$3"
-                                    paddingVertical="$1.5"
-                                    borderRadius="$10"
-                                    backgroundColor="$backgroundStrong"
-                                >
-                                    <Text
-                                        fontFamily="$body"
-                                        fontSize="$3"
-                                        fontWeight="500"
-                                        color="$colorSecondary"
-                                    >
-                                        Plans
-                                    </Text>
-                                </View>
-                            </Pressable>
-
-                            <Pressable
-                                onPress={() => router.push("/people")}
-                                hitSlop={8}
-                                accessibilityRole="button"
-                                accessibilityLabel="Go to People"
-                            >
-                                <View
-                                    paddingHorizontal="$3"
-                                    paddingVertical="$1.5"
-                                    borderRadius="$10"
-                                    backgroundColor="$backgroundStrong"
-                                >
-                                    <Text
-                                        fontFamily="$body"
-                                        fontSize="$3"
-                                        fontWeight="500"
-                                        color="$colorSecondary"
-                                    >
-                                        People
-                                    </Text>
-                                </View>
-                            </Pressable>
-
                             <View
                                 width={36}
                                 height={36}

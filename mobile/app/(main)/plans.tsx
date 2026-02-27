@@ -4,7 +4,6 @@ import {
     Easing,
     type GestureResponderEvent,
     Platform,
-    Pressable,
     type LayoutChangeEvent,
 } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
@@ -743,52 +742,6 @@ export default function PlansScreen() {
 
                             {!hasDesktopSidebar && (
                                 <XStack alignItems="center" gap="$2">
-                                    <Pressable
-                                        onPress={() => router.push("/feed")}
-                                        hitSlop={8}
-                                        accessibilityRole="button"
-                                        accessibilityLabel="Go to Feed"
-                                    >
-                                        <View
-                                            paddingHorizontal="$3"
-                                            paddingVertical="$1.5"
-                                            borderRadius="$10"
-                                            backgroundColor="$backgroundStrong"
-                                        >
-                                            <Text
-                                                fontFamily="$body"
-                                                fontSize="$3"
-                                                fontWeight="500"
-                                                color="$colorSecondary"
-                                            >
-                                                Feed
-                                            </Text>
-                                        </View>
-                                    </Pressable>
-
-                                    <Pressable
-                                        onPress={() => router.push("/people")}
-                                        hitSlop={8}
-                                        accessibilityRole="button"
-                                        accessibilityLabel="Go to People"
-                                    >
-                                        <View
-                                            paddingHorizontal="$3"
-                                            paddingVertical="$1.5"
-                                            borderRadius="$10"
-                                            backgroundColor="$backgroundStrong"
-                                        >
-                                            <Text
-                                                fontFamily="$body"
-                                                fontSize="$3"
-                                                fontWeight="500"
-                                                color="$colorSecondary"
-                                            >
-                                                People
-                                            </Text>
-                                        </View>
-                                    </Pressable>
-
                                     <View
                                         width={36}
                                         height={36}
