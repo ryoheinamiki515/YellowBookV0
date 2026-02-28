@@ -2,6 +2,7 @@ import React from "react";
 import { Platform } from "react-native";
 import { Slot, Tabs, useRouter, useSegments } from "expo-router";
 import { Text, View, XStack, YStack, useMedia } from "tamagui";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../src/context/AuthContext";
 import { ConfirmProvider } from "../../src/components/ConfirmDialog";
 
@@ -16,15 +17,6 @@ const NAV_ITEMS: NavItem[] = [
     { label: "People", segment: "people", href: "/people" },
     { label: "Feed", segment: "feed", href: "/feed" },
 ];
-
-const MOBILE_TAB_BAR_STYLE = {
-    backgroundColor: "#FBF8F3",
-    borderTopColor: "#E2D9CC",
-    borderTopWidth: 1,
-    paddingTop: 8,
-    paddingBottom: 8,
-    height: 68,
-};
 
 const MOBILE_TAB_LABEL_STYLE = {
     fontSize: 12,
@@ -154,12 +146,23 @@ function Sidebar() {
 }
 
 function MobileTabs() {
+    const insets = useSafeAreaInsets();
+    const baseHeight = Platform.OS === "ios" ? 52 : 56;
+    const tabBarHeight = baseHeight + insets.bottom;
+
     return (
         <Tabs
             initialRouteName="plans"
             screenOptions={{
                 headerShown: false,
-                tabBarStyle: MOBILE_TAB_BAR_STYLE,
+                tabBarStyle: {
+                    backgroundColor: "#FBF8F3",
+                    borderTopColor: "#E2D9CC",
+                    borderTopWidth: 1,
+                    height: tabBarHeight,
+                    paddingTop: 6,
+                    paddingBottom: Math.max(insets.bottom, 8),
+                },
                 tabBarLabelStyle: MOBILE_TAB_LABEL_STYLE,
                 tabBarActiveTintColor: "#2A2420",
                 tabBarInactiveTintColor: "#8C7F72",
