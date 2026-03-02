@@ -769,6 +769,8 @@ app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
                 ? "https://api.yellowbook.example.com/problems/validation-error"
                 : status === 401
                     ? "https://api.yellowbook.example.com/problems/unauthorized"
+                    : status === 403
+                        ? "https://api.yellowbook.example.com/problems/forbidden"
                     : status === 404
                         ? "https://api.yellowbook.example.com/problems/not-found"
                         : "https://api.yellowbook.example.com/problems/server-error",
@@ -777,6 +779,8 @@ app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
                 ? "Validation error"
                 : status === 401
                     ? "Unauthorized"
+                    : status === 403
+                        ? "Forbidden"
                     : status === 404
                         ? "Not found"
                         : "Server error",

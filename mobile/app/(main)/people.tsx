@@ -30,6 +30,8 @@ import {
     getInitialColor,
     useReducedMotionPreference,
 } from "../../src/lib/planHelpers";
+import { useDesktopResizableSplitView } from "../../src/hooks/useDesktopResizableSplitView";
+import { useSheetSessionState } from "../../src/hooks/useSheetSessionState";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -46,6 +48,12 @@ function formatBirthday(person: Person): string | null {
     if (year) return `${monthStr} ${day}, ${year}`;
     return `${monthStr} ${day}`;
 }
+
+const DESKTOP_LIST_DEFAULT_WIDTH = 400;
+const DESKTOP_LIST_MIN_WIDTH = 340;
+const DESKTOP_LIST_MAX_WIDTH = 480;
+const DESKTOP_DETAIL_MIN_WIDTH = 360;
+const DESKTOP_SPLITTER_WIDTH = 16;
 
 // ---------------------------------------------------------------------------
 // Person Card
@@ -464,11 +472,23 @@ function CreatePersonSheet({
     onOpenChange: (open: boolean) => void;
     onCreated: () => void;
 }) {
-    const [displayName, setDisplayName] = useState("");
+    const [draft, setDraft] = useSheetSessionState(open, () => ({
+        displayName: "",
+    }));
     const createPerson = useCreatePerson();
 
+    const handleDisplayNameChange = useCallback(
+        (value: string) => {
+            setDraft((currentDraft) => ({
+                ...currentDraft,
+                displayName: value,
+            }));
+        },
+        [setDraft]
+    );
+
     const handleCreate = useCallback(() => {
-        const trimmed = displayName.trim();
+        const trimmed = draft.displayName.trim();
         if (!trimmed) return;
 
         Keyboard.dismiss();
@@ -476,7 +496,6 @@ function CreatePersonSheet({
             { data: { displayName: trimmed } },
             {
                 onSuccess: () => {
-                    setDisplayName("");
                     onOpenChange(false);
                     onCreated();
                 },
@@ -488,7 +507,7 @@ function CreatePersonSheet({
                 },
             }
         );
-    }, [displayName, createPerson, onOpenChange, onCreated]);
+    }, [draft.displayName, createPerson, onOpenChange, onCreated]);
 
     return (
         <BottomSheetModal open={open} onOpenChange={onOpenChange}>
@@ -500,8 +519,8 @@ function CreatePersonSheet({
             <BottomSheetTextField
                 placeholder="Their name..."
                 placeholderTextColor="$placeholderColor"
-                value={displayName}
-                onChangeText={setDisplayName}
+                value={draft.displayName}
+                onChangeText={handleDisplayNameChange}
                 autoFocus
                 returnKeyType="done"
                 onSubmitEditing={handleCreate}
@@ -513,7 +532,7 @@ function CreatePersonSheet({
                 loadingLabel="Saving..."
                 loading={createPerson.isPending}
                 onPress={handleCreate}
-                disabled={!displayName.trim() || createPerson.isPending}
+                disabled={!draft.displayName.trim() || createPerson.isPending}
                 accessibilityLabel="Save person"
             />
         </BottomSheetModal>
@@ -537,6 +556,19 @@ export default function PeopleScreen() {
     const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
     const [searchText, setSearchText] = useState("");
     const [debouncedQ, setDebouncedQ] = useState("");
+    const {
+        listWidth: desktopListWidth,
+        isResizing: isDesktopResizing,
+        handleContainerLayout: handleDesktopContainerLayout,
+        handleSplitterPressIn: handleDesktopSplitterPressIn,
+    } = useDesktopResizableSplitView({
+        enabled: hasDesktopSidebar,
+        defaultListWidth: DESKTOP_LIST_DEFAULT_WIDTH,
+        minListWidth: DESKTOP_LIST_MIN_WIDTH,
+        detailMinWidth: DESKTOP_DETAIL_MIN_WIDTH,
+        splitterWidth: DESKTOP_SPLITTER_WIDTH,
+        maxListWidth: DESKTOP_LIST_MAX_WIDTH,
+    });
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -828,11 +860,33 @@ export default function PeopleScreen() {
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF8F3" }}>
-            <XStack flex={1} backgroundColor="$background">
-                <YStack flex={1} minWidth={340} maxWidth={480} borderRightWidth={1} borderRightColor="$borderColorSubtle">
+            <XStack
+                flex={1}
+                backgroundColor="$background"
+                onLayout={handleDesktopContainerLayout}
+            >
+                <YStack width={desktopListWidth}>
                     {listContent}
                 </YStack>
-                <YStack flex={1.2}>
+                <YStack
+                    width={DESKTOP_SPLITTER_WIDTH}
+                    justifyContent="center"
+                    alignItems="center"
+                    cursor="col-resize"
+                    backgroundColor={isDesktopResizing ? "$backgroundStrong" : "transparent"}
+                    hoverStyle={{ backgroundColor: "$backgroundStrong" }}
+                    accessibilityRole="adjustable"
+                    accessibilityLabel="Resize people panel"
+                    onPressIn={handleDesktopSplitterPressIn}
+                >
+                    <View
+                        width={3}
+                        height={48}
+                        borderRadius={999}
+                        backgroundColor="$borderColorSubtle"
+                    />
+                </YStack>
+                <YStack flex={1}>
                     {selectedPersonId ? (
                         <PersonDetailContent
                             personId={selectedPersonId}

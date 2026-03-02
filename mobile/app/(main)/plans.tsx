@@ -2,9 +2,7 @@ import React, { useEffect, useRef, useState, useCallback, useMemo } from "react"
 import {
     Animated,
     Easing,
-    type GestureResponderEvent,
     Platform,
-    type LayoutChangeEvent,
 } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
@@ -41,6 +39,7 @@ import {
     getPlanQuickActionTone,
 } from "../../src/lib/planQuickActions";
 import { useKeyboardShortcut } from "../../src/hooks/useKeyboardShortcut";
+import { useDesktopResizableSplitView } from "../../src/hooks/useDesktopResizableSplitView";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -345,16 +344,22 @@ export default function PlansScreen() {
     const [sheetOpen, setSheetOpen] = useState(false);
     const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
     const [selectedPlanFocus, setSelectedPlanFocus] = useState<PlanDetailFocusTarget | undefined>(undefined);
-    const [desktopContainerWidth, setDesktopContainerWidth] = useState(0);
-    const [desktopListWidth, setDesktopListWidth] = useState(DESKTOP_LIST_DEFAULT_WIDTH);
-    const [isDesktopResizing, setIsDesktopResizing] = useState(false);
-    const desktopListWidthRef = useRef(DESKTOP_LIST_DEFAULT_WIDTH);
-    const desktopDragStartWidth = useRef(DESKTOP_LIST_DEFAULT_WIDTH);
-    const desktopDragStartX = useRef(0);
     const [pendingListMutation, setPendingListMutation] = useState<{
         planId: string;
         kind: PlanQuickActionKind;
     } | null>(null);
+    const {
+        listWidth: desktopListWidth,
+        isResizing: isDesktopResizing,
+        handleContainerLayout: handleDesktopContainerLayout,
+        handleSplitterPressIn: handleDesktopSplitterPressIn,
+    } = useDesktopResizableSplitView({
+        enabled: hasDesktopSidebar,
+        defaultListWidth: DESKTOP_LIST_DEFAULT_WIDTH,
+        minListWidth: DESKTOP_LIST_MIN_WIDTH,
+        detailMinWidth: DESKTOP_DETAIL_MIN_WIDTH,
+        splitterWidth: DESKTOP_SPLITTER_WIDTH,
+    });
 
     const {
         data: plansResponse,
@@ -428,78 +433,6 @@ export default function PlansScreen() {
             }),
         ]).start();
     }, []);
-
-    useEffect(() => {
-        desktopListWidthRef.current = desktopListWidth;
-    }, [desktopListWidth]);
-
-    const getDesktopListWidthBounds = useCallback((containerWidth: number) => {
-        const maxByContainer =
-            containerWidth > 0
-                ? containerWidth - DESKTOP_DETAIL_MIN_WIDTH - DESKTOP_SPLITTER_WIDTH
-                : DESKTOP_LIST_DEFAULT_WIDTH;
-        const max = Math.max(DESKTOP_LIST_MIN_WIDTH, maxByContainer);
-        return { min: DESKTOP_LIST_MIN_WIDTH, max };
-    }, []);
-
-    const clampDesktopListWidth = useCallback(
-        (width: number, containerWidth: number) => {
-            const { min, max } = getDesktopListWidthBounds(containerWidth);
-            return Math.max(min, Math.min(max, width));
-        },
-        [getDesktopListWidthBounds]
-    );
-
-    const handleDesktopContainerLayout = useCallback(
-        (event: LayoutChangeEvent) => {
-            const width = event.nativeEvent.layout.width;
-            setDesktopContainerWidth(width);
-            setDesktopListWidth((current) => clampDesktopListWidth(current, width));
-        },
-        [clampDesktopListWidth]
-    );
-
-    const handleDesktopSplitterPressIn = useCallback(
-        (event: GestureResponderEvent) => {
-            if (!hasDesktopSidebar || Platform.OS !== "web") return;
-            desktopDragStartWidth.current = desktopListWidthRef.current;
-            desktopDragStartX.current = event.nativeEvent.pageX;
-            setIsDesktopResizing(true);
-        },
-        [hasDesktopSidebar]
-    );
-
-    useEffect(() => {
-        if (!isDesktopResizing || Platform.OS !== "web") return;
-
-        const handleMouseMove = (event: MouseEvent) => {
-            const nextWidth = desktopDragStartWidth.current + (event.pageX - desktopDragStartX.current);
-            setDesktopListWidth(
-                clampDesktopListWidth(nextWidth, desktopContainerWidth)
-            );
-        };
-
-        const stopResizing = () => {
-            setIsDesktopResizing(false);
-        };
-
-        const previousUserSelect = document.body.style.userSelect;
-        const previousCursor = document.body.style.cursor;
-        document.body.style.userSelect = "none";
-        document.body.style.cursor = "col-resize";
-
-        window.addEventListener("mousemove", handleMouseMove);
-        window.addEventListener("mouseup", stopResizing);
-        window.addEventListener("blur", stopResizing);
-
-        return () => {
-            window.removeEventListener("mousemove", handleMouseMove);
-            window.removeEventListener("mouseup", stopResizing);
-            window.removeEventListener("blur", stopResizing);
-            document.body.style.userSelect = previousUserSelect;
-            document.body.style.cursor = previousCursor;
-        };
-    }, [clampDesktopListWidth, desktopContainerWidth, isDesktopResizing]);
 
     const handleRefresh = useCallback(() => {
         refetch();
@@ -1015,6 +948,7 @@ export default function PlansScreen() {
                 <YStack flex={1}>
                     {selectedPlanId ? (
                         <PlanDetailContent
+                            key={selectedPlanId}
                             planId={selectedPlanId}
                             focusTarget={selectedPlanFocus}
                             onClose={() => {

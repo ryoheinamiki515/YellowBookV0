@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback } from "react";
 import { Alert, Keyboard } from "react-native";
 
 import {
@@ -9,6 +9,7 @@ import {
 } from "../BottomSheetPrimitives";
 import { useCreatePlan } from "../../api/generated/plans/plans";
 import type { SocialPlanParticipantCreateRequest } from "../../api/generated/model/socialPlanParticipantCreateRequest";
+import { useSheetSessionState } from "../../hooks/useSheetSessionState";
 
 export type CreatePlanParticipantPrefill = {
     personId?: string | null;
@@ -26,6 +27,11 @@ type CreatePlanSheetProps = {
     subtitle?: string;
     placeholder?: string;
     submitLabel?: string;
+};
+
+type CreatePlanDraft = {
+    intentText: string;
+    participants: SocialPlanParticipantCreateRequest[];
 };
 
 function normalizeParticipants(
@@ -50,6 +56,16 @@ function normalizeParticipants(
         );
 }
 
+function buildCreatePlanDraft(
+    initialIntentText?: string,
+    initialParticipants?: CreatePlanParticipantPrefill[]
+): CreatePlanDraft {
+    return {
+        intentText: initialIntentText ?? "",
+        participants: normalizeParticipants(initialParticipants ?? []),
+    };
+}
+
 export function CreatePlanSheet({
     open,
     onOpenChange,
@@ -62,20 +78,24 @@ export function CreatePlanSheet({
     submitLabel = "Save Plan",
 }: CreatePlanSheetProps) {
     const createPlan = useCreatePlan();
-    const [intentText, setIntentText] = useState(initialIntentText ?? "");
+    const getInitialDraft = useCallback(
+        () => buildCreatePlanDraft(initialIntentText, initialParticipants),
+        [initialIntentText, initialParticipants]
+    );
+    const [draft, setDraft] = useSheetSessionState(open, getInitialDraft);
 
-    useEffect(() => {
-        if (!open) return;
-        setIntentText(initialIntentText ?? "");
-    }, [open, initialIntentText]);
-
-    const participants = useMemo(
-        () => normalizeParticipants(initialParticipants ?? []),
-        [initialParticipants]
+    const handleIntentTextChange = useCallback(
+        (text: string) => {
+            setDraft((currentDraft) => ({
+                ...currentDraft,
+                intentText: text,
+            }));
+        },
+        [setDraft]
     );
 
     const handleCreate = useCallback(() => {
-        const trimmed = intentText.trim();
+        const trimmed = draft.intentText.trim();
         if (!trimmed) return;
 
         Keyboard.dismiss();
@@ -83,12 +103,13 @@ export function CreatePlanSheet({
             {
                 data: {
                     intentText: trimmed,
-                    ...(participants.length > 0 ? { participants } : {}),
+                    ...(draft.participants.length > 0
+                        ? { participants: draft.participants }
+                        : {}),
                 },
             },
             {
                 onSuccess: () => {
-                    setIntentText("");
                     onOpenChange(false);
                     onCreated();
                 },
@@ -100,7 +121,7 @@ export function CreatePlanSheet({
                 },
             }
         );
-    }, [createPlan, intentText, onCreated, onOpenChange, participants]);
+    }, [createPlan, draft.intentText, draft.participants, onCreated, onOpenChange]);
 
     return (
         <BottomSheetModal open={open} onOpenChange={onOpenChange}>
@@ -109,8 +130,8 @@ export function CreatePlanSheet({
             <BottomSheetTextField
                 placeholder={placeholder}
                 placeholderTextColor="$placeholderColor"
-                value={intentText}
-                onChangeText={setIntentText}
+                value={draft.intentText}
+                onChangeText={handleIntentTextChange}
                 autoFocus
                 returnKeyType="done"
                 onSubmitEditing={handleCreate}
@@ -122,7 +143,7 @@ export function CreatePlanSheet({
                 loadingLabel="Saving..."
                 loading={createPlan.isPending}
                 onPress={handleCreate}
-                disabled={!intentText.trim() || createPlan.isPending}
+                disabled={!draft.intentText.trim() || createPlan.isPending}
                 accessibilityLabel="Save plan"
             />
         </BottomSheetModal>
