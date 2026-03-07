@@ -16,13 +16,14 @@ Non-goals for this surface (intentionally excluded):
 
  * OpenAPI spec version: 1.0.0
  */
+import type { PlanRole } from './planRole';
 import type { SocialPlanParticipant } from './socialPlanParticipant';
 import type { SocialPlanState } from './socialPlanState';
 import type { SocialPlanTimePrecision } from './socialPlanTimePrecision';
 import type { Uuid } from './uuid';
 
 /**
- * Minimal primitive for “friend plans”:
+ * Minimal primitive for "friend plans":
 social intent + (optional) context + (optional) time anchor + (optional) place + participants.
 
 No nudges, reminders, messaging, sharing, recurrence, or RSVP semantics belong here.
@@ -31,6 +32,11 @@ No nudges, reminders, messaging, sharing, recurrence, or RSVP semantics belong h
 export interface SocialPlan {
   id: Uuid;
   ownerId: Uuid;
+  /**
+   * @maxLength 120
+   * @nullable
+   */
+  ownerDisplayName?: string | null;
   /**
    * @minLength 1
    * @maxLength 5000
@@ -59,6 +65,7 @@ export interface SocialPlan {
    */
   timezone?: string | null;
   participants: SocialPlanParticipant[];
+  role?: PlanRole;
   createdAt: string;
   updatedAt: string;
   [key: string]: unknown;

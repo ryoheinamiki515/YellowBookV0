@@ -370,6 +370,14 @@ export default function PlansScreen() {
     } = useListPlans({
         state: STATE_FILTERS[activeFilter].value,
         sort: "-updatedAt",
+        scope: "owned",
+    });
+
+    const {
+        data: subscribedPlansResponse,
+    } = useListPlans({
+        scope: "subscribed",
+        sort: "-updatedAt",
     });
 
     const responseData = plansResponse?.data;
@@ -378,11 +386,39 @@ export default function PlansScreen() {
             ? (responseData as { data: SocialPlan[] }).data
             : [];
 
+    const subscribedPlans: SocialPlan[] =
+        subscribedPlansResponse?.data && "data" in subscribedPlansResponse.data
+            ? (subscribedPlansResponse.data as { data: SocialPlan[] }).data
+            : [];
+
     // Group plans into section items
-    const sectionItems = useMemo(
-        () => buildFilteredSectionItems(plans, STATE_FILTERS[activeFilter].label),
-        [plans, activeFilter]
-    );
+    const sectionItems = useMemo<PlanListSectionItem[]>(() => {
+        const owned = buildFilteredSectionItems(plans, STATE_FILTERS[activeFilter].label);
+        if (subscribedPlans.length === 0) return owned;
+
+        const sharedSection: PlanListSectionItem[] = [
+            {
+                type: "section-header",
+                key: "section-shared",
+                title: "Shared with you",
+                count: subscribedPlans.length,
+            },
+            ...subscribedPlans.map((plan, i): PlanListSectionItem => ({
+                type: "plan",
+                key: `subscribed-${plan.id}`,
+                derived: {
+                    plan,
+                    isHeroCandidate: false,
+                    attentionReason: null,
+                    quickActions: [],
+                    section: null,
+                    sortKey: `shared:${i.toString().padStart(3, "0")}`,
+                },
+            })),
+        ];
+
+        return [...owned, ...sharedSection];
+    }, [plans, subscribedPlans, activeFilter]);
 
     // Scroll-based header compression (disabled on desktop)
     const scrollY = useRef(new Animated.Value(0)).current;
@@ -682,10 +718,10 @@ export default function PlansScreen() {
                                         backgroundColor="$colorTertiary"
                                         justifyContent="center"
                                         alignItems="center"
-                                        onPress={handleSignOut}
+                                        onPress={() => router.push("/settings" as any)}
                                         pressStyle={{ opacity: 0.7, scale: 0.95 }}
                                         accessibilityRole="button"
-                                        accessibilityLabel="Account menu"
+                                        accessibilityLabel="Settings"
                                         cursor="pointer"
                                     >
                                         <Text

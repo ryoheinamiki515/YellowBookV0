@@ -6,39 +6,95 @@ import React, {
     useRef,
     useState,
 } from "react";
-import { getToken, saveToken, removeToken } from "../lib/tokenStorage";
-import { getMe } from "../api/generated/system/system";
+
 import { subscribeAuthSessionInvalidation } from "../auth/authSessionEvents";
+import {
+    clearPendingPath as clearPendingPathStorage,
+    clearProfileNameSuggestion as clearProfileNameSuggestionStorage,
+    getPendingPath,
+    getProfileNameSuggestion,
+    savePendingPath,
+    saveProfileNameSuggestion,
+    sanitizeInternalPath,
+} from "../lib/authFlowStorage";
+import { getToken, removeToken, saveToken } from "../lib/tokenStorage";
 
 type AuthSessionStatus = "checking" | "authenticated" | "unauthenticated";
+
+type SignInInput = {
+    accessToken: string;
+    profileNameSuggestion?: string | null;
+};
 
 interface AuthContextData {
     hasToken: boolean;
     authToken: string | null;
     isLoading: boolean;
+    pendingPath: string | null;
+    profileNameSuggestion: string | null;
     sessionStatus: AuthSessionStatus;
-    signIn: (token: string) => Promise<void>;
+    signIn: (input: SignInInput) => Promise<void>;
     signOut: () => Promise<void>;
+    rememberPendingPath: (path: string | null | undefined) => Promise<void>;
+    clearPendingPath: () => Promise<void>;
+    clearProfileNameSuggestion: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextData>({
     hasToken: false,
     authToken: null,
     isLoading: true,
+    pendingPath: null,
+    profileNameSuggestion: null,
     sessionStatus: "checking",
-    signIn: async () => { },
-    signOut: async () => { },
+    signIn: async () => {},
+    signOut: async () => {},
+    rememberPendingPath: async () => {},
+    clearPendingPath: async () => {},
+    clearProfileNameSuggestion: async () => {},
 });
+
+function normalizeProfileNameSuggestion(value: string | null | undefined) {
+    if (!value) return null;
+
+    const trimmed = value.trim();
+    return trimmed.length ? trimmed : null;
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [authToken, setAuthToken] = useState<string | null>(null);
+    const [pendingPath, setPendingPath] = useState<string | null>(null);
+    const [profileNameSuggestion, setProfileNameSuggestion] = useState<string | null>(null);
     const [sessionStatus, setSessionStatus] =
         useState<AuthSessionStatus>("checking");
     const signOutInFlightRef = useRef<Promise<void> | null>(null);
 
-    const signIn = useCallback(async (token: string) => {
-        await saveToken(token);
-        setAuthToken(token);
+    const clearPendingPath = useCallback(async () => {
+        await clearPendingPathStorage();
+        setPendingPath(null);
+    }, []);
+
+    const clearProfileNameSuggestion = useCallback(async () => {
+        await clearProfileNameSuggestionStorage();
+        setProfileNameSuggestion(null);
+    }, []);
+
+    const rememberPendingPath = useCallback(async (path: string | null | undefined) => {
+        const nextPendingPath = sanitizeInternalPath(path);
+        await savePendingPath(path);
+        setPendingPath(nextPendingPath);
+    }, []);
+
+    const signIn = useCallback(async ({ accessToken, profileNameSuggestion }: SignInInput) => {
+        const nextSuggestion = normalizeProfileNameSuggestion(profileNameSuggestion);
+
+        await Promise.all([
+            saveToken(accessToken),
+            saveProfileNameSuggestion(nextSuggestion),
+        ]);
+
+        setAuthToken(accessToken);
+        setProfileNameSuggestion(nextSuggestion);
         setSessionStatus("authenticated");
     }, []);
 
@@ -49,11 +105,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         const signOutPromise = (async () => {
             setAuthToken(null);
+            setPendingPath(null);
+            setProfileNameSuggestion(null);
             setSessionStatus("unauthenticated");
+
             try {
-                await removeToken();
+                await Promise.all([
+                    removeToken(),
+                    clearPendingPathStorage(),
+                    clearProfileNameSuggestionStorage(),
+                ]);
             } catch (error) {
-                console.error("Failed to remove token", error);
+                console.error("Failed to clear auth session", error);
             }
         })();
 
@@ -70,46 +133,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         async function load() {
             try {
-                const saved = await getToken();
+                const [savedToken, savedPendingPath, savedSuggestion] = await Promise.all([
+                    getToken(),
+                    getPendingPath(),
+                    getProfileNameSuggestion(),
+                ]);
                 if (!mounted) return;
 
-                if (!saved) {
-                    setAuthToken(null);
-                    setSessionStatus("unauthenticated");
-                    return;
-                }
-
-                // Keep the token in memory while we verify it before rendering protected UI.
-                setAuthToken(saved);
-
-                try {
-                    await getMe();
-                    if (!mounted) return;
-                    setSessionStatus("authenticated");
-                } catch (error: any) {
-                    if (!mounted) return;
-
-                    if (error?.status === 401) {
-                        await signOut();
-                        return;
-                    }
-
-                    // Network/transient failures should not force-logout; runtime requests can retry.
-                    console.warn("Session validation failed, keeping local session", error);
-                    setSessionStatus("authenticated");
-                }
+                setAuthToken(savedToken);
+                setPendingPath(savedPendingPath);
+                setProfileNameSuggestion(savedSuggestion);
+                setSessionStatus(savedToken ? "authenticated" : "unauthenticated");
             } catch (e) {
-                console.error("Failed to load token", e);
+                console.error("Failed to load auth state", e);
                 if (mounted) {
                     setAuthToken(null);
+                    setPendingPath(null);
+                    setProfileNameSuggestion(null);
                     setSessionStatus("unauthenticated");
                 }
             }
         }
-        load();
 
-        return () => { mounted = false; };
-    }, [signOut]);
+        void load();
+
+        return () => {
+            mounted = false;
+        };
+    }, []);
 
     useEffect(() => {
         return subscribeAuthSessionInvalidation(() => {
@@ -118,14 +169,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, [signOut]);
 
     return (
-        <AuthContext.Provider value={{
-            hasToken: sessionStatus === "authenticated" && !!authToken,
-            authToken,
-            isLoading: sessionStatus === "checking",
-            sessionStatus,
-            signIn,
-            signOut
-        }}>
+        <AuthContext.Provider
+            value={{
+                hasToken: sessionStatus === "authenticated" && !!authToken,
+                authToken,
+                isLoading: sessionStatus === "checking",
+                pendingPath,
+                profileNameSuggestion,
+                sessionStatus,
+                signIn,
+                signOut,
+                rememberPendingPath,
+                clearPendingPath,
+                clearProfileNameSuggestion,
+            }}
+        >
             {children}
         </AuthContext.Provider>
     );

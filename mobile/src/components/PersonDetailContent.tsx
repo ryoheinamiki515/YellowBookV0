@@ -7,6 +7,7 @@ import {
     ScrollView,
 } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "expo-router";
 import { YStack, XStack, Text, View, useMedia } from "tamagui";
 import {
     BottomSheetHeader,
@@ -18,6 +19,8 @@ import {
 } from "./BottomSheetPrimitives";
 import { EditableText } from "./EditableText";
 import { useConfirm } from "./ConfirmDialog";
+import { DetailFooterAction } from "./DetailFooterAction";
+import { PersonEventsSection } from "./PersonEventsSection";
 
 import {
     useGetPerson,
@@ -306,13 +309,16 @@ function formatBirthdayDisplay(
 type PersonDetailContentProps = {
     personId: string;
     onClose: () => void;
+    onOpenPlan?: (planId: string) => void;
 };
 
 export function PersonDetailContent({
     personId: id,
     onClose,
+    onOpenPlan,
 }: PersonDetailContentProps) {
     const confirm = useConfirm();
+    const router = useRouter();
     const media = useMedia();
     const isDesktopWeb = media.lg && Platform.OS === "web";
     const queryClient = useQueryClient();
@@ -402,6 +408,18 @@ export function PersonDetailContent({
             handlePatchField({ birthday });
         },
         [handlePatchField]
+    );
+
+    const handleOpenPlan = useCallback(
+        (planId: string) => {
+            if (onOpenPlan) {
+                onOpenPlan(planId);
+                return;
+            }
+
+            router.push(`/plan/${planId}`);
+        },
+        [onOpenPlan, router]
     );
 
     // --- Archive / Delete ---
@@ -676,7 +694,13 @@ export function PersonDetailContent({
                             />
                         </YStack>
 
-                        {/* 5. Notes */}
+                        {/* 5. Events */}
+                        <PersonEventsSection
+                            personId={id}
+                            onOpenPlan={handleOpenPlan}
+                        />
+
+                        {/* 6. Notes */}
                         <YStack marginBottom="$5">
                             <Text
                                 fontFamily="$body"
@@ -759,41 +783,23 @@ export function PersonDetailContent({
                           })}
                     backgroundColor="$background"
                 >
-                    <YStack
-                        height="$12"
-                        borderRadius="$6"
-                        borderWidth={1}
-                        borderColor="$borderColor"
-                        justifyContent="center"
-                        alignItems="center"
-                        onPress={handleToggleArchive}
-                        disabled={isMutating}
-                        opacity={isMutating ? 0.5 : 1}
-                        pressStyle={{
-                            scale: 0.98,
-                            backgroundColor: "$backgroundStrong",
-                        }}
-                        // @ts-ignore
-                        animation="fast"
-                        accessibilityRole="button"
-                        accessibilityLabel={
-                            isArchived ? "Unarchive person" : "Archive person"
-                        }
-                        cursor="pointer"
-                    >
-                        <Text
-                            fontFamily="$body"
-                            fontSize="$5"
-                            fontWeight="600"
-                            color="$color"
-                        >
-                            {patchPerson.isPending
+                    <DetailFooterAction
+                        label={
+                            patchPerson.isPending
                                 ? "Saving..."
                                 : isArchived
                                   ? "Unarchive"
-                                  : "Archive"}
-                        </Text>
-                    </YStack>
+                                  : "Archive"
+                        }
+                        onPress={handleToggleArchive}
+                        disabled={isMutating}
+                        tone="neutral"
+                        variant="outline"
+                        labelSize="$5"
+                        accessibilityLabel={
+                            isArchived ? "Unarchive person" : "Archive person"
+                        }
+                    />
                 </YStack>
 
                 {/* Birthday sheet */}

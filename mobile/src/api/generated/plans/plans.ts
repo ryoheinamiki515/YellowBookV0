@@ -38,6 +38,7 @@ import type {
 import type {
   BadRequestResponse,
   ConflictResponse,
+  ForbiddenResponse,
   ListPlansParams,
   NotFoundResponse,
   PreconditionFailedResponse,
@@ -77,10 +78,15 @@ export type listPlansResponse401 = {
   status: 401
 }
 
+export type listPlansResponse403 = {
+  data: ForbiddenResponse
+  status: 403
+}
+
 export type listPlansResponseSuccess = (listPlansResponse200) & {
   headers: Headers;
 };
-export type listPlansResponseError = (listPlansResponse401) & {
+export type listPlansResponseError = (listPlansResponse401 | listPlansResponse403) & {
   headers: Headers;
 };
 
@@ -131,7 +137,7 @@ export const getListPlansQueryKey = (params?: ListPlansParams,) => {
     }
 
     
-export const getListPlansQueryOptions = <TData = Awaited<ReturnType<typeof listPlans>>, TError = UnauthorizedResponse>(params?: ListPlansParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlans>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+export const getListPlansQueryOptions = <TData = Awaited<ReturnType<typeof listPlans>>, TError = UnauthorizedResponse | ForbiddenResponse>(params?: ListPlansParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlans>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -150,10 +156,10 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type ListPlansQueryResult = NonNullable<Awaited<ReturnType<typeof listPlans>>>
-export type ListPlansQueryError = UnauthorizedResponse
+export type ListPlansQueryError = UnauthorizedResponse | ForbiddenResponse
 
 
-export function useListPlans<TData = Awaited<ReturnType<typeof listPlans>>, TError = UnauthorizedResponse>(
+export function useListPlans<TData = Awaited<ReturnType<typeof listPlans>>, TError = UnauthorizedResponse | ForbiddenResponse>(
  params: undefined |  ListPlansParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlans>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof listPlans>>,
@@ -163,7 +169,7 @@ export function useListPlans<TData = Awaited<ReturnType<typeof listPlans>>, TErr
       >, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListPlans<TData = Awaited<ReturnType<typeof listPlans>>, TError = UnauthorizedResponse>(
+export function useListPlans<TData = Awaited<ReturnType<typeof listPlans>>, TError = UnauthorizedResponse | ForbiddenResponse>(
  params?: ListPlansParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlans>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof listPlans>>,
@@ -173,7 +179,7 @@ export function useListPlans<TData = Awaited<ReturnType<typeof listPlans>>, TErr
       >, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListPlans<TData = Awaited<ReturnType<typeof listPlans>>, TError = UnauthorizedResponse>(
+export function useListPlans<TData = Awaited<ReturnType<typeof listPlans>>, TError = UnauthorizedResponse | ForbiddenResponse>(
  params?: ListPlansParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlans>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
@@ -181,7 +187,7 @@ export function useListPlans<TData = Awaited<ReturnType<typeof listPlans>>, TErr
  * @summary List social plans
  */
 
-export function useListPlans<TData = Awaited<ReturnType<typeof listPlans>>, TError = UnauthorizedResponse>(
+export function useListPlans<TData = Awaited<ReturnType<typeof listPlans>>, TError = UnauthorizedResponse | ForbiddenResponse>(
  params?: ListPlansParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlans>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
@@ -219,6 +225,11 @@ export type createPlanResponse401 = {
   status: 401
 }
 
+export type createPlanResponse403 = {
+  data: ForbiddenResponse
+  status: 403
+}
+
 export type createPlanResponse409 = {
   data: ConflictResponse
   status: 409
@@ -227,7 +238,7 @@ export type createPlanResponse409 = {
 export type createPlanResponseSuccess = (createPlanResponse201) & {
   headers: Headers;
 };
-export type createPlanResponseError = (createPlanResponse400 | createPlanResponse401 | createPlanResponse409) & {
+export type createPlanResponseError = (createPlanResponse400 | createPlanResponse401 | createPlanResponse403 | createPlanResponse409) & {
   headers: Headers;
 };
 
@@ -256,7 +267,7 @@ export const createPlan = async (socialPlanCreateRequest: SocialPlanCreateReques
 
 
 
-export const getCreatePlanMutationOptions = <TError = BadRequestResponse | UnauthorizedResponse | ConflictResponse,
+export const getCreatePlanMutationOptions = <TError = BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | ConflictResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPlan>>, TError,{data: SocialPlanCreateRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof createPlan>>, TError,{data: SocialPlanCreateRequest}, TContext> => {
 
@@ -285,12 +296,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type CreatePlanMutationResult = NonNullable<Awaited<ReturnType<typeof createPlan>>>
     export type CreatePlanMutationBody = SocialPlanCreateRequest
-    export type CreatePlanMutationError = BadRequestResponse | UnauthorizedResponse | ConflictResponse
+    export type CreatePlanMutationError = BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | ConflictResponse
 
     /**
  * @summary Create a social plan
  */
-export const useCreatePlan = <TError = BadRequestResponse | UnauthorizedResponse | ConflictResponse,
+export const useCreatePlan = <TError = BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | ConflictResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createPlan>>, TError,{data: SocialPlanCreateRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof createPlan>>,
@@ -313,6 +324,11 @@ export type getPlanResponse401 = {
   status: 401
 }
 
+export type getPlanResponse403 = {
+  data: ForbiddenResponse
+  status: 403
+}
+
 export type getPlanResponse404 = {
   data: NotFoundResponse
   status: 404
@@ -321,7 +337,7 @@ export type getPlanResponse404 = {
 export type getPlanResponseSuccess = (getPlanResponse200) & {
   headers: Headers;
 };
-export type getPlanResponseError = (getPlanResponse401 | getPlanResponse404) & {
+export type getPlanResponseError = (getPlanResponse401 | getPlanResponse403 | getPlanResponse404) & {
   headers: Headers;
 };
 
@@ -357,7 +373,7 @@ export const getGetPlanQueryKey = (planId: string,) => {
     }
 
     
-export const getGetPlanQueryOptions = <TData = Awaited<ReturnType<typeof getPlan>>, TError = UnauthorizedResponse | NotFoundResponse>(planId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlan>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+export const getGetPlanQueryOptions = <TData = Awaited<ReturnType<typeof getPlan>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(planId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlan>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -376,10 +392,10 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type GetPlanQueryResult = NonNullable<Awaited<ReturnType<typeof getPlan>>>
-export type GetPlanQueryError = UnauthorizedResponse | NotFoundResponse
+export type GetPlanQueryError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse
 
 
-export function useGetPlan<TData = Awaited<ReturnType<typeof getPlan>>, TError = UnauthorizedResponse | NotFoundResponse>(
+export function useGetPlan<TData = Awaited<ReturnType<typeof getPlan>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
  planId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlan>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getPlan>>,
@@ -389,7 +405,7 @@ export function useGetPlan<TData = Awaited<ReturnType<typeof getPlan>>, TError =
       >, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetPlan<TData = Awaited<ReturnType<typeof getPlan>>, TError = UnauthorizedResponse | NotFoundResponse>(
+export function useGetPlan<TData = Awaited<ReturnType<typeof getPlan>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
  planId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlan>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getPlan>>,
@@ -399,7 +415,7 @@ export function useGetPlan<TData = Awaited<ReturnType<typeof getPlan>>, TError =
       >, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetPlan<TData = Awaited<ReturnType<typeof getPlan>>, TError = UnauthorizedResponse | NotFoundResponse>(
+export function useGetPlan<TData = Awaited<ReturnType<typeof getPlan>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
  planId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlan>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
@@ -407,7 +423,7 @@ export function useGetPlan<TData = Awaited<ReturnType<typeof getPlan>>, TError =
  * @summary Get a social plan
  */
 
-export function useGetPlan<TData = Awaited<ReturnType<typeof getPlan>>, TError = UnauthorizedResponse | NotFoundResponse>(
+export function useGetPlan<TData = Awaited<ReturnType<typeof getPlan>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
  planId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getPlan>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
@@ -446,6 +462,11 @@ export type patchPlanResponse401 = {
   status: 401
 }
 
+export type patchPlanResponse403 = {
+  data: ForbiddenResponse
+  status: 403
+}
+
 export type patchPlanResponse404 = {
   data: NotFoundResponse
   status: 404
@@ -459,7 +480,7 @@ export type patchPlanResponse412 = {
 export type patchPlanResponseSuccess = (patchPlanResponse200) & {
   headers: Headers;
 };
-export type patchPlanResponseError = (patchPlanResponse400 | patchPlanResponse401 | patchPlanResponse404 | patchPlanResponse412) & {
+export type patchPlanResponseError = (patchPlanResponse400 | patchPlanResponse401 | patchPlanResponse403 | patchPlanResponse404 | patchPlanResponse412) & {
   headers: Headers;
 };
 
@@ -489,7 +510,7 @@ export const patchPlan = async (planId: string,
 
 
 
-export const getPatchPlanMutationOptions = <TError = BadRequestResponse | UnauthorizedResponse | NotFoundResponse | PreconditionFailedResponse,
+export const getPatchPlanMutationOptions = <TError = BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | PreconditionFailedResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchPlan>>, TError,{planId: string;data: SocialPlanPatchRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof patchPlan>>, TError,{planId: string;data: SocialPlanPatchRequest}, TContext> => {
 
@@ -518,12 +539,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type PatchPlanMutationResult = NonNullable<Awaited<ReturnType<typeof patchPlan>>>
     export type PatchPlanMutationBody = SocialPlanPatchRequest
-    export type PatchPlanMutationError = BadRequestResponse | UnauthorizedResponse | NotFoundResponse | PreconditionFailedResponse
+    export type PatchPlanMutationError = BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | PreconditionFailedResponse
 
     /**
  * @summary Update a social plan (JSON Merge Patch)
  */
-export const usePatchPlan = <TError = BadRequestResponse | UnauthorizedResponse | NotFoundResponse | PreconditionFailedResponse,
+export const usePatchPlan = <TError = BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | PreconditionFailedResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchPlan>>, TError,{planId: string;data: SocialPlanPatchRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof patchPlan>>,
@@ -550,6 +571,11 @@ export type deletePlanResponse401 = {
   status: 401
 }
 
+export type deletePlanResponse403 = {
+  data: ForbiddenResponse
+  status: 403
+}
+
 export type deletePlanResponse404 = {
   data: NotFoundResponse
   status: 404
@@ -558,7 +584,7 @@ export type deletePlanResponse404 = {
 export type deletePlanResponseSuccess = (deletePlanResponse204) & {
   headers: Headers;
 };
-export type deletePlanResponseError = (deletePlanResponse401 | deletePlanResponse404) & {
+export type deletePlanResponseError = (deletePlanResponse401 | deletePlanResponse403 | deletePlanResponse404) & {
   headers: Headers;
 };
 
@@ -586,7 +612,7 @@ export const deletePlan = async (planId: string, options?: RequestInit): Promise
 
 
 
-export const getDeletePlanMutationOptions = <TError = UnauthorizedResponse | NotFoundResponse,
+export const getDeletePlanMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePlan>>, TError,{planId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof deletePlan>>, TError,{planId: string}, TContext> => {
 
@@ -615,12 +641,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type DeletePlanMutationResult = NonNullable<Awaited<ReturnType<typeof deletePlan>>>
     
-    export type DeletePlanMutationError = UnauthorizedResponse | NotFoundResponse
+    export type DeletePlanMutationError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse
 
     /**
  * @summary Permanently delete a social plan
  */
-export const useDeletePlan = <TError = UnauthorizedResponse | NotFoundResponse,
+export const useDeletePlan = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePlan>>, TError,{planId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof deletePlan>>,
@@ -643,6 +669,11 @@ export type listPlanParticipantsResponse401 = {
   status: 401
 }
 
+export type listPlanParticipantsResponse403 = {
+  data: ForbiddenResponse
+  status: 403
+}
+
 export type listPlanParticipantsResponse404 = {
   data: NotFoundResponse
   status: 404
@@ -651,7 +682,7 @@ export type listPlanParticipantsResponse404 = {
 export type listPlanParticipantsResponseSuccess = (listPlanParticipantsResponse200) & {
   headers: Headers;
 };
-export type listPlanParticipantsResponseError = (listPlanParticipantsResponse401 | listPlanParticipantsResponse404) & {
+export type listPlanParticipantsResponseError = (listPlanParticipantsResponse401 | listPlanParticipantsResponse403 | listPlanParticipantsResponse404) & {
   headers: Headers;
 };
 
@@ -687,7 +718,7 @@ export const getListPlanParticipantsQueryKey = (planId: string,) => {
     }
 
     
-export const getListPlanParticipantsQueryOptions = <TData = Awaited<ReturnType<typeof listPlanParticipants>>, TError = UnauthorizedResponse | NotFoundResponse>(planId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlanParticipants>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+export const getListPlanParticipantsQueryOptions = <TData = Awaited<ReturnType<typeof listPlanParticipants>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(planId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlanParticipants>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -706,10 +737,10 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type ListPlanParticipantsQueryResult = NonNullable<Awaited<ReturnType<typeof listPlanParticipants>>>
-export type ListPlanParticipantsQueryError = UnauthorizedResponse | NotFoundResponse
+export type ListPlanParticipantsQueryError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse
 
 
-export function useListPlanParticipants<TData = Awaited<ReturnType<typeof listPlanParticipants>>, TError = UnauthorizedResponse | NotFoundResponse>(
+export function useListPlanParticipants<TData = Awaited<ReturnType<typeof listPlanParticipants>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
  planId: string, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlanParticipants>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof listPlanParticipants>>,
@@ -719,7 +750,7 @@ export function useListPlanParticipants<TData = Awaited<ReturnType<typeof listPl
       >, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListPlanParticipants<TData = Awaited<ReturnType<typeof listPlanParticipants>>, TError = UnauthorizedResponse | NotFoundResponse>(
+export function useListPlanParticipants<TData = Awaited<ReturnType<typeof listPlanParticipants>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
  planId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlanParticipants>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof listPlanParticipants>>,
@@ -729,7 +760,7 @@ export function useListPlanParticipants<TData = Awaited<ReturnType<typeof listPl
       >, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useListPlanParticipants<TData = Awaited<ReturnType<typeof listPlanParticipants>>, TError = UnauthorizedResponse | NotFoundResponse>(
+export function useListPlanParticipants<TData = Awaited<ReturnType<typeof listPlanParticipants>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
  planId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlanParticipants>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
@@ -737,7 +768,7 @@ export function useListPlanParticipants<TData = Awaited<ReturnType<typeof listPl
  * @summary List participants for a plan
  */
 
-export function useListPlanParticipants<TData = Awaited<ReturnType<typeof listPlanParticipants>>, TError = UnauthorizedResponse | NotFoundResponse>(
+export function useListPlanParticipants<TData = Awaited<ReturnType<typeof listPlanParticipants>>, TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse>(
  planId: string, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlanParticipants>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient 
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
@@ -770,6 +801,11 @@ export type addPlanParticipantResponse401 = {
   status: 401
 }
 
+export type addPlanParticipantResponse403 = {
+  data: ForbiddenResponse
+  status: 403
+}
+
 export type addPlanParticipantResponse404 = {
   data: NotFoundResponse
   status: 404
@@ -783,7 +819,7 @@ export type addPlanParticipantResponse409 = {
 export type addPlanParticipantResponseSuccess = (addPlanParticipantResponse201) & {
   headers: Headers;
 };
-export type addPlanParticipantResponseError = (addPlanParticipantResponse400 | addPlanParticipantResponse401 | addPlanParticipantResponse404 | addPlanParticipantResponse409) & {
+export type addPlanParticipantResponseError = (addPlanParticipantResponse400 | addPlanParticipantResponse401 | addPlanParticipantResponse403 | addPlanParticipantResponse404 | addPlanParticipantResponse409) & {
   headers: Headers;
 };
 
@@ -813,7 +849,7 @@ export const addPlanParticipant = async (planId: string,
 
 
 
-export const getAddPlanParticipantMutationOptions = <TError = BadRequestResponse | UnauthorizedResponse | NotFoundResponse | ConflictResponse,
+export const getAddPlanParticipantMutationOptions = <TError = BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addPlanParticipant>>, TError,{planId: string;data: SocialPlanParticipantCreateRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof addPlanParticipant>>, TError,{planId: string;data: SocialPlanParticipantCreateRequest}, TContext> => {
 
@@ -842,12 +878,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type AddPlanParticipantMutationResult = NonNullable<Awaited<ReturnType<typeof addPlanParticipant>>>
     export type AddPlanParticipantMutationBody = SocialPlanParticipantCreateRequest
-    export type AddPlanParticipantMutationError = BadRequestResponse | UnauthorizedResponse | NotFoundResponse | ConflictResponse
+    export type AddPlanParticipantMutationError = BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse
 
     /**
  * @summary Add a participant to a plan
  */
-export const useAddPlanParticipant = <TError = BadRequestResponse | UnauthorizedResponse | NotFoundResponse | ConflictResponse,
+export const useAddPlanParticipant = <TError = BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof addPlanParticipant>>, TError,{planId: string;data: SocialPlanParticipantCreateRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof addPlanParticipant>>,
@@ -875,6 +911,11 @@ export type patchPlanParticipantResponse401 = {
   status: 401
 }
 
+export type patchPlanParticipantResponse403 = {
+  data: ForbiddenResponse
+  status: 403
+}
+
 export type patchPlanParticipantResponse404 = {
   data: NotFoundResponse
   status: 404
@@ -888,7 +929,7 @@ export type patchPlanParticipantResponse409 = {
 export type patchPlanParticipantResponseSuccess = (patchPlanParticipantResponse200) & {
   headers: Headers;
 };
-export type patchPlanParticipantResponseError = (patchPlanParticipantResponse400 | patchPlanParticipantResponse401 | patchPlanParticipantResponse404 | patchPlanParticipantResponse409) & {
+export type patchPlanParticipantResponseError = (patchPlanParticipantResponse400 | patchPlanParticipantResponse401 | patchPlanParticipantResponse403 | patchPlanParticipantResponse404 | patchPlanParticipantResponse409) & {
   headers: Headers;
 };
 
@@ -920,7 +961,7 @@ export const patchPlanParticipant = async (planId: string,
 
 
 
-export const getPatchPlanParticipantMutationOptions = <TError = BadRequestResponse | UnauthorizedResponse | NotFoundResponse | ConflictResponse,
+export const getPatchPlanParticipantMutationOptions = <TError = BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchPlanParticipant>>, TError,{planId: string;participantId: string;data: SocialPlanParticipantPatchRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof patchPlanParticipant>>, TError,{planId: string;participantId: string;data: SocialPlanParticipantPatchRequest}, TContext> => {
 
@@ -949,12 +990,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type PatchPlanParticipantMutationResult = NonNullable<Awaited<ReturnType<typeof patchPlanParticipant>>>
     export type PatchPlanParticipantMutationBody = SocialPlanParticipantPatchRequest
-    export type PatchPlanParticipantMutationError = BadRequestResponse | UnauthorizedResponse | NotFoundResponse | ConflictResponse
+    export type PatchPlanParticipantMutationError = BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse
 
     /**
  * @summary Update a plan participant (JSON Merge Patch)
  */
-export const usePatchPlanParticipant = <TError = BadRequestResponse | UnauthorizedResponse | NotFoundResponse | ConflictResponse,
+export const usePatchPlanParticipant = <TError = BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | NotFoundResponse | ConflictResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchPlanParticipant>>, TError,{planId: string;participantId: string;data: SocialPlanParticipantPatchRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof patchPlanParticipant>>,
@@ -977,6 +1018,11 @@ export type deletePlanParticipantResponse401 = {
   status: 401
 }
 
+export type deletePlanParticipantResponse403 = {
+  data: ForbiddenResponse
+  status: 403
+}
+
 export type deletePlanParticipantResponse404 = {
   data: NotFoundResponse
   status: 404
@@ -985,7 +1031,7 @@ export type deletePlanParticipantResponse404 = {
 export type deletePlanParticipantResponseSuccess = (deletePlanParticipantResponse204) & {
   headers: Headers;
 };
-export type deletePlanParticipantResponseError = (deletePlanParticipantResponse401 | deletePlanParticipantResponse404) & {
+export type deletePlanParticipantResponseError = (deletePlanParticipantResponse401 | deletePlanParticipantResponse403 | deletePlanParticipantResponse404) & {
   headers: Headers;
 };
 
@@ -1015,7 +1061,7 @@ export const deletePlanParticipant = async (planId: string,
 
 
 
-export const getDeletePlanParticipantMutationOptions = <TError = UnauthorizedResponse | NotFoundResponse,
+export const getDeletePlanParticipantMutationOptions = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePlanParticipant>>, TError,{planId: string;participantId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof deletePlanParticipant>>, TError,{planId: string;participantId: string}, TContext> => {
 
@@ -1044,12 +1090,12 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type DeletePlanParticipantMutationResult = NonNullable<Awaited<ReturnType<typeof deletePlanParticipant>>>
     
-    export type DeletePlanParticipantMutationError = UnauthorizedResponse | NotFoundResponse
+    export type DeletePlanParticipantMutationError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse
 
     /**
  * @summary Remove a participant from a plan
  */
-export const useDeletePlanParticipant = <TError = UnauthorizedResponse | NotFoundResponse,
+export const useDeletePlanParticipant = <TError = UnauthorizedResponse | ForbiddenResponse | NotFoundResponse,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deletePlanParticipant>>, TError,{planId: string;participantId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof deletePlanParticipant>>,

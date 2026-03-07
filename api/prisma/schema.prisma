@@ -8,16 +8,26 @@ generator client {
 }
 
 model User {
-  id       String       @id @default(uuid()) @db.Uuid
-  auth0Sub String       @unique
-  plans    SocialPlan[]
-  people   Person[]
+  id          String       @id @default(uuid()) @db.Uuid
+  auth0Sub    String       @unique
+  displayName String?      @db.VarChar(120)
+  plans       SocialPlan[]
+  people      Person[]
+
+  connectionsAsUser   Connection[]       @relation("connectionUser")
+  connectionsAsTarget Connection[]       @relation("connectionTarget")
+  connectionInvites   ConnectionInvite[]
+  linkedPeople        Person[]           @relation("linkedPeople")
+  subscriptions       PlanSubscription[]
 }
 
 model Person {
   id          String @id @default(uuid()) @db.Uuid
   ownerId     String @db.Uuid
   owner       User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  linkedUserId String? @db.Uuid
+  linkedUser   User?   @relation("linkedPeople", fields: [linkedUserId], references: [id], onDelete: SetNull)
 
   displayName String @db.VarChar(120)
   pronouns    String? @db.VarChar(80)
@@ -37,11 +47,12 @@ model Person {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  @@unique([ownerId, linkedUserId])
   @@index([ownerId, displayName])
   @@index([ownerId, archivedAt, updatedAt])
 }
 
-/// SocialPlan is the minimal primitive for “friend plans”:
+/// SocialPlan is the minimal primitive for "friend plans":
 /// social intent + (optional) context + (optional) time anchor + (optional) place + participants.
 /// No nudges, reminders, messaging, sharing, recurrence, or RSVP semantics belong here.
 model SocialPlan {
@@ -76,7 +87,9 @@ model SocialPlan {
   /// Optional IANA timezone (e.g., "America/New_York") for interpreting/displaying anchors.
   timezone String? @db.VarChar(64)
 
-  participants SocialPlanParticipant[]
+  participants  SocialPlanParticipant[]
+  shareTokens   ShareToken[]
+  subscriptions PlanSubscription[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -100,13 +113,69 @@ model SocialPlanParticipant {
   /// Optional snapshot so the plan remains readable even if the Person changes/disappears.
   displayName String? @db.VarChar(120)
 
-  /// Helps UI labeling (e.g., the “main” friend in a 1:1 plan) without inventing host/RSVP semantics.
+  /// Helps UI labeling (e.g., the "main" friend in a 1:1 plan) without inventing host/RSVP semantics.
   isPrimary Boolean @default(false)
 
   createdAt DateTime @default(now())
 
   // prevent duplicate linked person on same plan (nulls are allowed in Postgres)
   @@unique([planId, personId])
+  @@index([planId])
+}
+
+model Connection {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation("connectionUser", fields: [userId], references: [id], onDelete: Cascade)
+  targetId  String   @db.Uuid
+  target    User     @relation("connectionTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, targetId])
+  @@index([userId])
+  @@index([targetId])
+}
+
+model ConnectionInvite {
+  id        String                 @id @default(uuid()) @db.Uuid
+  token     String                 @unique @db.VarChar(64)
+  senderId  String                 @db.Uuid
+  sender    User                   @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  status    ConnectionInviteStatus @default(PENDING)
+  createdAt DateTime               @default(now())
+  expiresAt DateTime
+
+  @@index([senderId])
+}
+
+enum ConnectionInviteStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+}
+
+model ShareToken {
+  id        String     @id @default(uuid()) @db.Uuid
+  token     String     @unique @db.VarChar(64)
+  planId    String     @db.Uuid
+  plan      SocialPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  createdBy String     @db.Uuid
+  createdAt DateTime   @default(now())
+  revokedAt DateTime?
+
+  @@index([planId])
+}
+
+model PlanSubscription {
+  id        String     @id @default(uuid()) @db.Uuid
+  planId    String     @db.Uuid
+  plan      SocialPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  userId    String     @db.Uuid
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime   @default(now())
+
+  @@unique([planId, userId])
+  @@index([userId])
   @@index([planId])
 }
 

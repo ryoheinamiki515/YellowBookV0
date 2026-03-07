@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Buffer } from "buffer";
 import {
     AccessibilityInfo,
     Alert,
@@ -9,7 +10,6 @@ import {
 import { useAuthRequest, makeRedirectUri, ResponseType } from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
 import { useAuth } from "../src/context/AuthContext";
-import { useRouter } from "expo-router";
 import { View, Text, YStack, XStack, Spinner } from "tamagui";
 import { PageContainer } from "../src/components/PageContainer";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -21,6 +21,44 @@ const discovery = {
     tokenEndpoint: `https://${process.env.EXPO_PUBLIC_AUTH0_DOMAIN}/oauth/token`,
     revocationEndpoint: `https://${process.env.EXPO_PUBLIC_AUTH0_DOMAIN}/oauth/revoke`,
 };
+
+type IdTokenPayload = {
+    name?: string;
+    nickname?: string;
+    given_name?: string;
+};
+
+function parseJwtPayload<T>(token: string | undefined): T | null {
+    if (!token) return null;
+
+    const encodedPayload = token.split(".")[1];
+    if (!encodedPayload) return null;
+
+    try {
+        const normalized = encodedPayload
+            .replace(/-/g, "+")
+            .replace(/_/g, "/")
+            .padEnd(Math.ceil(encodedPayload.length / 4) * 4, "=");
+
+        return JSON.parse(Buffer.from(normalized, "base64").toString("utf-8")) as T;
+    } catch {
+        return null;
+    }
+}
+
+function getProfileNameSuggestion(idToken: string | undefined): string | null {
+    const payload = parseJwtPayload<IdTokenPayload>(idToken);
+    if (!payload) return null;
+
+    for (const candidate of [payload.name, payload.nickname, payload.given_name]) {
+        const trimmed = candidate?.trim();
+        if (trimmed) {
+            return trimmed;
+        }
+    }
+
+    return null;
+}
 
 // ---------------------------------------------------------------------------
 // Staggered entrance animation hook
@@ -102,7 +140,6 @@ function useStaggeredEntrance(count: number, baseDelay = 80) {
 
 export default function LoginScreen() {
     const { signIn } = useAuth();
-    const router = useRouter();
     const [isExchanging, setIsExchanging] = useState(false);
     const isWeb = Platform.OS === "web";
 
@@ -182,7 +219,10 @@ export default function LoginScreen() {
             const data = await tokenResponse.json();
 
             if (tokenResponse.ok && data.access_token) {
-                await signIn(data.access_token);
+                await signIn({
+                    accessToken: data.access_token,
+                    profileNameSuggestion: getProfileNameSuggestion(data.id_token),
+                });
             } else {
                 Alert.alert(
                     "Couldn't sign you in",

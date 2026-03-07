@@ -27,6 +27,10 @@ tags:
     description: Friend Plans (SocialPlan) and participants
   - name: People
     description: Minimal People Library surfaces needed for plan linking
+  - name: Connections
+    description: User-to-user connections
+  - name: Sharing
+    description: Plan sharing and subscriptions
   - name: System
     description: Health and identity
 
@@ -79,6 +83,28 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+    patch:
+      tags: [System]
+      summary: Update the current user's profile
+      operationId: patchMe
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatchMeRequest"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   /v1/plans:
     get:
       tags: [Plans]
@@ -93,6 +119,13 @@ paths:
         - $ref: "#/components/parameters/Limit"
         - $ref: "#/components/parameters/Cursor"
         - $ref: "#/components/parameters/SortPlans"
+        - name: scope
+          in: query
+          description: Which plans to return.
+          schema:
+            type: string
+            enum: [owned, subscribed, all]
+            default: owned
         - name: state
           in: query
           description: Filter by one or more states.
@@ -168,8 +201,8 @@ paths:
               lunchThursday:
                 summary: Simple exact anchor
                 value:
-                  intentText: "let’s do lunch Thursday?"
-                  contextNote: "Sam’s been stressed — a check-in would mean a lot."
+                  intentText: "let's do lunch Thursday?"
+                  contextNote: "Sam's been stressed — a check-in would mean a lot."
                   locationText: "near Union Sq"
                   timePrecision: EXACT
                   anchorStart: "2026-02-26T12:30:00-05:00"
@@ -415,6 +448,230 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1/plans/{planId}/share:
+    parameters:
+      - $ref: "#/components/parameters/PlanId"
+
+    post:
+      tags: [Sharing]
+      summary: Share a plan
+      operationId: sharePlan
+      responses:
+        "200":
+          description: Plan shared
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SharePlanResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    get:
+      tags: [Sharing]
+      summary: Get share status
+      operationId: getShareStatus
+      responses:
+        "200":
+          description: Share status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShareStatusResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      tags: [Sharing]
+      summary: Revoke sharing
+      operationId: revokePlanShare
+      responses:
+        "204":
+          description: Sharing revoked
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1/plans/{planId}/subscription:
+    parameters:
+      - $ref: "#/components/parameters/PlanId"
+
+    delete:
+      tags: [Sharing]
+      summary: Unsubscribe from a plan
+      operationId: unsubscribeFromPlan
+      responses:
+        "204":
+          description: Unsubscribed
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1/shared/{token}:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+
+    get:
+      tags: [Sharing]
+      summary: View a shared plan (public)
+      operationId: getSharedPlan
+      security: []
+      responses:
+        "200":
+          description: The shared plan (privacy-filtered)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SharedPlanResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1/shared/{token}/subscribe:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+
+    post:
+      tags: [Sharing]
+      summary: Subscribe via share link
+      operationId: subscribeViaShareLink
+      responses:
+        "201":
+          description: Subscribed
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        enum: [subscribed]
+                    required: [status]
+                required: [data]
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /v1/connections/invites:
+    post:
+      tags: [Connections]
+      summary: Generate a connection invite
+      operationId: createConnectionInvite
+      responses:
+        "201":
+          description: Invite created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConnectionInviteResponse"
+        "409":
+          description: Conflict (`display_name_required` when the sender has not completed profile setup)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /v1/connections/invites/{token}/accept:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+
+    post:
+      tags: [Connections]
+      summary: Accept a connection invite
+      operationId: acceptConnectionInvite
+      responses:
+        "200":
+          description: Connection established
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        enum: [connected]
+                    required: [status]
+                required: [data]
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Conflict (`already_connected` or `display_name_required`)
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/ProblemDetails"
+
+  /v1/connections:
+    get:
+      tags: [Connections]
+      summary: List connections
+      operationId: listConnections
+      responses:
+        "200":
+          description: Connections
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConnectionListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /v1/connections/{connectionId}:
+    parameters:
+      - name: connectionId
+        in: path
+        required: true
+        schema:
+          $ref: "#/components/schemas/Uuid"
+
+    delete:
+      tags: [Connections]
+      summary: Remove a connection
+      operationId: deleteConnection
+      responses:
+        "204":
+          description: Connection removed
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -717,6 +974,10 @@ components:
         WINDOW: rough range ("this weekend", "next week")
         EXACT: specific time ("Thursday 12:30")
 
+    PlanRole:
+      type: string
+      enum: [owner, subscriber]
+
     # -----------------------
     # Core resource schemas
     # -----------------------
@@ -727,6 +988,7 @@ components:
 
         NOTE: In rare cases both personId and displayName may be null (e.g., if a person was deleted and no snapshot was stored).
         Clients should handle this gracefully.
+        Subscriber-visible plan payloads may omit private participant fields such as `personId` and `isPrimary`.
       properties:
         id:
           $ref: "#/components/schemas/Uuid"
@@ -744,13 +1006,13 @@ components:
         createdAt:
           type: string
           format: date-time
-      required: [id, planId, isPrimary, createdAt]
+      required: [id, planId, createdAt]
       additionalProperties: true
 
     SocialPlan:
       type: object
       description: |
-        Minimal primitive for “friend plans”:
+        Minimal primitive for "friend plans":
         social intent + (optional) context + (optional) time anchor + (optional) place + participants.
 
         No nudges, reminders, messaging, sharing, recurrence, or RSVP semantics belong here.
@@ -759,6 +1021,9 @@ components:
           $ref: "#/components/schemas/Uuid"
         ownerId:
           $ref: "#/components/schemas/Uuid"
+        ownerDisplayName:
+          type: [string, "null"]
+          maxLength: 120
         intentText:
           type: string
           minLength: 1
@@ -788,6 +1053,8 @@ components:
           items:
             $ref: "#/components/schemas/SocialPlanParticipant"
           default: []
+        role:
+          $ref: "#/components/schemas/PlanRole"
         createdAt:
           type: string
           format: date-time
@@ -858,9 +1125,37 @@ components:
       required: [id, displayName, createdAt, updatedAt]
       additionalProperties: true
 
+    Connection:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        targetUserId:
+          $ref: "#/components/schemas/Uuid"
+        targetDisplayName:
+          type: [string, "null"]
+        personId:
+          type: [string, "null"]
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, targetUserId, createdAt]
+      additionalProperties: false
+
     # -----------------------
     # Requests
     # -----------------------
+    PatchMeRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 120
+      required: [displayName]
+
     SocialPlanParticipantCreateRequest:
       type: object
       additionalProperties: false
@@ -1188,7 +1483,149 @@ components:
             authSubject:
               type: string
               description: OIDC subject (e.g., Auth0 sub)
+            displayName:
+              type: [string, "null"]
+              maxLength: 120
           required: [id, authSubject]
+      required: [data]
+
+    ConnectionInviteResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          properties:
+            id:
+              $ref: "#/components/schemas/Uuid"
+            token:
+              type: string
+            url:
+              type: string
+            expiresAt:
+              type: string
+              format: date-time
+          required: [id, token, url, expiresAt]
+      required: [data]
+
+    ConnectionListResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Connection"
+      required: [data]
+
+    SharePlanResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          properties:
+            shareToken:
+              type: object
+              properties:
+                id:
+                  $ref: "#/components/schemas/Uuid"
+                token:
+                  type: string
+                url:
+                  type: string
+              required: [id, token, url]
+            subscribedUserIds:
+              type: array
+              items:
+                $ref: "#/components/schemas/Uuid"
+          required: [shareToken, subscribedUserIds]
+      required: [data]
+
+    ShareStatusResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          properties:
+            shareToken:
+              type: [object, "null"]
+              properties:
+                id:
+                  $ref: "#/components/schemas/Uuid"
+                token:
+                  type: string
+                url:
+                  type: string
+              required: [id, token, url]
+            subscribers:
+              type: array
+              items:
+                type: object
+                properties:
+                  userId:
+                    $ref: "#/components/schemas/Uuid"
+                  displayName:
+                    type: [string, "null"]
+                  subscribedAt:
+                    type: string
+                    format: date-time
+                required: [userId, subscribedAt]
+          required: [shareToken, subscribers]
+      required: [data]
+
+    SharedPlanResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          properties:
+            id:
+              $ref: "#/components/schemas/Uuid"
+            ownerDisplayName:
+              type: [string, "null"]
+            intentText:
+              type: string
+            locationText:
+              type: [string, "null"]
+            state:
+              $ref: "#/components/schemas/SocialPlanState"
+            timePrecision:
+              $ref: "#/components/schemas/SocialPlanTimePrecision"
+            anchorStart:
+              type: [string, "null"]
+              format: date-time
+            anchorEnd:
+              type: [string, "null"]
+              format: date-time
+            timezone:
+              type: [string, "null"]
+            participants:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    $ref: "#/components/schemas/Uuid"
+                  displayName:
+                    type: [string, "null"]
+                  createdAt:
+                    type: string
+                    format: date-time
+                required: [id, createdAt]
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+          required: [id, intentText, state, timePrecision, participants, createdAt, updatedAt]
       required: [data]
 
     # -----------------------

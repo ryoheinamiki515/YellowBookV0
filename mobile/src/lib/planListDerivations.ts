@@ -29,7 +29,7 @@ export type DerivedPlanListItem = {
 export type PlanListSectionItem =
     | {
           type: "section-header";
-          title: OpenPlanSection;
+          title: OpenPlanSection | string;
           key: string;
           count: number;
       }

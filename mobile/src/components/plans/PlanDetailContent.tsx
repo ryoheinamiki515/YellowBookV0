@@ -7,6 +7,7 @@ import {
     Platform,
     Pressable,
     ScrollView,
+    Share,
     AccessibilityInfo,
 } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
@@ -24,6 +25,7 @@ import {
 } from "../BottomSheetPrimitives";
 import { EditableText } from "../EditableText";
 import { useConfirm } from "../ConfirmDialog";
+import { DetailFooterAction } from "../DetailFooterAction";
 
 import {
     useGetPlan,
@@ -34,6 +36,12 @@ import {
     getListPlansQueryKey,
     getGetPlanQueryKey,
 } from "../../api/generated/plans/plans";
+import {
+    useSharePlan,
+    useGetShareStatus,
+    useUnsubscribeFromPlan,
+    getGetShareStatusQueryKey,
+} from "../../api/generated/sharing/sharing";
 import {
     useListPeople,
     useCreatePerson,
@@ -1176,11 +1184,27 @@ export function PlanDetailContent({
     const addParticipant = useAddPlanParticipant();
     const deleteParticipant = useDeletePlanParticipant();
     const createPerson = useCreatePerson();
+    const sharePlanMutation = useSharePlan();
+    const unsubscribeMutation = useUnsubscribeFromPlan();
 
     const plan: SocialPlan | undefined =
         planResponse?.data && "data" in planResponse.data
             ? (planResponse.data as { data: SocialPlan }).data
             : undefined;
+
+    const isSubscriber = plan?.role === "subscriber";
+    const { data: shareStatusResponse } = useGetShareStatus(id, {
+        query: {
+            enabled: Boolean(plan && !isSubscriber),
+        },
+    });
+    const shareStatus =
+        shareStatusResponse?.data && "data" in shareStatusResponse.data
+            ? (shareStatusResponse.data as {
+                  data: { shareToken?: { token?: string | null } | null } | null;
+              }).data
+            : null;
+    const hasActiveShareLink = Boolean(shareStatus?.shareToken?.token);
 
     // Bottom sheet states
     const [whenSheetOpen, setWhenSheetOpen] = useState(false);
@@ -1648,6 +1672,57 @@ export function PlanDetailContent({
         [confirm]
     );
 
+    const handleSharePlan = useCallback(() => {
+        sharePlanMutation.mutate(
+            { planId: id! },
+            {
+                onSuccess: (response) => {
+                    const data = response.data as any;
+                    const url = data?.data?.shareToken?.url;
+                    if (!url) return;
+
+                    queryClient.invalidateQueries({
+                        queryKey: getGetShareStatusQueryKey(id!),
+                    });
+
+                    if (Platform.OS === "web") {
+                        navigator.clipboard?.writeText(url);
+                        Alert.alert("Copied!", "Share link copied to clipboard.");
+                    } else {
+                        Share.share({
+                            message: `Check out ${
+                                plan?.intentText?.trim() || "this plan"
+                            }\n${url}`,
+                        });
+                    }
+                },
+                onError: () => {
+                    Alert.alert("Error", "Could not share this plan.");
+                },
+            }
+        );
+    }, [id, plan?.intentText, queryClient, sharePlanMutation]);
+
+    const handleUnsubscribe = useCallback(async () => {
+        const confirmed = await confirm({
+            title: "Unsubscribe?",
+            message: "You will no longer see updates for this plan.",
+            confirmLabel: "Unsubscribe",
+            destructive: true,
+        });
+        if (!confirmed) return;
+
+        unsubscribeMutation.mutate(
+            { planId: id! },
+            {
+                onSuccess: () => {
+                    queryClient.invalidateQueries({ queryKey: getListPlansQueryKey() });
+                    onClose?.();
+                },
+            }
+        );
+    }, [id, confirm, unsubscribeMutation, queryClient, onClose]);
+
     // Loading state
     if (isLoading) {
         return (
@@ -1772,9 +1847,7 @@ export function PlanDetailContent({
                         disabled={isMutating}
                         hitSlop={12}
                         accessibilityRole="button"
-                        accessibilityLabel={
-                            isDraftDirty ? "Cancel unsaved edits" : "Go back"
-                        }
+                        accessibilityLabel="Go back"
                     >
                         <Text
                             fontFamily="$body"
@@ -1783,31 +1856,14 @@ export function PlanDetailContent({
                             fontWeight="500"
                             opacity={isMutating ? 0.5 : 1}
                         >
-                            {isDraftDirty ? "Cancel" : "Back"}
+                            Back
                         </Text>
                     </Pressable>
 
-                    {isDraftDirty ? (
-                        <Pressable
-                            onPress={handleSavePlanDraft}
-                            disabled={!canSaveDraft || isMutating}
-                            hitSlop={12}
-                            accessibilityRole="button"
-                            accessibilityLabel="Save plan changes"
-                        >
-                            <Text
-                                fontFamily="$body"
-                                fontSize="$4"
-                                color={
-                                    canSaveDraft && !isMutating
-                                        ? "$accentColor"
-                                        : "$colorTertiary"
-                                }
-                                fontWeight="600"
-                            >
-                                {isEditSavePending ? "Saving..." : "Save"}
-                            </Text>
-                        </Pressable>
+                    {isSubscriber ? (
+                        <View width={28} />
+                    ) : isDraftDirty ? (
+                        <View width={28} />
                     ) : (
                         <Pressable
                             onPress={handleDelete}
@@ -1826,22 +1882,6 @@ export function PlanDetailContent({
                     )}
                 </XStack>
 
-                {isDraftDirty ? (
-                    <XStack
-                        paddingHorizontal="$6"
-                        paddingBottom="$2"
-                        alignItems="center"
-                    >
-                        <Text
-                            fontFamily="$body"
-                            fontSize="$2"
-                            color="$colorSecondary"
-                        >
-                            Unsaved changes. Save to keep them or Cancel to discard.
-                        </Text>
-                    </XStack>
-                ) : null}
-
                 <ScrollView
                     contentContainerStyle={{
                         paddingHorizontal: 24,
@@ -1856,7 +1896,30 @@ export function PlanDetailContent({
                             transform: [{ translateY: slideAnim }],
                         }}
                     >
+                        {/* Subscriber indicator */}
+                        {isSubscriber && (
+                            <Text
+                                fontFamily="$body"
+                                fontSize="$2"
+                                color="$colorSecondary"
+                                marginBottom="$2"
+                            >
+                                Shared with you
+                            </Text>
+                        )}
+
                         {/* State badge */}
+                        {isSubscriber && plan.ownerDisplayName ? (
+                            <Text
+                                fontFamily="$body"
+                                fontSize="$3"
+                                color="$colorSecondary"
+                                marginBottom="$2"
+                            >
+                                Shared by {plan.ownerDisplayName}
+                            </Text>
+                        ) : null}
+
                         <View
                             alignSelf="flex-start"
                             backgroundColor={
@@ -1891,29 +1954,62 @@ export function PlanDetailContent({
                             </Text>
                         </View>
 
-                        {/* 1. Editable Intent Text */}
+                        {/* 1. Intent Text — read-only for subscribers */}
                         <YStack marginBottom="$4">
-                            <EditableText
-                                value={activePlanDraft.intentText}
-                                onChangeText={handleDraftIntentChange}
-                                saveOnBlur={false}
-                                placeholder="What's the plan?"
-                                textStyle={{
-                                    fontFamily: "$heading",
-                                    fontSize: 32,
-                                    color: "$color",
-                                }}
-                            />
+                            {isSubscriber ? (
+                                <Text
+                                    fontFamily="$heading"
+                                    fontSize={32}
+                                    color="$color"
+                                >
+                                    {activePlanDraft.intentText || "Untitled plan"}
+                                </Text>
+                            ) : (
+                                <EditableText
+                                    value={activePlanDraft.intentText}
+                                    onChangeText={handleDraftIntentChange}
+                                    saveOnBlur={false}
+                                    placeholder="What's the plan?"
+                                    textStyle={{
+                                        fontFamily: "$heading",
+                                        fontSize: 32,
+                                        color: "$color",
+                                    }}
+                                />
+                            )}
                         </YStack>
 
                         {/* 2. When field */}
                         <YStack marginBottom="$5">
-                            <FieldRow
-                                label="When"
-                                value={whenDisplay.primary}
-                                placeholder="When are you thinking?"
-                                onPress={() => setWhenSheetOpen(true)}
-                            />
+                            {isSubscriber ? (
+                                <YStack gap="$1">
+                                    <Text
+                                        fontFamily="$body"
+                                        fontSize={11}
+                                        fontWeight="600"
+                                        color="$colorTertiary"
+                                        letterSpacing={1}
+                                        textTransform="uppercase"
+                                    >
+                                        When
+                                    </Text>
+                                    <Text
+                                        fontFamily="$body"
+                                        fontSize="$4"
+                                        color={whenDisplay.primary ? "$color" : "$colorTertiary"}
+                                        fontStyle={whenDisplay.primary ? "normal" : "italic"}
+                                    >
+                                        {whenDisplay.primary || "Not set"}
+                                    </Text>
+                                </YStack>
+                            ) : (
+                                <FieldRow
+                                    label="When"
+                                    value={whenDisplay.primary}
+                                    placeholder="When are you thinking?"
+                                    onPress={() => setWhenSheetOpen(true)}
+                                />
+                            )}
                             {whenDisplay.secondary && (
                                 <Text
                                     fontFamily="$body"
@@ -1939,16 +2035,27 @@ export function PlanDetailContent({
                             >
                                 Where
                             </Text>
-                            <EditableText
-                                value={activePlanDraft.locationText}
-                                onChangeText={handleDraftLocationChange}
-                                saveOnBlur={false}
-                                placeholder="Add a place"
-                                textStyle={{
-                                    fontSize: 16,
-                                    color: "$color",
-                                }}
-                            />
+                            {isSubscriber ? (
+                                <Text
+                                    fontFamily="$body"
+                                    fontSize={16}
+                                    color={activePlanDraft.locationText ? "$color" : "$colorTertiary"}
+                                    fontStyle={activePlanDraft.locationText ? "normal" : "italic"}
+                                >
+                                    {activePlanDraft.locationText || "Not set"}
+                                </Text>
+                            ) : (
+                                <EditableText
+                                    value={activePlanDraft.locationText}
+                                    onChangeText={handleDraftLocationChange}
+                                    saveOnBlur={false}
+                                    placeholder="Add a place"
+                                    textStyle={{
+                                        fontSize: 16,
+                                        color: "$color",
+                                    }}
+                                />
+                            )}
                         </YStack>
 
                         {/* 4. Who section */}
@@ -1973,6 +2080,51 @@ export function PlanDetailContent({
                                 >
                                     {participants.map((p) => {
                                         const name = p.displayName || "Unknown";
+                                        const chip = (
+                                            <XStack
+                                                alignItems="center"
+                                                gap="$2"
+                                                backgroundColor="$backgroundStrong"
+                                                paddingHorizontal="$3"
+                                                paddingVertical="$1.5"
+                                                borderRadius="$10"
+                                                opacity={isMutating ? 0.5 : 1}
+                                            >
+                                                <View
+                                                    width={24}
+                                                    height={24}
+                                                    borderRadius={12}
+                                                    backgroundColor={getInitialColor(
+                                                        name
+                                                    )}
+                                                    justifyContent="center"
+                                                    alignItems="center"
+                                                >
+                                                    <Text
+                                                        fontFamily="$body"
+                                                        fontSize={11}
+                                                        fontWeight="600"
+                                                        color="white"
+                                                    >
+                                                        {name
+                                                            .charAt(0)
+                                                            .toUpperCase()}
+                                                    </Text>
+                                                </View>
+                                                <Text
+                                                    fontFamily="$body"
+                                                    fontSize="$3"
+                                                    color="$color"
+                                                >
+                                                    {name}
+                                                </Text>
+                                            </XStack>
+                                        );
+
+                                        if (isSubscriber) {
+                                            return <View key={p.key}>{chip}</View>;
+                                        }
+
                                         return (
                                             <Pressable
                                                 key={p.key}
@@ -1987,118 +2139,85 @@ export function PlanDetailContent({
                                                         : "Long press to remove this staged addition"
                                                 }
                                             >
-                                                <XStack
-                                                    alignItems="center"
-                                                    gap="$2"
-                                                    backgroundColor="$backgroundStrong"
-                                                    paddingHorizontal="$3"
-                                                    paddingVertical="$1.5"
-                                                    borderRadius="$10"
-                                                    opacity={isMutating ? 0.5 : 1}
-                                                >
-                                                    <View
-                                                        width={24}
-                                                        height={24}
-                                                        borderRadius={12}
-                                                        backgroundColor={getInitialColor(
-                                                            name
-                                                        )}
-                                                        justifyContent="center"
-                                                        alignItems="center"
-                                                    >
-                                                        <Text
-                                                            fontFamily="$body"
-                                                            fontSize={11}
-                                                            fontWeight="600"
-                                                            color="white"
-                                                        >
-                                                            {name
-                                                                .charAt(0)
-                                                                .toUpperCase()}
-                                                        </Text>
-                                                    </View>
-                                                    <Text
-                                                        fontFamily="$body"
-                                                        fontSize="$3"
-                                                        color="$color"
-                                                    >
-                                                        {name}
-                                                    </Text>
-                                                </XStack>
+                                                {chip}
                                             </Pressable>
                                         );
                                     })}
                                 </XStack>
                             )}
 
-                            <Pressable
-                                onPress={() => setAddPersonSheetOpen(true)}
-                                disabled={isMutating}
-                                accessibilityRole="button"
-                                accessibilityLabel="Add someone to this plan"
-                            >
-                                <XStack
-                                    alignItems="center"
-                                    gap="$2"
-                                    opacity={isMutating ? 0.5 : 1}
+                            {!isSubscriber && (
+                                <Pressable
+                                    onPress={() => setAddPersonSheetOpen(true)}
+                                    disabled={isMutating}
+                                    accessibilityRole="button"
+                                    accessibilityLabel="Add someone to this plan"
                                 >
-                                    <View
-                                        width={28}
-                                        height={28}
-                                        borderRadius={14}
-                                        borderWidth={1.5}
-                                        borderColor="$accentColor"
-                                        borderStyle="dashed"
-                                        justifyContent="center"
+                                    <XStack
                                         alignItems="center"
+                                        gap="$2"
+                                        opacity={isMutating ? 0.5 : 1}
                                     >
-                                        <Text
-                                            fontFamily="$heading"
-                                            fontSize="$4"
-                                            color="$accentColor"
-                                            marginTop={-1}
+                                        <View
+                                            width={28}
+                                            height={28}
+                                            borderRadius={14}
+                                            borderWidth={1.5}
+                                            borderColor="$accentColor"
+                                            borderStyle="dashed"
+                                            justifyContent="center"
+                                            alignItems="center"
                                         >
-                                            +
+                                            <Text
+                                                fontFamily="$heading"
+                                                fontSize="$4"
+                                                color="$accentColor"
+                                                marginTop={-1}
+                                            >
+                                                +
+                                            </Text>
+                                        </View>
+                                        <Text
+                                            fontFamily="$body"
+                                            fontSize="$3"
+                                            color="$accentColor"
+                                            fontWeight="500"
+                                        >
+                                            Add someone
                                         </Text>
-                                    </View>
-                                    <Text
-                                        fontFamily="$body"
-                                        fontSize="$3"
-                                        color="$accentColor"
-                                        fontWeight="500"
-                                    >
-                                        Add someone
-                                    </Text>
-                                </XStack>
-                            </Pressable>
+                                    </XStack>
+                                </Pressable>
+                            )}
                         </YStack>
 
-                        {/* 5. Notes section */}
-                        <YStack marginBottom="$5">
-                            <Text
-                                fontFamily="$body"
-                                fontSize={11}
-                                fontWeight="600"
-                                color="$colorTertiary"
-                                letterSpacing={1}
-                                textTransform="uppercase"
-                                marginBottom="$1"
-                            >
-                                Notes
-                            </Text>
-                            <EditableText
-                                value={activePlanDraft.contextNote}
-                                onChangeText={handleDraftNoteChange}
-                                saveOnBlur={false}
-                                placeholder="Any context? Why this matters, what to remember..."
-                                multiline
-                                textStyle={{
-                                    fontSize: 16,
-                                    color: "$color",
-                                    lineHeight: 24,
-                                }}
-                            />
-                        </YStack>
+                        {/* 5. Notes section — hidden for subscribers */}
+                        {!isSubscriber && (
+                            <YStack marginBottom="$5">
+                                <Text
+                                    fontFamily="$body"
+                                    fontSize={11}
+                                    fontWeight="600"
+                                    color="$colorTertiary"
+                                    letterSpacing={1}
+                                    textTransform="uppercase"
+                                    marginBottom="$1"
+                                >
+                                    Notes
+                                </Text>
+                                <EditableText
+                                    value={activePlanDraft.contextNote}
+                                    onChangeText={handleDraftNoteChange}
+                                    saveOnBlur={false}
+                                    placeholder="Any context? Why this matters, what to remember..."
+                                    multiline
+                                    textStyle={{
+                                        fontSize: 16,
+                                        color: "$color",
+                                        lineHeight: 24,
+                                    }}
+                                />
+                            </YStack>
+                        )}
 
                         {/* Metadata */}
                         <YStack
@@ -2157,104 +2276,119 @@ export function PlanDetailContent({
                           })}
                     backgroundColor="$background"
                 >
-                    {isDraftDirty ? (
-                        <Text
-                            fontFamily="$body"
-                            fontSize="$2"
-                            color="$colorSecondary"
-                            marginBottom="$2"
-                        >
-                            Save or cancel your edits before changing plan status.
-                        </Text>
-                    ) : null}
-                    {isOpen ? (
-                        <XStack gap="$3">
-                            {/* Mark Done — primary */}
-                            <YStack
-                                flex={2}
-                                height="$12"
-                                borderRadius="$6"
-                                backgroundColor="$successBackground"
-                                justifyContent="center"
-                                alignItems="center"
-                                onPress={handleMarkDone}
-                                disabled={stateActionsDisabled}
-                                opacity={stateActionsDisabled ? 0.5 : 1}
-                                pressStyle={{
-                                    scale: 0.98,
-                                    backgroundColor: "$successColor",
-                                }}
-                                // @ts-ignore
-                                animation="fast"
-                                accessibilityRole="button"
-                                accessibilityLabel="Mark plan as done"
-                                cursor="pointer"
-                            >
-                                <Text
-                                    fontFamily="$body"
-                                    fontSize="$5"
-                                    fontWeight="600"
-                                    color="$successColor"
-                                >
-                                    {patchPlan.isPending
-                                        ? "Saving..."
-                                        : "Mark Done"}
-                                </Text>
-                            </YStack>
-
-                            {/* Let Go — secondary */}
-                            <YStack
-                                flex={1}
-                                height="$12"
-                                borderRadius="$6"
-                                justifyContent="center"
-                                alignItems="center"
-                                onPress={handleDrop}
-                                disabled={stateActionsDisabled}
-                                opacity={stateActionsDisabled ? 0.5 : 1}
-                                pressStyle={{ opacity: 0.6 }}
-                                accessibilityRole="button"
-                                accessibilityLabel="Let go of this plan"
-                                cursor="pointer"
-                            >
-                                <Text
-                                    fontFamily="$body"
-                                    fontSize="$4"
-                                    color="$colorTertiary"
-                                >
-                                    Let Go
-                                </Text>
-                            </YStack>
-                        </XStack>
-                    ) : (
-                        <YStack
-                            height="$12"
-                            borderRadius="$6"
-                            borderWidth={1}
-                            borderColor="$borderColor"
-                            justifyContent="center"
-                            alignItems="center"
-                            onPress={handleReopen}
-                            disabled={stateActionsDisabled}
-                            opacity={stateActionsDisabled ? 0.5 : 1}
-                            pressStyle={{
-                                scale: 0.98,
-                                backgroundColor: "$backgroundStrong",
-                            }}
-                            // @ts-ignore
-                            animation="fast"
-                            accessibilityRole="button"
-                            accessibilityLabel="Reopen this plan"
-                            cursor="pointer"
-                        >
+                    {isSubscriber ? (
+                        <YStack gap="$2">
                             <Text
                                 fontFamily="$body"
-                                fontSize="$5"
-                                fontWeight="600"
-                                color="$color"
+                                fontSize="$2"
+                                color="$colorSecondary"
                             >
-                                {patchPlan.isPending ? "Saving..." : "Reopen"}
+                                Shared with you
                             </Text>
+                            <DetailFooterAction
+                                label={unsubscribeMutation.isPending ? "Unsubscribing..." : "Unsubscribe"}
+                                onPress={handleUnsubscribe}
+                                disabled={unsubscribeMutation.isPending}
+                                tone="danger"
+                                variant="ghost"
+                                accessibilityLabel="Unsubscribe from this plan"
+                            />
+                        </YStack>
+                    ) : isDraftDirty ? (
+                        <YStack gap="$2">
+                            <Text
+                                fontFamily="$body"
+                                fontSize="$2"
+                                color="$colorSecondary"
+                            >
+                                Unsaved changes. Save to keep them or Cancel to discard.
+                            </Text>
+                            <XStack gap="$3" alignItems="center">
+                                <DetailFooterAction
+                                    flex={1}
+                                    label="Cancel"
+                                    onPress={handleCancelOrBack}
+                                    disabled={isMutating}
+                                    tone="neutral"
+                                    variant="ghost"
+                                    accessibilityLabel="Cancel unsaved edits"
+                                />
+                                <DetailFooterAction
+                                    flex={2}
+                                    label={isEditSavePending ? "Saving..." : "Save"}
+                                    onPress={handleSavePlanDraft}
+                                    disabled={!canSaveDraft || isMutating}
+                                    tone="accent"
+                                    variant="filled"
+                                    labelSize="$5"
+                                    accessibilityLabel="Save plan changes"
+                                />
+                            </XStack>
+                        </YStack>
+                    ) : (
+                        <YStack gap="$2">
+                            <Text
+                                fontFamily="$body"
+                                fontSize="$2"
+                                color="$colorSecondary"
+                            >
+                                {hasActiveShareLink
+                                    ? "Currently shared. Re-share to copy the link again."
+                                    : "Private until you share it."}
+                            </Text>
+                            <XStack gap="$3" alignItems="center">
+                                {isOpen ? (
+                                    <>
+                                        <DetailFooterAction
+                                            flex={2}
+                                            label={
+                                                patchPlan.isPending
+                                                    ? "Saving..."
+                                                    : "Mark Done"
+                                            }
+                                            onPress={handleMarkDone}
+                                            disabled={stateActionsDisabled}
+                                            tone="success"
+                                            variant="soft"
+                                            labelSize="$5"
+                                            accessibilityLabel="Mark plan as done"
+                                        />
+                                        <DetailFooterAction
+                                            flex={1}
+                                            label="Let Go"
+                                            onPress={handleDrop}
+                                            disabled={stateActionsDisabled}
+                                            tone="danger"
+                                            variant="soft"
+                                            accessibilityLabel="Let go of this plan"
+                                        />
+                                    </>
+                                ) : (
+                                    <DetailFooterAction
+                                        flex={1}
+                                        label={patchPlan.isPending ? "Saving..." : "Reopen"}
+                                        onPress={handleReopen}
+                                        disabled={stateActionsDisabled}
+                                        tone="neutral"
+                                        variant="outline"
+                                        accessibilityLabel="Reopen this plan"
+                                    />
+                                )}
+                            </XStack>
+                            <DetailFooterAction
+                                label={
+                                    sharePlanMutation.isPending
+                                        ? "Sharing..."
+                                        : hasActiveShareLink
+                                          ? "Copy Share Link"
+                                          : "Share"
+                                }
+                                onPress={handleSharePlan}
+                                disabled={sharePlanMutation.isPending || isDraftDirty}
+                                tone="accent"
+                                variant="outline"
+                                accessibilityLabel="Share this plan"
+                            />
                         </YStack>
                     )}
                 </YStack>

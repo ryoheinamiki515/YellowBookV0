@@ -16,6 +16,7 @@ export default function PlanDetailScreen() {
         <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF8F3" }}>
             <PageContainer backgroundColor="$background">
                 <PlanDetailContent
+                    key={id}
                     planId={id!}
                     focusTarget={focusTarget}
                     onClose={() => router.back()}

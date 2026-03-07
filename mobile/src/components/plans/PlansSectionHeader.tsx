@@ -8,10 +8,13 @@ type PlansSectionHeaderProps = {
 
 const sectionDotColors: Record<string, string> = {
     "Needs Attention": "#D4805A",  // terracotta
+    "Upcoming": "#F5C842",         // honey
+    "History": "#B5A99A",          // stone
     "Coming Up": "#F5C842",        // gold
     "This Week": "#7DAE78",        // sage
     "Later": "#B5A99A",            // stone
     "Someday": "#D4CBC0",          // fog
+    "Shared with you": "#8FA4C4",   // slate blue
 };
 
 function getSectionDotColor(title: string): string {

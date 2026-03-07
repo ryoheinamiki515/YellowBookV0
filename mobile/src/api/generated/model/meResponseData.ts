@@ -22,4 +22,9 @@ export type MeResponseData = {
   id: Uuid;
   /** OIDC subject (e.g., Auth0 sub) */
   authSubject: string;
+  /**
+   * @maxLength 120
+   * @nullable
+   */
+  displayName?: string | null;
 };

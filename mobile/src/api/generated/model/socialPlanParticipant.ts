@@ -23,6 +23,7 @@ import type { Uuid } from './uuid';
 
 NOTE: In rare cases both personId and displayName may be null (e.g., if a person was deleted and no snapshot was stored).
 Clients should handle this gracefully.
+Subscriber-visible plan payloads may omit private participant fields such as `personId` and `isPrimary`.
 
  */
 export interface SocialPlanParticipant {
@@ -35,7 +36,7 @@ export interface SocialPlanParticipant {
    * @nullable
    */
   displayName?: string | null;
-  isPrimary: boolean;
+  isPrimary?: boolean;
   createdAt: string;
   [key: string]: unknown;
  }

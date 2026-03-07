@@ -18,6 +18,7 @@ Non-goals for this surface (intentionally excluded):
  */
 import type { CursorParameter } from './cursorParameter';
 import type { LimitParameter } from './limitParameter';
+import type { ListPlansScope } from './listPlansScope';
 import type { SocialPlanState } from './socialPlanState';
 import type { SortPlansParameter } from './sortPlansParameter';
 import type { Uuid } from './uuid';
@@ -40,6 +41,10 @@ Supported fields: updatedAt, createdAt, anchorStart.
 
  */
 sort?: SortPlansParameter;
+/**
+ * Which plans to return.
+ */
+scope?: ListPlansScope;
 /**
  * Filter by one or more states.
  */

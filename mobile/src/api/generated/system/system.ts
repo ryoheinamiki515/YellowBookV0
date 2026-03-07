@@ -17,23 +17,29 @@ Non-goals for this surface (intentionally excluded):
  * OpenAPI spec version: 1.0.0
  */
 import {
+  useMutation,
   useQuery
 } from '@tanstack/react-query';
 import type {
   DataTag,
   DefinedInitialDataOptions,
   DefinedUseQueryResult,
+  MutationFunction,
   QueryClient,
   QueryFunction,
   QueryKey,
   UndefinedInitialDataOptions,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult
 } from '@tanstack/react-query';
 
 import type {
+  BadRequestResponse,
   HealthCheck200,
   MeResponse,
+  PatchMeRequest,
   UnauthorizedResponse
 } from '.././model';
 
@@ -271,3 +277,98 @@ export function useGetMe<TData = Awaited<ReturnType<typeof getMe>>, TError = Una
 
 
 
+/**
+ * @summary Update the current user's profile
+ */
+export type patchMeResponse200 = {
+  data: MeResponse
+  status: 200
+}
+
+export type patchMeResponse400 = {
+  data: BadRequestResponse
+  status: 400
+}
+
+export type patchMeResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type patchMeResponseSuccess = (patchMeResponse200) & {
+  headers: Headers;
+};
+export type patchMeResponseError = (patchMeResponse400 | patchMeResponse401) & {
+  headers: Headers;
+};
+
+export type patchMeResponse = (patchMeResponseSuccess | patchMeResponseError)
+
+export const getPatchMeUrl = () => {
+
+
+  
+
+  return `/v1/me`
+}
+
+export const patchMe = async (patchMeRequest: PatchMeRequest, options?: RequestInit): Promise<patchMeResponse> => {
+  
+  return customFetch<patchMeResponse>(getPatchMeUrl(),
+  {      
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      patchMeRequest,)
+  }
+);}
+
+
+
+
+export const getPatchMeMutationOptions = <TError = BadRequestResponse | UnauthorizedResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchMe>>, TError,{data: PatchMeRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof patchMe>>, TError,{data: PatchMeRequest}, TContext> => {
+
+const mutationKey = ['patchMe'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof patchMe>>, {data: PatchMeRequest}> = (props) => {
+          const {data} = props ?? {};
+
+          return  patchMe(data,requestOptions)
+        }
+
+
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PatchMeMutationResult = NonNullable<Awaited<ReturnType<typeof patchMe>>>
+    export type PatchMeMutationBody = PatchMeRequest
+    export type PatchMeMutationError = BadRequestResponse | UnauthorizedResponse
+
+    /**
+ * @summary Update the current user's profile
+ */
+export const usePatchMe = <TError = BadRequestResponse | UnauthorizedResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchMe>>, TError,{data: PatchMeRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof patchMe>>,
+        TError,
+        {data: PatchMeRequest},
+        TContext
+      > => {
+      return useMutation(getPatchMeMutationOptions(options), queryClient);
+    }
+    

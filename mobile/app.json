@@ -16,7 +16,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "dev.yellowbook.mobile"
+      "bundleIdentifier": "dev.yellowbook.mobile",
+      "associatedDomains": [
+        "applinks:yellowbook.example.com"
+      ]
     },
     "android": {
       "package": "dev.yellowbook.mobile",
@@ -25,7 +28,26 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "yellowbook.example.com",
+              "pathPrefix": "/share"
+            },
+            {
+              "scheme": "https",
+              "host": "yellowbook.example.com",
+              "pathPrefix": "/invite"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"

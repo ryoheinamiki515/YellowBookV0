@@ -16,6 +16,7 @@ const NAV_ITEMS: NavItem[] = [
     { label: "Plans", segment: "plans", href: "/plans" },
     { label: "People", segment: "people", href: "/people" },
     { label: "Feed", segment: "feed", href: "/feed" },
+    { label: "Connections", segment: "connections", href: "/connections" },
 ];
 
 const MOBILE_TAB_LABEL_STYLE = {
@@ -63,6 +64,7 @@ function SidebarNavItem({
 function Sidebar() {
     const segments = useSegments();
     const { signOut } = useAuth();
+    const router = useRouter();
 
     const activeSegment = (segments as string[])[1] ?? "";
 
@@ -120,26 +122,47 @@ function Sidebar() {
                 ))}
             </YStack>
 
-            {/* Sign out */}
-            <YStack
-                paddingHorizontal="$4"
-                paddingVertical="$2.5"
-                borderRadius="$5"
-                hoverStyle={{ backgroundColor: "$backgroundHover" }}
-                onPress={signOut}
-                pressStyle={{ opacity: 0.7 }}
-                cursor="pointer"
-                accessibilityRole="button"
-                accessibilityLabel="Sign out"
-            >
-                <Text
-                    fontFamily="$body"
-                    fontSize="$3"
-                    fontWeight="500"
-                    color="$colorTertiary"
+            <YStack gap="$1">
+                <YStack
+                    paddingHorizontal="$4"
+                    paddingVertical="$2.5"
+                    borderRadius="$5"
+                    hoverStyle={{ backgroundColor: "$backgroundHover" }}
+                    onPress={() => router.push("/settings" as any)}
+                    pressStyle={{ opacity: 0.7 }}
+                    cursor="pointer"
+                    accessibilityRole="button"
+                    accessibilityLabel="Settings"
                 >
-                    Sign Out
-                </Text>
+                    <Text
+                        fontFamily="$body"
+                        fontSize="$3"
+                        fontWeight="500"
+                        color="$colorTertiary"
+                    >
+                        Settings
+                    </Text>
+                </YStack>
+                <YStack
+                    paddingHorizontal="$4"
+                    paddingVertical="$2.5"
+                    borderRadius="$5"
+                    hoverStyle={{ backgroundColor: "$backgroundHover" }}
+                    onPress={signOut}
+                    pressStyle={{ opacity: 0.7 }}
+                    cursor="pointer"
+                    accessibilityRole="button"
+                    accessibilityLabel="Sign out"
+                >
+                    <Text
+                        fontFamily="$body"
+                        fontSize="$3"
+                        fontWeight="500"
+                        color="$colorTertiary"
+                    >
+                        Sign Out
+                    </Text>
+                </YStack>
             </YStack>
         </YStack>
     );
@@ -204,6 +227,22 @@ function MobileTabs() {
                 options={{
                     href: null,
                     title: "Person",
+                    tabBarStyle: { display: "none" },
+                }}
+            />
+            <Tabs.Screen
+                name="settings"
+                options={{
+                    href: null,
+                    title: "Settings",
+                    tabBarStyle: { display: "none" },
+                }}
+            />
+            <Tabs.Screen
+                name="connections"
+                options={{
+                    href: null,
+                    title: "Connections",
                     tabBarStyle: { display: "none" },
                 }}
             />

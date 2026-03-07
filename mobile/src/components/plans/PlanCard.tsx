@@ -127,6 +127,7 @@ function planLifecycleText(plan: SocialPlan): string | null {
 
     if (plan.state === "DONE") return `Completed ${relativeLabel}`;
     if (plan.state === "DROPPED") return `Dropped ${relativeLabel}`;
+    if (plan.state === "ARCHIVED") return `Archived ${relativeLabel}`;
 
     const createdAt = new Date(plan.createdAt).getTime();
     const updatedAt = new Date(plan.updatedAt).getTime();
@@ -315,7 +316,9 @@ function blurPressTargetOnWeb(event: unknown) {
 }
 
 function getAccentColor(plan: SocialPlan): string {
-    if (plan.state === "DONE" || plan.state === "DROPPED") return "transparent";
+    if (plan.state === "DONE" || plan.state === "DROPPED" || plan.state === "ARCHIVED") {
+        return "transparent";
+    }
     const days = getDaysDiff(plan.anchorStart);
     if (days === null) return "#E2D9CC";
     if (days <= 1) return "#F5C842";
@@ -485,11 +488,13 @@ export function PlanCard({
     index?: number;
 }) {
     const isHero = variant === "hero";
+    const isSubscribed = plan.role === "subscriber";
     const compactWebMinHeight = !isHero && Platform.OS === "web" ? 72 : undefined;
     const when = formatWhenBadge(plan);
     const whenTone = getWhenBadgeTone(plan);
     const isDropped = plan.state === "DROPPED";
-    const isInactive = plan.state === "DONE" || isDropped;
+    const isArchived = plan.state === "ARCHIVED";
+    const isInactive = plan.state === "DONE" || isDropped || isArchived;
     const accentColor = getAccentColor(plan);
     const { fadeAnim, slideAnim, flashBg } = usePlanCardAnimations({
         state: plan.state,
@@ -605,6 +610,9 @@ export function PlanCard({
                                     gap={isHero ? "$2" : "$1.5"}
                                     flexShrink={0}
                                 >
+                                    {isSubscribed ? (
+                                        <InfoPill label="Shared" tone="neutral" compact={!isHero} />
+                                    ) : null}
                                     {when ? (
                                         <WhenBadge label={when} compact={!isHero} tone={whenTone} />
                                     ) : null}
