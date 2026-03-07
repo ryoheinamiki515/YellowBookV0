@@ -22,12 +22,6 @@ function compareHistoryPlans(a: SocialPlan, b: SocialPlan): number {
     );
 }
 
-export function planIncludesPerson(plan: SocialPlan, personId: string): boolean {
-    return plan.participants.some(
-        (participant) => participant.personId === personId
-    );
-}
-
 export function buildPersonEventSections(plans: SocialPlan[]): {
     upcoming: SocialPlan[];
     history: SocialPlan[];

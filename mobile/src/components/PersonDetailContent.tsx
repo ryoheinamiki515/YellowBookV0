@@ -1,5 +1,12 @@
-import React, { useCallback, useRef, useEffect, useState } from "react";
+import React, {
+    useCallback,
+    useDeferredValue,
+    useRef,
+    useEffect,
+    useState,
+} from "react";
 import {
+    Alert,
     Animated,
     Easing,
     Platform,
@@ -11,6 +18,7 @@ import { useRouter } from "expo-router";
 import { YStack, XStack, Text, View, useMedia } from "tamagui";
 import {
     BottomSheetHeader,
+    BottomSheetListRow,
     BottomSheetModal,
     BottomSheetPrimaryButton,
     BottomSheetSecondaryButton,
@@ -26,11 +34,15 @@ import {
     useGetPerson,
     usePatchPerson,
     useDeletePerson,
+    useListPeople,
     getListPeopleQueryKey,
     getGetPersonQueryKey,
 } from "../api/generated/people/people";
+import { getListPlansQueryKey } from "../api/generated/plans/plans";
 import type { Person } from "../api/generated/model/person";
 import type { PersonBirthday } from "../api/generated/model/personBirthday";
+import { useMergePerson } from "../api/peopleMerge";
+import { getProblemDetail } from "../lib/problemDetails";
 import {
     getInitialColor,
     useReducedMotionPreference,
@@ -284,6 +296,106 @@ function BirthdaySheet({
     );
 }
 
+function buildMergeCandidateSubtitle(person: Person) {
+    const parts = [
+        person.pronouns,
+        person.neighborhood,
+        person.archivedAt ? "Archived" : null,
+    ].filter((value): value is string => Boolean(value));
+
+    return parts.length > 0 ? parts.join(" • ") : undefined;
+}
+
+function MergePersonSheet({
+    open,
+    onOpenChange,
+    currentPerson,
+    onSelectPerson,
+    isMerging,
+}: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    currentPerson: Person;
+    onSelectPerson: (person: Person) => void;
+    isMerging: boolean;
+}) {
+    const [searchText, setSearchText] = useState("");
+    const deferredSearchText = useDeferredValue(searchText.trim());
+
+    useEffect(() => {
+        if (!open) {
+            setSearchText("");
+        }
+    }, [open]);
+
+    const { data: peopleResponse, isLoading } = useListPeople(
+        deferredSearchText
+            ? { q: deferredSearchText, limit: 200 }
+            : { limit: 200 },
+        {
+            query: {
+                enabled: open,
+            },
+        }
+    );
+
+    const allPeople: Person[] =
+        peopleResponse?.data && "data" in peopleResponse.data
+            ? (peopleResponse.data as { data: Person[] }).data
+            : [];
+    const candidates = allPeople.filter((person) => person.id !== currentPerson.id);
+
+    return (
+        <BottomSheetModal open={open} onOpenChange={onOpenChange} minHeight={520}>
+            <BottomSheetHeader title={`Keep ${currentPerson.displayName}`} />
+
+            <YStack gap="$3">
+                <Text fontFamily="$body" fontSize="$3" color="$colorSecondary">
+                    Choose another person to fold into {currentPerson.displayName}. Their
+                    plans, notes, and connected profile will move here, and the duplicate
+                    record will be deleted.
+                </Text>
+
+                <YStack gap="$1">
+                    <BottomSheetSectionLabel marginBottom={0}>
+                        Search People
+                    </BottomSheetSectionLabel>
+                    <BottomSheetTextField
+                        value={searchText}
+                        onChangeText={setSearchText}
+                        placeholder="Search by name"
+                        placeholderTextColor="$placeholderColor"
+                        disabled={isMerging}
+                    />
+                </YStack>
+
+                <YStack gap="$2">
+                    {isLoading ? (
+                        <Text fontFamily="$body" fontSize="$3" color="$colorSecondary">
+                            Loading people...
+                        </Text>
+                    ) : candidates.length === 0 ? (
+                        <Text fontFamily="$body" fontSize="$3" color="$colorSecondary">
+                            No other people match this search.
+                        </Text>
+                    ) : (
+                        candidates.map((person) => (
+                            <BottomSheetListRow
+                                key={person.id}
+                                title={person.displayName}
+                                subtitle={buildMergeCandidateSubtitle(person)}
+                                onPress={() => onSelectPerson(person)}
+                                disabled={isMerging}
+                                accessibilityLabel={`Merge ${person.displayName} into ${currentPerson.displayName}`}
+                            />
+                        ))
+                    )}
+                </YStack>
+            </YStack>
+        </BottomSheetModal>
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -332,6 +444,7 @@ export function PersonDetailContent({
     } = useGetPerson(id!);
     const patchPerson = usePatchPerson();
     const deletePerson = useDeletePerson();
+    const mergePerson = useMergePerson();
 
     const person: Person | undefined =
         personResponse?.data && "data" in personResponse.data
@@ -339,6 +452,7 @@ export function PersonDetailContent({
             : undefined;
 
     const [birthdaySheetOpen, setBirthdaySheetOpen] = useState(false);
+    const [mergeSheetOpen, setMergeSheetOpen] = useState(false);
 
     // Entrance animation
     const fadeAnim = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
@@ -368,6 +482,9 @@ export function PersonDetailContent({
         queryClient.invalidateQueries({ queryKey: getListPeopleQueryKey() });
         queryClient.invalidateQueries({
             queryKey: getGetPersonQueryKey(id!),
+        });
+        queryClient.invalidateQueries({
+            queryKey: getListPlansQueryKey(),
         });
     }, [queryClient, id]);
 
@@ -435,7 +552,8 @@ export function PersonDetailContent({
     const handleDelete = useCallback(async () => {
         const confirmed = await confirm({
             title: "Delete this person?",
-            message: "This can't be undone.",
+            message:
+                "This permanently removes them from your People Library. Existing plans will stay readable.",
             confirmLabel: "Delete",
             destructive: true,
         });
@@ -443,9 +561,12 @@ export function PersonDetailContent({
             deletePerson.mutate(
                 { personId: id! },
                 {
-                    onSettled: () => {
+                    onSuccess: () => {
                         queryClient.invalidateQueries({
                             queryKey: getListPeopleQueryKey(),
+                        });
+                        queryClient.invalidateQueries({
+                            queryKey: getGetPersonQueryKey(id!),
                         });
                         onClose();
                     },
@@ -453,6 +574,41 @@ export function PersonDetailContent({
             );
         }
     }, [deletePerson, id, queryClient, onClose, confirm]);
+
+    const handleMergePerson = useCallback(
+        async (personToMerge: Person) => {
+            if (!person) return;
+
+            const confirmed = await confirm({
+                title: `Merge ${personToMerge.displayName} into ${person.displayName}?`,
+                message:
+                    `${person.displayName} will be kept. ${personToMerge.displayName}'s plans, notes, and connected profile will move here, and ${personToMerge.displayName} will be removed from your People library.`,
+                confirmLabel: "Merge",
+                destructive: true,
+            });
+            if (!confirmed) return;
+
+            mergePerson.mutate(
+                {
+                    personId: person.id,
+                    data: { sourcePersonId: personToMerge.id },
+                },
+                {
+                    onSuccess: () => {
+                        setMergeSheetOpen(false);
+                        invalidateAll();
+                    },
+                    onError: (error) => {
+                        Alert.alert(
+                            "Couldn't merge people",
+                            getProblemDetail(error) || "Could not merge these people."
+                        );
+                    },
+                }
+            );
+        },
+        [confirm, invalidateAll, mergePerson, person]
+    );
 
     // Loading state
     if (isLoading) {
@@ -520,7 +676,8 @@ export function PersonDetailContent({
     }
 
     const isArchived = !!person.archivedAt;
-    const isMutating = patchPerson.isPending || deletePerson.isPending;
+    const isMutating =
+        patchPerson.isPending || deletePerson.isPending || mergePerson.isPending;
     const birthdayDisplay = formatBirthdayDisplay(person.birthday);
 
     return (
@@ -548,20 +705,7 @@ export function PersonDetailContent({
                         </Text>
                     </Pressable>
 
-                    <Pressable
-                        onPress={handleDelete}
-                        hitSlop={12}
-                        accessibilityRole="button"
-                        accessibilityLabel="Delete person"
-                    >
-                        <Text
-                            fontFamily="$body"
-                            fontSize="$6"
-                            color="$colorTertiary"
-                        >
-                            ···
-                        </Text>
-                    </Pressable>
+                    <View width={28} />
                 </XStack>
 
                 <ScrollView
@@ -768,7 +912,7 @@ export function PersonDetailContent({
                     </Animated.View>
                 </ScrollView>
 
-                {/* Bottom action bar — Archive/Unarchive */}
+                {/* Bottom action bar */}
                 <YStack
                     {...(isDesktopWeb
                         ? { paddingHorizontal: "$6", paddingVertical: "$4" }
@@ -782,24 +926,60 @@ export function PersonDetailContent({
                               paddingTop: "$4",
                           })}
                     backgroundColor="$background"
+                    gap="$2"
                 >
+                    <Text
+                        fontFamily="$body"
+                        fontSize="$2"
+                        color="$colorSecondary"
+                    >
+                        Merge folds a duplicate into this person. Archive hides them. Delete removes the record.
+                    </Text>
                     <DetailFooterAction
                         label={
-                            patchPerson.isPending
-                                ? "Saving..."
-                                : isArchived
-                                  ? "Unarchive"
-                                  : "Archive"
+                            mergePerson.isPending
+                                ? "Merging..."
+                                : "Merge Another Into This"
                         }
-                        onPress={handleToggleArchive}
+                        onPress={() => setMergeSheetOpen(true)}
                         disabled={isMutating}
-                        tone="neutral"
+                        tone="accent"
                         variant="outline"
                         labelSize="$5"
-                        accessibilityLabel={
-                            isArchived ? "Unarchive person" : "Archive person"
-                        }
+                        accessibilityLabel="Merge another person into this one"
                     />
+                    <XStack gap="$3" alignItems="center">
+                        <DetailFooterAction
+                            flex={1}
+                            label={
+                                patchPerson.isPending
+                                    ? "Saving..."
+                                    : isArchived
+                                      ? "Unarchive"
+                                      : "Archive"
+                            }
+                            onPress={handleToggleArchive}
+                            disabled={isMutating}
+                            tone="neutral"
+                            variant="outline"
+                            labelSize="$5"
+                            accessibilityLabel={
+                                isArchived ? "Unarchive person" : "Archive person"
+                            }
+                        />
+                        <DetailFooterAction
+                            flex={1}
+                            label={
+                                deletePerson.isPending ? "Deleting..." : "Delete"
+                            }
+                            onPress={handleDelete}
+                            disabled={isMutating}
+                            tone="danger"
+                            variant="soft"
+                            labelSize="$5"
+                            accessibilityLabel="Delete person"
+                        />
+                    </XStack>
                 </YStack>
 
                 {/* Birthday sheet */}
@@ -808,6 +988,13 @@ export function PersonDetailContent({
                     onOpenChange={setBirthdaySheetOpen}
                     currentBirthday={person.birthday}
                     onSave={handleSaveBirthday}
+                />
+                <MergePersonSheet
+                    open={mergeSheetOpen}
+                    onOpenChange={setMergeSheetOpen}
+                    currentPerson={person}
+                    onSelectPerson={handleMergePerson}
+                    isMerging={mergePerson.isPending}
                 />
             </YStack>
     );

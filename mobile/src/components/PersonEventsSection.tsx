@@ -10,10 +10,7 @@ import {
 import type { ListPlansParams } from "../api/generated/model/listPlansParams";
 import type { SocialPlan } from "../api/generated/model/socialPlan";
 import { useReducedMotionPreference } from "../lib/planHelpers";
-import {
-    buildPersonEventSections,
-    planIncludesPerson,
-} from "../lib/personPlanDerivations";
+import { buildPersonEventSections } from "../lib/personPlanDerivations";
 import { PlansSectionHeader } from "./plans/PlansSectionHeader";
 import { PlanCard } from "./plans/PlanCard";
 
@@ -69,6 +66,7 @@ async function listAllPlansForPerson(params: {
         pageCount += 1;
         const response = await listPlans(
             {
+                scope: "all",
                 state: PERSON_EVENTS_STATES,
                 participantPersonId: params.personId,
                 sort: "-updatedAt",
@@ -136,6 +134,7 @@ export function PersonEventsSection({
     const queryKey = useMemo(
         () => [
             ...getListPlansQueryKey({
+                scope: "all",
                 state: PERSON_EVENTS_STATES,
                 participantPersonId: personId,
                 sort: "-updatedAt",
@@ -158,14 +157,9 @@ export function PersonEventsSection({
         queryFn: ({ signal }) => listAllPlansForPerson({ personId, signal }),
     });
 
-    const filteredPlans = useMemo(
-        () => plans.filter((plan) => planIncludesPerson(plan, personId)),
-        [plans, personId]
-    );
-
     const { upcoming, history } = useMemo(
-        () => buildPersonEventSections(filteredPlans),
-        [filteredPlans]
+        () => buildPersonEventSections(plans),
+        [plans]
     );
 
     const hasEvents = upcoming.length > 0 || history.length > 0;

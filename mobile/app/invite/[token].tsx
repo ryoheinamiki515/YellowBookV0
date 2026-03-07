@@ -1,17 +1,23 @@
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator } from "react-native";
+import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { YStack, Text } from "tamagui";
 
 import { useAuth } from "../../src/context/AuthContext";
-import { useAcceptConnectionInvite } from "../../src/api/generated/connections/connections";
+import {
+    getListConnectionsQueryKey,
+    useAcceptConnectionInvite,
+} from "../../src/api/generated/connections/connections";
+import { getListPeopleQueryKey } from "../../src/api/generated/people/people";
 import { getProblemDetail } from "../../src/lib/problemDetails";
 
 export default function InviteTokenScreen() {
     const { token } = useLocalSearchParams<{ token: string }>();
     const { hasToken: isAuthenticated } = useAuth();
     const router = useRouter();
+    const queryClient = useQueryClient();
     const acceptInvite = useAcceptConnectionInvite();
     const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
     const [errorMessage, setErrorMessage] = useState("");
@@ -23,6 +29,12 @@ export default function InviteTokenScreen() {
             { token },
             {
                 onSuccess: () => {
+                    void queryClient.invalidateQueries({
+                        queryKey: getListPeopleQueryKey(),
+                    });
+                    void queryClient.invalidateQueries({
+                        queryKey: getListConnectionsQueryKey(),
+                    });
                     setStatus("success");
                     setTimeout(() => router.replace("/(main)/connections"), 1500);
                 },
@@ -44,7 +56,7 @@ export default function InviteTokenScreen() {
                 },
             }
         );
-    }, [acceptInvite, isAuthenticated, router, token]);
+    }, [acceptInvite, isAuthenticated, queryClient, router, token]);
 
     if (!isAuthenticated) {
         return (

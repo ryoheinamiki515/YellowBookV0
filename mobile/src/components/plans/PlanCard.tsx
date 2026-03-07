@@ -14,6 +14,7 @@ import {
     PlanQuickActionRow,
     type PlanQuickActionRowAction,
 } from "./PlanQuickActionRow";
+import { getSharedPeopleForDisplay } from "../../lib/sharedPeople";
 
 function formatRelativeDate(iso: string | null | undefined): string | null {
     const diffDays = getDaysDiff(iso);
@@ -72,9 +73,10 @@ function formatWhenBadge(plan: SocialPlan): string | null {
 }
 
 function participantNames(plan: SocialPlan): string | null {
-    const names = plan.participants
-        .map((p) => p.displayName)
-        .filter(Boolean) as string[];
+    const names = getSharedPeopleForDisplay(plan, {
+        excludeViewer: plan.role === "subscriber",
+    }).map((person) => person.displayName);
+
     if (names.length === 0) return null;
     if (names.length === 1) return `with ${names[0]}`;
     if (names.length === 2) return `with ${names[0]} & ${names[1]}`;
@@ -337,9 +339,7 @@ function AvatarStack({
     inline?: boolean;
     hero?: boolean;
 }) {
-    const names = plan.participants
-        .map((p) => p.displayName)
-        .filter(Boolean) as string[];
+    const names = getSharedPeopleForDisplay(plan).map((person) => person.displayName);
     if (names.length === 0) return null;
 
     const displayed = names.slice(0, 4);

@@ -624,7 +624,9 @@ export default function PeopleScreen() {
             if (hasDesktopSidebar) {
                 setSelectedPersonId(person.id);
             } else {
-                router.push(`/person/${person.id}`);
+                router.push(
+                    `/person/${person.id}?returnTo=${encodeURIComponent("/people")}`
+                );
             }
         },
         [router, hasDesktopSidebar]

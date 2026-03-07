@@ -17,6 +17,7 @@ Non-goals for this surface (intentionally excluded):
  * OpenAPI spec version: 1.0.0
  */
 import type { PlanRole } from './planRole';
+import type { SharedPlanPerson } from './sharedPlanPerson';
 import type { SocialPlanParticipant } from './socialPlanParticipant';
 import type { SocialPlanState } from './socialPlanState';
 import type { SocialPlanTimePrecision } from './socialPlanTimePrecision';
@@ -65,6 +66,8 @@ export interface SocialPlan {
    */
   timezone?: string | null;
   participants: SocialPlanParticipant[];
+  /** Canonical people list for read-only shared/subscriber displays. */
+  sharedPeople?: SharedPlanPerson[];
   role?: PlanRole;
   createdAt: string;
   updatedAt: string;

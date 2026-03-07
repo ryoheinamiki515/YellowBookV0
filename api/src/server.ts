@@ -7,7 +7,11 @@ import type { Request, Response, NextFunction } from "express";
 import { z } from "zod";
 import { PrismaClient, type Prisma } from "@prisma/client";
 import { middleware as openapiValidator } from "express-openapi-validator";
-import { serializeSocialPlan, serializeSubscribedPlan } from "./api/serializers/socialPlan.js";
+import {
+    buildSharedPeople,
+    serializeSocialPlan,
+    serializeSubscribedPlan,
+} from "./api/serializers/socialPlan.js";
 import { serializePerson } from "./api/serializers/person.js";
 import { serializeConnection } from "./api/serializers/connection.js";
 import { makeRequireUser } from "./middleware/requireUser.js";
@@ -16,6 +20,11 @@ import { makeWithIdempotency } from "./api/idempotency.js";
 import { decodeCursor, encodeCursor } from "./api/pagination/planCursor.js";
 import { PlanPatchSchema, toPrismaUpdate, validateTimeSemantics } from "./api/patch/planPatch.js";
 import { generateToken } from "./api/tokens.js";
+import { mergePeople } from "./personMerge.js";
+import {
+    linkOrCreateLinkedPerson,
+    SYSTEM_LINKED_PERSON_PLACEHOLDER,
+} from "./personLinking.js";
 
 const app = express();
 app.use(cors());
@@ -95,7 +104,7 @@ v1.patch("/me", ...requireUser([]), async (req, res, next) => {
             await tx.person.updateMany({
                 where: {
                     linkedUserId: id,
-                    displayName: SYSTEM_FRIEND_PLACEHOLDER,
+                    displayName: SYSTEM_LINKED_PERSON_PLACEHOLDER,
                 },
                 data: { displayName },
             });
@@ -192,6 +201,10 @@ const PatchPersonSchema = z.object({
     archivedAt: z.string().datetime().nullable().optional(),
 });
 
+const MergePersonSchema = z.object({
+    sourcePersonId: z.string().uuid(),
+});
+
 function nullIfBlank(value: string | null | undefined) {
     if (value == null) return null;
     const trimmed = value.trim();
@@ -201,8 +214,6 @@ function nullIfBlank(value: string | null | undefined) {
 function toJsonSafe<T>(value: T): T {
     return JSON.parse(JSON.stringify(value)) as T;
 }
-
-const SYSTEM_FRIEND_PLACEHOLDER = "Friend";
 
 function requireDisplayName(value: string | null | undefined) {
     const displayName = nullIfBlank(value);
@@ -321,6 +332,24 @@ v1.get(
         try {
             const userId = (req as any).userId as string;
             const scope = (typeof req.query.scope === "string" ? req.query.scope : "owned") as "owned" | "subscribed" | "all";
+            const participantPersonId =
+                typeof req.query.participantPersonId === "string"
+                    ? req.query.participantPersonId
+                    : undefined;
+            const stateParams = Array.isArray(req.query.state)
+                ? req.query.state
+                : typeof req.query.state === "string"
+                  ? [req.query.state]
+                  : [];
+            const planStates = stateParams.filter(
+                (
+                    state
+                ): state is "OPEN" | "DONE" | "DROPPED" | "ARCHIVED" =>
+                    state === "OPEN" ||
+                    state === "DONE" ||
+                    state === "DROPPED" ||
+                    state === "ARCHIVED"
+            );
 
             const limit = Math.min(Math.max(Number(req.query.limit ?? 50), 1), 200);
             const cursorStr = typeof req.query.cursor === "string" ? req.query.cursor : undefined;
@@ -345,6 +374,41 @@ v1.get(
                     ],
                 }
                 : {};
+            const stateFilter =
+                planStates.length > 0
+                    ? { state: { in: planStates } }
+                    : {};
+            const participantPerson = participantPersonId
+                ? await prisma.person.findFirst({
+                    where: { id: participantPersonId, ownerId: userId },
+                    select: { id: true, linkedUserId: true },
+                })
+                : null;
+            const ownedParticipantFilter =
+                participantPersonId == null
+                    ? {}
+                    : participantPerson
+                      ? { participants: { some: { personId: participantPerson.id } } }
+                      : { id: { in: [] as string[] } };
+            const subscribedParticipantFilter =
+                participantPersonId == null
+                    ? {}
+                    : participantPerson?.linkedUserId
+                      ? {
+                          OR: [
+                              { ownerId: participantPerson.linkedUserId },
+                              {
+                                  participants: {
+                                      some: {
+                                          person: {
+                                              is: { linkedUserId: participantPerson.linkedUserId },
+                                          },
+                                      },
+                                  },
+                              },
+                          ],
+                      }
+                      : { id: { in: [] as string[] } };
 
             type OwnedPlanRow = Prisma.SocialPlanGetPayload<{
                 include: { participants: true };
@@ -365,7 +429,12 @@ v1.get(
 
             if (scope === "owned" || scope === "all") {
                 const ownedRows = await prisma.socialPlan.findMany({
-                    where: { ownerId: userId, ...cursorFilter },
+                    where: {
+                        ownerId: userId,
+                        ...cursorFilter,
+                        ...stateFilter,
+                        ...ownedParticipantFilter,
+                    },
                     orderBy,
                     take: limit + 1,
                     include: { participants: true },
@@ -384,7 +453,12 @@ v1.get(
 
                 if (subscribedPlanIds.length > 0) {
                     const subscribedRows = await prisma.socialPlan.findMany({
-                        where: { id: { in: subscribedPlanIds }, ...cursorFilter },
+                        where: {
+                            id: { in: subscribedPlanIds },
+                            ...cursorFilter,
+                            ...stateFilter,
+                            ...subscribedParticipantFilter,
+                        },
                         orderBy,
                         take: limit + 1,
                         include: {
@@ -425,7 +499,10 @@ v1.get(
 
             const serialized = pageItems.map((a) => {
                 if (a.role === "subscriber") {
-                    return { ...serializeSubscribedPlan(a.plan, connectionMap!), role: "subscriber" as const };
+                    return {
+                        ...serializeSubscribedPlan(a.plan, connectionMap!, userId),
+                        role: "subscriber" as const,
+                    };
                 }
                 return { ...serializeSocialPlan(a.plan), role: "owner" as const };
             });
@@ -479,7 +556,10 @@ v1.get("/plans/:planId", ...requireUser(["read:socialplans"]), async (req, res, 
             res.setHeader("Cache-Control", "no-cache");
             res.json(
                 toJsonSafe({
-                    data: { ...serializeSubscribedPlan(plan, connectionMap), role: "subscriber" },
+                    data: {
+                        ...serializeSubscribedPlan(plan, connectionMap, userId),
+                        role: "subscriber",
+                    },
                 })
             );
         }
@@ -873,6 +953,30 @@ v1.patch("/people/:personId", ...requireUser([]), async (req, res, next) => {
 });
 
 // ---------------------------------------------------------------------------
+// POST /v1/people/:personId/merge — Merge another person into this person
+// ---------------------------------------------------------------------------
+v1.post("/people/:personId/merge", ...requireUser([]), async (req, res, next) => {
+    try {
+        const ownerId = (req as any).userId as string;
+        const personToKeepId = req.params.personId;
+        const { sourcePersonId } = MergePersonSchema.parse(req.body);
+
+        const mergedPerson = await prisma.$transaction((tx) =>
+            mergePeople({
+                tx,
+                ownerId,
+                personToKeepId,
+                personToMergeId: sourcePersonId,
+            })
+        );
+
+        res.json({ data: serializePerson(mergedPerson) });
+    } catch (e) {
+        next(e);
+    }
+});
+
+// ---------------------------------------------------------------------------
 // DELETE /v1/people/:personId — Delete a person
 // ---------------------------------------------------------------------------
 v1.delete("/people/:personId", ...requireUser([]), async (req, res, next) => {
@@ -893,38 +997,6 @@ v1.delete("/people/:personId", ...requireUser([]), async (req, res, next) => {
         next(e);
     }
 });
-
-async function linkOrCreatePerson(
-    tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
-    params: { ownerId: string; linkedUserId: string; displayName: string }
-) {
-    const { ownerId, linkedUserId, displayName } = params;
-
-    // Already linked
-    const alreadyLinked = await tx.person.findFirst({
-        where: { ownerId, linkedUserId },
-    });
-    if (alreadyLinked) return alreadyLinked;
-
-    // Try to find an existing unlinked Person with a matching displayName
-    const nameMatch = await tx.person.findFirst({
-        where: {
-            ownerId,
-            linkedUserId: null,
-            displayName: { equals: displayName, mode: "insensitive" },
-        },
-    });
-    if (nameMatch) {
-        return tx.person.update({
-            where: { id: nameMatch.id },
-            data: { linkedUserId },
-        });
-    }
-
-    return tx.person.create({
-        data: { ownerId, linkedUserId, displayName },
-    });
-}
 
 // ---------------------------------------------------------------------------
 // POST /v1/connections/invites — Generate a connection invite
@@ -1010,12 +1082,12 @@ v1.post("/connections/invites/:token/accept", ...requireUser([]), async (req, re
             });
 
             // Link or create Person records in each other's libraries
-            await linkOrCreatePerson(tx, {
+            await linkOrCreateLinkedPerson(tx, {
                 ownerId: invite.senderId,
                 linkedUserId: acceptorId,
                 displayName: acceptorDisplayName,
             });
-            await linkOrCreatePerson(tx, {
+            await linkOrCreateLinkedPerson(tx, {
                 ownerId: acceptorId,
                 linkedUserId: invite.senderId,
                 displayName: senderDisplayName,
@@ -1242,7 +1314,9 @@ v1.get("/shared/:token", async (req, res, next) => {
             include: {
                 plan: {
                     include: {
-                        participants: true,
+                        participants: {
+                            include: { person: { select: { linkedUserId: true } } },
+                        },
                         owner: { select: { displayName: true } },
                     },
                 },
@@ -1268,9 +1342,14 @@ v1.get("/shared/:token", async (req, res, next) => {
                 timezone: plan.timezone,
                 participants: plan.participants.map((p) => ({
                     id: p.id,
-                    displayName: p.displayName,
+                    displayName: p.displayName ?? null,
                     createdAt: p.createdAt.toISOString(),
                 })),
+                sharedPeople: buildSharedPeople({
+                    ownerId: plan.ownerId,
+                    ownerDisplayName: plan.owner.displayName,
+                    participants: plan.participants,
+                }),
                 createdAt: plan.createdAt.toISOString(),
                 updatedAt: plan.updatedAt.toISOString(),
             },
@@ -1290,7 +1369,15 @@ v1.post("/shared/:token/subscribe", ...requireUser([]), async (req, res, next) =
 
         const shareToken = await prisma.shareToken.findUnique({
             where: { token },
-            include: { plan: { select: { id: true, ownerId: true } } },
+            include: {
+                plan: {
+                    select: {
+                        id: true,
+                        ownerId: true,
+                        owner: { select: { displayName: true } },
+                    },
+                },
+            },
         });
 
         if (!shareToken || shareToken.revokedAt) {
@@ -1301,15 +1388,31 @@ v1.post("/shared/:token/subscribe", ...requireUser([]), async (req, res, next) =
             return next({ status: 409, expose: true, message: "cannot_subscribe_to_own_plan" });
         }
 
-        try {
-            await prisma.planSubscription.create({
-                data: { planId: shareToken.plan.id, userId },
+        const ownerDisplayName = requireDisplayName(shareToken.plan.owner.displayName);
+        let alreadySubscribed = false;
+
+        await prisma.$transaction(async (tx) => {
+            await linkOrCreateLinkedPerson(tx, {
+                ownerId: userId,
+                linkedUserId: shareToken.plan.ownerId,
+                displayName: ownerDisplayName,
             });
-        } catch (e: any) {
-            if (e?.code === "P2002") {
-                return next({ status: 409, expose: true, message: "already_subscribed" });
+
+            try {
+                await tx.planSubscription.create({
+                    data: { planId: shareToken.plan.id, userId },
+                });
+            } catch (e: any) {
+                if (e?.code === "P2002") {
+                    alreadySubscribed = true;
+                    return;
+                }
+                throw e;
             }
-            throw e;
+        });
+
+        if (alreadySubscribed) {
+            return next({ status: 409, expose: true, message: "already_subscribed" });
         }
 
         res.status(201).json({ data: { status: "subscribed" } });

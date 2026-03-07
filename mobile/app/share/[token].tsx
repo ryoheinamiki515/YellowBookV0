@@ -3,24 +3,19 @@ import { ActivityIndicator } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { YStack, XStack, Text, View, ScrollView } from "tamagui";
+import { YStack, Text, ScrollView } from "tamagui";
 
 import { useAuth } from "../../src/context/AuthContext";
 import {
     useGetSharedPlan,
     useSubscribeViaShareLink,
 } from "../../src/api/generated/sharing/sharing";
+import type { SharedPlanResponseData } from "../../src/api/generated/model/sharedPlanResponseData";
+import { PageContainer } from "../../src/components/PageContainer";
+import { DetailFooterAction } from "../../src/components/DetailFooterAction";
+import { PlanReadOnlyDetails } from "../../src/components/plans/PlanReadOnlyDetails";
+import { getListPeopleQueryKey } from "../../src/api/generated/people/people";
 import { getProblemDetail } from "../../src/lib/problemDetails";
-
-function formatDate(iso: string | null | undefined): string | null {
-    if (!iso) return null;
-    const d = new Date(iso);
-    return d.toLocaleDateString(undefined, {
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-    });
-}
 
 export default function ShareTokenScreen() {
     const { token } = useLocalSearchParams<{ token: string }>();
@@ -32,9 +27,15 @@ export default function ShareTokenScreen() {
     const { data: sharedResponse, isLoading, isError } = useGetSharedPlan(token!);
     const subscribe = useSubscribeViaShareLink();
 
-    const plan = sharedResponse?.data && "data" in sharedResponse.data
-        ? (sharedResponse.data as { data: any }).data
-        : null;
+    const plan: SharedPlanResponseData | null =
+        sharedResponse?.data && "data" in sharedResponse.data
+            ? (sharedResponse.data as { data: SharedPlanResponseData }).data
+            : null;
+
+    const refreshAfterSubscribe = useCallback(() => {
+        void queryClient.invalidateQueries({ queryKey: ["/v1/plans"] });
+        void queryClient.invalidateQueries({ queryKey: getListPeopleQueryKey() });
+    }, [queryClient]);
 
     const goToPlans = useCallback(() => {
         void queryClient.invalidateQueries({ queryKey: ["/v1/plans"] });
@@ -42,13 +43,13 @@ export default function ShareTokenScreen() {
     }, [queryClient, router]);
 
     const goToSharedPlan = useCallback(() => {
-        void queryClient.invalidateQueries({ queryKey: ["/v1/plans"] });
+        refreshAfterSubscribe();
         if (plan?.id) {
             router.replace(`/plan/${plan.id}` as any);
             return;
         }
         router.replace("/(main)/plans");
-    }, [plan?.id, queryClient, router]);
+    }, [plan?.id, refreshAfterSubscribe, router]);
 
     const handleSubscribe = useCallback(() => {
         if (!token) return;
@@ -78,9 +79,11 @@ export default function ShareTokenScreen() {
     if (isLoading) {
         return (
             <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF8F3" }}>
-                <YStack flex={1} justifyContent="center" alignItems="center">
-                    <ActivityIndicator size="large" />
-                </YStack>
+                <PageContainer backgroundColor="$background">
+                    <YStack flex={1} justifyContent="center" alignItems="center">
+                        <ActivityIndicator size="large" />
+                    </YStack>
+                </PageContainer>
             </SafeAreaView>
         );
     }
@@ -88,195 +91,112 @@ export default function ShareTokenScreen() {
     if (isError || !plan) {
         return (
             <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF8F3" }}>
-                <YStack flex={1} justifyContent="center" alignItems="center" padding="$8">
-                    <Text fontFamily="$heading" fontSize="$8" color="$color" textAlign="center" marginBottom="$3">
-                        Plan not found
-                    </Text>
-                    <Text fontFamily="$body" fontSize="$4" color="$colorSecondary" textAlign="center" marginBottom="$6">
-                        This share link may have been revoked or expired.
-                    </Text>
-                    <Text
-                        fontFamily="$body"
-                        fontSize="$4"
-                        color="$accentColor"
-                        onPress={goToPlans}
-                        pressStyle={{ opacity: 0.7 }}
-                        cursor="pointer"
+                <PageContainer backgroundColor="$background">
+                    <YStack
+                        flex={1}
+                        justifyContent="center"
+                        alignItems="center"
+                        padding="$8"
+                        gap="$4"
                     >
-                        Go to Plans
-                    </Text>
-                </YStack>
+                        <Text
+                            fontFamily="$heading"
+                            fontSize="$8"
+                            color="$color"
+                            textAlign="center"
+                        >
+                            Plan not found
+                        </Text>
+                        <Text
+                            fontFamily="$body"
+                            fontSize="$4"
+                            color="$colorSecondary"
+                            textAlign="center"
+                        >
+                            This share link may have been revoked or expired.
+                        </Text>
+                        <DetailFooterAction
+                            label="Go to Plans"
+                            onPress={goToPlans}
+                            tone="accent"
+                            variant="outline"
+                            accessibilityLabel="Go to Plans"
+                        />
+                    </YStack>
+                </PageContainer>
             </SafeAreaView>
         );
     }
 
-    const dateLabel = formatDate(plan.anchorStart);
-    const participants = (plan.participants ?? []) as { displayName?: string | null }[];
-    const participantNames = participants
-        .map((p) => p.displayName)
-        .filter(Boolean) as string[];
-
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF8F3" }}>
-            <ScrollView
-                style={{ flex: 1 }}
-                contentContainerStyle={{ padding: 24, paddingBottom: 48 }}
-            >
-                {plan.ownerDisplayName ? (
-                    <Text
-                        fontFamily="$body"
-                        fontSize="$3"
-                        color="$colorSecondary"
-                        marginBottom="$2"
-                    >
-                        Shared by {plan.ownerDisplayName}
-                    </Text>
-                ) : null}
-
-                <Text
-                    fontFamily="$heading"
-                    fontSize="$9"
-                    color="$color"
-                    marginBottom="$4"
+            <PageContainer backgroundColor="$background">
+                <ScrollView
+                    style={{ flex: 1 }}
+                    contentContainerStyle={{
+                        padding: 24,
+                        paddingBottom: 48,
+                    }}
+                    showsVerticalScrollIndicator={false}
                 >
-                    {plan.intentText}
-                </Text>
+                    <PlanReadOnlyDetails plan={plan} />
 
-                {dateLabel ? (
-                    <XStack alignItems="center" gap="$2" marginBottom="$3">
-                        <View
-                            paddingHorizontal="$2.5"
-                            paddingVertical="$1"
-                            borderRadius="$4"
-                            backgroundColor="$backgroundStrong"
-                        >
-                            <Text
-                                fontFamily="$body"
-                                fontSize="$2"
-                                fontWeight="500"
-                                color="$colorSecondary"
-                            >
-                                {dateLabel}
-                            </Text>
-                        </View>
-                    </XStack>
-                ) : null}
-
-                {plan.locationText ? (
-                    <Text
-                        fontFamily="$body"
-                        fontSize="$4"
-                        color="$colorSecondary"
-                        marginBottom="$3"
-                    >
-                        at {plan.locationText}
-                    </Text>
-                ) : null}
-
-                {participantNames.length > 0 ? (
-                    <YStack marginBottom="$4">
-                        <Text
-                            fontFamily="$body"
-                            fontSize="$3"
-                            fontWeight="600"
-                            color="$colorSecondary"
-                            marginBottom="$2"
-                        >
-                            People
-                        </Text>
-                        {participantNames.map((name, i) => (
-                            <Text
-                                key={i}
-                                fontFamily="$body"
-                                fontSize="$4"
-                                color="$color"
-                                marginBottom="$1"
-                            >
-                                {name}
-                            </Text>
-                        ))}
+                    <YStack marginTop="$6" gap="$3">
+                        {isAuthenticated ? (
+                            <>
+                                {followError ? (
+                                    <Text
+                                        fontFamily="$body"
+                                        fontSize="$3"
+                                        color="$destructiveColor"
+                                        textAlign="center"
+                                    >
+                                        {followError}
+                                    </Text>
+                                ) : null}
+                                <DetailFooterAction
+                                    label={
+                                        subscribe.isPending
+                                            ? "Following..."
+                                            : "Follow This Plan"
+                                    }
+                                    onPress={handleSubscribe}
+                                    disabled={subscribe.isPending}
+                                    tone="accent"
+                                    variant="filled"
+                                    labelSize="$5"
+                                    accessibilityLabel="Follow this plan"
+                                />
+                                <DetailFooterAction
+                                    label="Go to Plans"
+                                    onPress={goToPlans}
+                                    tone="neutral"
+                                    variant="ghost"
+                                    accessibilityLabel="Go to Plans"
+                                />
+                            </>
+                        ) : (
+                            <>
+                                <Text
+                                    fontFamily="$body"
+                                    fontSize="$4"
+                                    color="$colorSecondary"
+                                    textAlign="center"
+                                >
+                                    Sign in to follow this plan and get updates.
+                                </Text>
+                                <DetailFooterAction
+                                    label="Go to Plans"
+                                    onPress={goToPlans}
+                                    tone="accent"
+                                    variant="outline"
+                                    accessibilityLabel="Go to Plans"
+                                />
+                            </>
+                        )}
                     </YStack>
-                ) : null}
-
-                {isAuthenticated ? (
-                    <YStack marginTop="$6">
-                        <YStack
-                            height={48}
-                            borderRadius="$6"
-                            backgroundColor="$accentBackground"
-                            justifyContent="center"
-                            alignItems="center"
-                            onPress={handleSubscribe}
-                            disabled={subscribe.isPending}
-                            opacity={subscribe.isPending ? 0.6 : 1}
-                            pressStyle={{
-                                scale: 0.96,
-                                backgroundColor: "$accentBackgroundPress",
-                            }}
-                            cursor="pointer"
-                            accessibilityRole="button"
-                            accessibilityLabel="Follow this plan"
-                        >
-                            <Text
-                                fontFamily="$body"
-                                fontSize="$4"
-                                fontWeight="600"
-                                color="$accentColor"
-                            >
-                                {subscribe.isPending
-                                    ? "Following..."
-                                    : "Follow This Plan"}
-                            </Text>
-                        </YStack>
-                        {followError ? (
-                            <Text
-                                fontFamily="$body"
-                                fontSize="$3"
-                                color="$colorSecondary"
-                                textAlign="center"
-                                marginTop="$3"
-                            >
-                                {followError}
-                            </Text>
-                        ) : null}
-                        <Text
-                            fontFamily="$body"
-                            fontSize="$4"
-                            color="$accentColor"
-                            textAlign="center"
-                            marginTop="$4"
-                            onPress={goToPlans}
-                            pressStyle={{ opacity: 0.7 }}
-                            cursor="pointer"
-                        >
-                            Go to Plans
-                        </Text>
-                    </YStack>
-                ) : (
-                    <YStack marginTop="$6" alignItems="center">
-                        <Text
-                            fontFamily="$body"
-                            fontSize="$4"
-                            color="$colorSecondary"
-                            textAlign="center"
-                        >
-                            Sign in to follow this plan and get updates.
-                        </Text>
-                        <Text
-                            fontFamily="$body"
-                            fontSize="$4"
-                            color="$accentColor"
-                            textAlign="center"
-                            marginTop="$4"
-                            onPress={goToPlans}
-                            pressStyle={{ opacity: 0.7 }}
-                            cursor="pointer"
-                        >
-                            Go to Plans
-                        </Text>
-                    </YStack>
-                )}
-            </ScrollView>
+                </ScrollView>
+            </PageContainer>
         </SafeAreaView>
     );
 }

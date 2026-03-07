@@ -803,6 +803,39 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /v1/people/{personId}/merge:
+    parameters:
+      - $ref: "#/components/parameters/PersonId"
+
+    post:
+      tags: [People]
+      summary: Merge another person into this person
+      operationId: mergePerson
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PersonMergeRequest"
+      responses:
+        "200":
+          description: Merged
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/X-Request-Id"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PersonResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
 components:
   securitySchemes:
     sessionCookie:
@@ -1009,6 +1042,25 @@ components:
       required: [id, planId, createdAt]
       additionalProperties: true
 
+    SharedPlanPerson:
+      type: object
+      description: Canonical people list for read-only shared plan surfaces.
+      properties:
+        key:
+          type: string
+          minLength: 1
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 120
+        kind:
+          type: string
+          enum: [owner, participant]
+        isViewer:
+          type: boolean
+      required: [key, displayName, kind, isViewer]
+      additionalProperties: false
+
     SocialPlan:
       type: object
       description: |
@@ -1053,6 +1105,11 @@ components:
           items:
             $ref: "#/components/schemas/SocialPlanParticipant"
           default: []
+        sharedPeople:
+          type: array
+          description: Canonical people list for read-only shared/subscriber displays.
+          items:
+            $ref: "#/components/schemas/SharedPlanPerson"
         role:
           $ref: "#/components/schemas/PlanRole"
         createdAt:
@@ -1395,6 +1452,14 @@ components:
           type: [string, "null"]
           format: date-time
 
+    PersonMergeRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        sourcePersonId:
+          $ref: "#/components/schemas/Uuid"
+      required: [sourcePersonId]
+
     # -----------------------
     # Response envelopes
     # -----------------------
@@ -1619,6 +1684,11 @@ components:
                     type: string
                     format: date-time
                 required: [id, createdAt]
+            sharedPeople:
+              type: array
+              description: Canonical people list for read-only shared displays.
+              items:
+                $ref: "#/components/schemas/SharedPlanPerson"
             createdAt:
               type: string
               format: date-time

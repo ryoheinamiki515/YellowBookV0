@@ -53,6 +53,8 @@ export * from './planRole';
 export * from './preconditionFailedResponse';
 export * from './problemDetails';
 export * from './problemDetailsErrorsItem';
+export * from './sharedPlanPerson';
+export * from './sharedPlanPersonKind';
 export * from './sharedPlanResponse';
 export * from './sharedPlanResponseData';
 export * from './sharedPlanResponseDataParticipantsItem';
