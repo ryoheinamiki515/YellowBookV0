@@ -15,7 +15,7 @@ import {
 import { serializePerson } from "./api/serializers/person.js";
 import { serializeConnection } from "./api/serializers/connection.js";
 import { makeRequireUser } from "./middleware/requireUser.js";
-import { planEtag, ifMatchFailed } from "./api/etag.js";
+import { planEtag, representationEtag, ifMatchFailed } from "./api/etag.js";
 import { makeWithIdempotency } from "./api/idempotency.js";
 import { decodeCursor, encodeCursor } from "./api/pagination/planCursor.js";
 import { PlanPatchSchema, toPrismaUpdate, validateTimeSemantics } from "./api/patch/planPatch.js";
@@ -411,13 +411,19 @@ v1.get(
                       : { id: { in: [] as string[] } };
 
             type OwnedPlanRow = Prisma.SocialPlanGetPayload<{
-                include: { participants: true };
+                include: {
+                    participants: {
+                        include: { person: { select: { displayName: true } } };
+                    };
+                };
             }>;
             type SubscribedPlanRow = Prisma.SocialPlanGetPayload<{
                 include: {
                     owner: { select: { displayName: true } };
                     participants: {
-                        include: { person: { select: { linkedUserId: true } } };
+                        include: {
+                            person: { select: { linkedUserId: true, displayName: true } };
+                        };
                     };
                 };
             }>;
@@ -437,7 +443,11 @@ v1.get(
                     },
                     orderBy,
                     take: limit + 1,
-                    include: { participants: true },
+                    include: {
+                        participants: {
+                            include: { person: { select: { displayName: true } } },
+                        },
+                    },
                 });
                 for (const row of ownedRows) {
                     annotated.push({ plan: row, role: "owner" });
@@ -464,7 +474,11 @@ v1.get(
                         include: {
                             owner: { select: { displayName: true } },
                             participants: {
-                                include: { person: { select: { linkedUserId: true } } },
+                                include: {
+                                    person: {
+                                        select: { linkedUserId: true, displayName: true },
+                                    },
+                                },
                             },
                         },
                     });
@@ -532,7 +546,11 @@ v1.get("/plans/:planId", ...requireUser(["read:socialplans"]), async (req, res, 
             where: { id: planId },
             include: {
                 owner: { select: { displayName: true } },
-                participants: { include: { person: { select: { linkedUserId: true } } } },
+                participants: {
+                    include: {
+                        person: { select: { linkedUserId: true, displayName: true } },
+                    },
+                },
             },
         });
         if (!plan) return next({ status: 404, expose: true, message: "not_found" });
@@ -547,21 +565,25 @@ v1.get("/plans/:planId", ...requireUser(["read:socialplans"]), async (req, res, 
         }
 
         if (isOwner) {
-            res.setHeader("ETag", planEtag(plan));
+            const payload = toJsonSafe({
+                data: { ...serializeSocialPlan(plan), role: "owner" as const },
+            });
+
+            res.setHeader("ETag", representationEtag(payload));
             res.setHeader("Cache-Control", "no-cache");
-            res.json(toJsonSafe({ data: { ...serializeSocialPlan(plan), role: "owner" } }));
+            res.json(payload);
         } else {
             const connectionMap = await loadConnectionMapForUser(userId);
+            const payload = toJsonSafe({
+                data: {
+                    ...serializeSubscribedPlan(plan, connectionMap, userId),
+                    role: "subscriber" as const,
+                },
+            });
 
+            res.setHeader("ETag", representationEtag(payload));
             res.setHeader("Cache-Control", "no-cache");
-            res.json(
-                toJsonSafe({
-                    data: {
-                        ...serializeSubscribedPlan(plan, connectionMap, userId),
-                        role: "subscriber",
-                    },
-                })
-            );
+            res.json(payload);
         }
     } catch (e) {
         next(e);
@@ -1315,7 +1337,11 @@ v1.get("/shared/:token", async (req, res, next) => {
                 plan: {
                     include: {
                         participants: {
-                            include: { person: { select: { linkedUserId: true } } },
+                            include: {
+                                person: {
+                                    select: { linkedUserId: true, displayName: true },
+                                },
+                            },
                         },
                         owner: { select: { displayName: true } },
                     },

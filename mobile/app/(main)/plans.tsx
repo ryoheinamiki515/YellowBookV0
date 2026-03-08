@@ -16,8 +16,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import {
     useListPlans,
     usePatchPlan,
-    getListPlansQueryKey,
-    getGetPlanQueryKey,
 } from "../../src/api/generated/plans/plans";
 import type { SocialPlan } from "../../src/api/generated/model/socialPlan";
 import type { SocialPlanState } from "../../src/api/generated/model/socialPlanState";
@@ -38,8 +36,10 @@ import {
     getPlanQuickActionLabel,
     getPlanQuickActionTone,
 } from "../../src/lib/planQuickActions";
+import { invalidatePlanQueries } from "../../src/lib/queryInvalidation";
 import { useKeyboardShortcut } from "../../src/hooks/useKeyboardShortcut";
 import { useDesktopResizableSplitView } from "../../src/hooks/useDesktopResizableSplitView";
+import { useRefreshOnVisible } from "../../src/hooks/useRefreshOnVisible";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -366,7 +366,6 @@ export default function PlansScreen() {
         isLoading,
         isError,
         isRefetching,
-        refetch,
     } = useListPlans({
         state: STATE_FILTERS[activeFilter].value,
         sort: "-updatedAt",
@@ -375,10 +374,17 @@ export default function PlansScreen() {
 
     const {
         data: subscribedPlansResponse,
+        isRefetching: isSubscribedPlansRefetching,
     } = useListPlans({
         scope: "subscribed",
         sort: "-updatedAt",
     });
+
+    const refreshPlans = useCallback(() => {
+        return invalidatePlanQueries(queryClient);
+    }, [queryClient]);
+
+    useRefreshOnVisible(refreshPlans);
 
     const responseData = plansResponse?.data;
     const plans: SocialPlan[] =
@@ -471,17 +477,12 @@ export default function PlansScreen() {
     }, []);
 
     const handleRefresh = useCallback(() => {
-        refetch();
-    }, [refetch]);
+        void refreshPlans();
+    }, [refreshPlans]);
 
     const invalidatePlanCaches = useCallback(
-        (planId?: string) => {
-            queryClient.invalidateQueries({ queryKey: getListPlansQueryKey() });
-            if (planId) {
-                queryClient.invalidateQueries({
-                    queryKey: getGetPlanQueryKey(planId),
-                });
-            }
+        (_planId?: string) => {
+            void invalidatePlanQueries(queryClient);
         },
         [queryClient]
     );
@@ -843,7 +844,7 @@ export default function PlansScreen() {
                             Something went wrong.{"\n"}{Platform.OS === "web" ? "Try again." : "Pull down to try again."}
                         </Text>
                     </YStack>
-                ) : plans.length === 0 ? (
+                ) : sectionItems.length === 0 ? (
                     <EmptyState
                         filterLabel={STATE_FILTERS[activeFilter].label}
                         onAddPlan={() => setSheetOpen(true)}
@@ -863,7 +864,14 @@ export default function PlansScreen() {
                         showsVerticalScrollIndicator={false}
                         removeClippedSubviews={Platform.OS !== "web"}
                         onRefresh={Platform.OS !== "web" ? handleRefresh : undefined}
-                        refreshing={Platform.OS !== "web" ? Boolean(isRefetching && !isLoading) : false}
+                        refreshing={
+                            Platform.OS !== "web"
+                                ? Boolean(
+                                      (isRefetching || isSubscribedPlansRefetching) &&
+                                          !isLoading
+                                  )
+                                : false
+                        }
                         onScroll={onScroll}
                         scrollEventThrottle={16}
                     />

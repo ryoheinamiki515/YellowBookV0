@@ -5,7 +5,7 @@ import type {
 } from "@prisma/client";
 
 type ParticipantWithLinkedUser = DbParticipant & {
-    person?: { linkedUserId: string | null } | null;
+    person?: { linkedUserId: string | null; displayName?: string | null } | null;
 };
 
 export type SharedPerson = {
@@ -93,11 +93,17 @@ export function buildSharedPeople(params: BuildSharedPeopleParams): SharedPerson
     for (const participant of participants) {
         const linkedUserId =
             "person" in participant ? participant.person?.linkedUserId ?? null : null;
+        const currentPersonDisplayName =
+            "person" in participant ? participant.person?.displayName ?? null : null;
         const reconciledDisplayName =
             linkedUserId && connectionMap
                 ? connectionMap.get(linkedUserId)?.displayName ?? null
                 : null;
-        const displayName = reconciledDisplayName ?? participant.displayName ?? null;
+        const displayName =
+            reconciledDisplayName ??
+            currentPersonDisplayName ??
+            participant.displayName ??
+            null;
         const fallbackName = normalizeName(displayName);
         const fallbackKey = fallbackName?.toLocaleLowerCase().replace(/\s+/g, "-");
 
@@ -147,6 +153,8 @@ export function serializeSocialPlan(
         anchorEnd: p.anchorEnd?.toISOString() ?? null,
         timezone: p.timezone ?? null,
         participants: (p.participants || []).map((part) => {
+            const currentPersonDisplayName =
+                "person" in part ? part.person?.displayName ?? null : null;
             if (context.role === "subscriber") {
                 const linkedUserId =
                     "person" in part ? part.person?.linkedUserId : null;
@@ -157,7 +165,11 @@ export function serializeSocialPlan(
                 return {
                     id: part.id,
                     planId: part.planId,
-                    displayName: connected?.displayName ?? part.displayName ?? null,
+                    displayName:
+                        connected?.displayName ??
+                        currentPersonDisplayName ??
+                        part.displayName ??
+                        null,
                     createdAt: part.createdAt.toISOString(),
                 };
             }
@@ -166,7 +178,7 @@ export function serializeSocialPlan(
                 id: part.id,
                 planId: part.planId,
                 personId: part.personId,
-                displayName: part.displayName ?? null,
+                displayName: currentPersonDisplayName ?? part.displayName ?? null,
                 isPrimary: part.isPrimary,
                 createdAt: part.createdAt.toISOString(),
             };

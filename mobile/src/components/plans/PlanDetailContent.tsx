@@ -37,8 +37,6 @@ import {
     useDeletePlan,
     useAddPlanParticipant,
     useDeletePlanParticipant,
-    getListPlansQueryKey,
-    getGetPlanQueryKey,
 } from "../../api/generated/plans/plans";
 import {
     useSharePlan,
@@ -49,13 +47,16 @@ import {
 import {
     useListPeople,
     useCreatePerson,
-    getListPeopleQueryKey,
 } from "../../api/generated/people/people";
 import type { SocialPlan } from "../../api/generated/model/socialPlan";
 import type { SocialPlanPatchRequest } from "../../api/generated/model/socialPlanPatchRequest";
 import type { SocialPlanTimePrecision } from "../../api/generated/model/socialPlanTimePrecision";
 import type { Person } from "../../api/generated/model/person";
 import { getInitialColor, useReducedMotionPreference } from "../../lib/planHelpers";
+import {
+    invalidatePeopleQueries,
+    invalidatePlanQueries,
+} from "../../lib/queryInvalidation";
 
 type PlanPersonIdentity = {
     personId?: string | null;
@@ -1236,9 +1237,8 @@ export function PlanDetailContent({
     }, []);
 
     const invalidateAll = useCallback(() => {
-        queryClient.invalidateQueries({ queryKey: getListPlansQueryKey() });
-        queryClient.invalidateQueries({ queryKey: getGetPlanQueryKey(id!) });
-    }, [queryClient, id]);
+        void invalidatePlanQueries(queryClient);
+    }, [queryClient]);
 
     const patchPlanDraft = useCallback(
         (patch: Partial<PlanEditableDraft>) => {
@@ -1420,9 +1420,7 @@ export function PlanDetailContent({
             });
         } finally {
             if (didCreatePeople) {
-                queryClient.invalidateQueries({
-                    queryKey: getListPeopleQueryKey(),
-                });
+                void invalidatePeopleQueries(queryClient);
             }
             invalidateAll();
         }
@@ -1489,9 +1487,7 @@ export function PlanDetailContent({
                 { planId: id! },
                 {
                     onSettled: () => {
-                        queryClient.invalidateQueries({
-                            queryKey: getListPlansQueryKey(),
-                        });
+                        void invalidatePlanQueries(queryClient);
                         onClose();
                     },
                 }
@@ -1670,7 +1666,7 @@ export function PlanDetailContent({
             { planId: id! },
             {
                 onSuccess: () => {
-                    queryClient.invalidateQueries({ queryKey: getListPlansQueryKey() });
+                    void invalidatePlanQueries(queryClient);
                     onClose?.();
                 },
             }

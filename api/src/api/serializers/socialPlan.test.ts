@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import type { SocialPlan, SocialPlanParticipant } from "@prisma/client";
-import { buildSharedPeople, serializeSubscribedPlan } from "./socialPlan.js";
+import {
+    buildSharedPeople,
+    serializeSocialPlan,
+    serializeSubscribedPlan,
+} from "./socialPlan.js";
 
 type TestParticipant = SocialPlanParticipant & {
-    person?: { linkedUserId: string | null } | null;
+    person?: { linkedUserId: string | null; displayName?: string | null } | null;
 };
 
 const CREATED_AT = new Date("2026-03-07T12:00:00.000Z");
@@ -13,6 +17,7 @@ function makeParticipant(params: {
     id: string;
     displayName?: string | null;
     linkedUserId?: string | null;
+    currentPersonDisplayName?: string | null;
 }): TestParticipant {
     const participant: SocialPlanParticipant = {
         id: params.id,
@@ -29,7 +34,10 @@ function makeParticipant(params: {
 
     return {
         ...participant,
-        person: { linkedUserId: params.linkedUserId },
+        person: {
+            linkedUserId: params.linkedUserId,
+            displayName: params.currentPersonDisplayName ?? null,
+        },
     };
 }
 
@@ -244,5 +252,22 @@ describe("buildSharedPeople", () => {
 
         assert.equal(serialized.ownerDisplayName, "Kev");
         assert.equal(serialized.sharedPeople?.[0]?.displayName, "Kev");
+    });
+
+    test("prefers the current person name over the participant snapshot for owners", () => {
+        const serialized = serializeSocialPlan(
+            makePlan({
+                participants: [
+                    makeParticipant({
+                        id: "participant-tk",
+                        displayName: "TK",
+                        linkedUserId: null,
+                        currentPersonDisplayName: "ChanMi",
+                    }),
+                ],
+            })
+        );
+
+        assert.equal(serialized.participants[0]?.displayName, "ChanMi");
     });
 });

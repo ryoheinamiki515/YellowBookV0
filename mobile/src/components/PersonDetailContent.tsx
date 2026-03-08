@@ -35,14 +35,15 @@ import {
     usePatchPerson,
     useDeletePerson,
     useListPeople,
-    getListPeopleQueryKey,
-    getGetPersonQueryKey,
 } from "../api/generated/people/people";
-import { getListPlansQueryKey } from "../api/generated/plans/plans";
 import type { Person } from "../api/generated/model/person";
 import type { PersonBirthday } from "../api/generated/model/personBirthday";
 import { useMergePerson } from "../api/peopleMerge";
 import { getProblemDetail } from "../lib/problemDetails";
+import {
+    invalidatePeopleQueries,
+    invalidatePlanQueries,
+} from "../lib/queryInvalidation";
 import {
     getInitialColor,
     useReducedMotionPreference,
@@ -479,14 +480,9 @@ export function PersonDetailContent({
     }, []);
 
     const invalidateAll = useCallback(() => {
-        queryClient.invalidateQueries({ queryKey: getListPeopleQueryKey() });
-        queryClient.invalidateQueries({
-            queryKey: getGetPersonQueryKey(id!),
-        });
-        queryClient.invalidateQueries({
-            queryKey: getListPlansQueryKey(),
-        });
-    }, [queryClient, id]);
+        void invalidatePeopleQueries(queryClient);
+        void invalidatePlanQueries(queryClient);
+    }, [queryClient]);
 
     // --- Patch helpers ---
 
@@ -562,18 +558,13 @@ export function PersonDetailContent({
                 { personId: id! },
                 {
                     onSuccess: () => {
-                        queryClient.invalidateQueries({
-                            queryKey: getListPeopleQueryKey(),
-                        });
-                        queryClient.invalidateQueries({
-                            queryKey: getGetPersonQueryKey(id!),
-                        });
+                        invalidateAll();
                         onClose();
                     },
                 }
             );
         }
-    }, [deletePerson, id, queryClient, onClose, confirm]);
+    }, [deletePerson, invalidateAll, onClose, confirm]);
 
     const handleMergePerson = useCallback(
         async (personToMerge: Person) => {

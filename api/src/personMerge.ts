@@ -150,8 +150,14 @@ async function mergePersonParticipants(params: {
     tx: Prisma.TransactionClient;
     personToKeepId: string;
     personToMergeId: string;
+    personToKeepDisplayName: string;
 }) {
-    const { tx, personToKeepId, personToMergeId } = params;
+    const {
+        tx,
+        personToKeepId,
+        personToMergeId,
+        personToKeepDisplayName,
+    } = params;
 
     const [keepParticipants, mergeParticipants] = await Promise.all([
         tx.socialPlanParticipant.findMany({
@@ -174,15 +180,18 @@ async function mergePersonParticipants(params: {
         if (!existing) {
             await tx.socialPlanParticipant.update({
                 where: { id: mergeParticipant.id },
-                data: { personId: personToKeepId },
+                data: {
+                    personId: personToKeepId,
+                    displayName: personToKeepDisplayName,
+                },
             });
             continue;
         }
 
         const participantUpdate: Prisma.SocialPlanParticipantUncheckedUpdateInput = {};
 
-        if (existing.displayName == null && mergeParticipant.displayName != null) {
-            participantUpdate.displayName = mergeParticipant.displayName;
+        if (existing.displayName !== personToKeepDisplayName) {
+            participantUpdate.displayName = personToKeepDisplayName;
         }
 
         if (mergeParticipant.isPrimary && !existing.isPrimary) {
@@ -240,6 +249,7 @@ export async function mergePeople(params: {
         tx,
         personToKeepId: personToKeep.id,
         personToMergeId: personToMerge.id,
+        personToKeepDisplayName: mergedPersonData.displayName as string,
     });
 
     const mergedPerson = await tx.person.update({

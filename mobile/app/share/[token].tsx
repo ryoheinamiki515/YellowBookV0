@@ -14,8 +14,11 @@ import type { SharedPlanResponseData } from "../../src/api/generated/model/share
 import { PageContainer } from "../../src/components/PageContainer";
 import { DetailFooterAction } from "../../src/components/DetailFooterAction";
 import { PlanReadOnlyDetails } from "../../src/components/plans/PlanReadOnlyDetails";
-import { getListPeopleQueryKey } from "../../src/api/generated/people/people";
 import { getProblemDetail } from "../../src/lib/problemDetails";
+import {
+    invalidatePeopleQueries,
+    invalidatePlanQueries,
+} from "../../src/lib/queryInvalidation";
 
 export default function ShareTokenScreen() {
     const { token } = useLocalSearchParams<{ token: string }>();
@@ -33,12 +36,12 @@ export default function ShareTokenScreen() {
             : null;
 
     const refreshAfterSubscribe = useCallback(() => {
-        void queryClient.invalidateQueries({ queryKey: ["/v1/plans"] });
-        void queryClient.invalidateQueries({ queryKey: getListPeopleQueryKey() });
+        void invalidatePlanQueries(queryClient);
+        void invalidatePeopleQueries(queryClient);
     }, [queryClient]);
 
     const goToPlans = useCallback(() => {
-        void queryClient.invalidateQueries({ queryKey: ["/v1/plans"] });
+        void invalidatePlanQueries(queryClient);
         router.replace("/(main)/plans");
     }, [queryClient, router]);
 
