@@ -4,11 +4,8 @@ import { Text, View, XStack, YStack } from "tamagui";
 import type { SharedPlanPerson } from "../../api/generated/model/sharedPlanPerson";
 import type { SocialPlanState } from "../../api/generated/model/socialPlanState";
 import type { SocialPlanTimePrecision } from "../../api/generated/model/socialPlanTimePrecision";
-import {
-    formatFullDate,
-    formatRelativeDate,
-    getInitialColor,
-} from "../../lib/planHelpers";
+import { getInitialColor } from "../../lib/planHelpers";
+import { fromStorageFields, formatDisplay } from "../../lib/planWhen";
 import { getSharedPeopleForDisplay } from "../../lib/sharedPeople";
 
 type PlanReadOnlyParticipant = {
@@ -35,37 +32,12 @@ export function formatPlanWhenDisplay(
     anchorStart: string | null | undefined,
     anchorEnd: string | null | undefined
 ): { primary: string | null; secondary: string | null } {
-    if (timePrecision === "NONE") {
-        return { primary: "Whenever works", secondary: null };
-    }
-    if (timePrecision === "UNSPECIFIED" || !anchorStart) {
-        return { primary: null, secondary: null };
-    }
-
-    const relative = formatRelativeDate(anchorStart);
-    const full = formatFullDate(anchorStart);
-
-    if (timePrecision === "EXACT") {
-        const date = new Date(anchorStart);
-        const timeStr = date.toLocaleTimeString(undefined, {
-            hour: "numeric",
-            minute: "2-digit",
-        });
-        return {
-            primary: relative ? `${relative} at ${timeStr}` : timeStr,
-            secondary: full,
-        };
-    }
-
-    if (anchorEnd) {
-        const endFull = formatFullDate(anchorEnd);
-        return {
-            primary: relative,
-            secondary: full && endFull ? `${full} - ${endFull}` : full,
-        };
-    }
-
-    return { primary: relative, secondary: full };
+    return formatDisplay(fromStorageFields({
+        timePrecision,
+        anchorStart: anchorStart ?? null,
+        anchorEnd: anchorEnd ?? null,
+        timezone: null,
+    }));
 }
 
 function PlanSectionLabel({ children }: { children: React.ReactNode }) {

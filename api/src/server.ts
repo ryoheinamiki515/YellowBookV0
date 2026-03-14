@@ -131,11 +131,11 @@ const SocialPlanConstraints = z
         anchorEnd: z.date().nullable(),
     })
     .superRefine((data, ctx) => {
-        if (data.timePrecision === "NONE") {
+        if (data.timePrecision === "NONE" || data.timePrecision === "UNSPECIFIED") {
             if (data.anchorStart !== null || data.anchorEnd !== null) {
                 ctx.addIssue({
                     code: z.ZodIssueCode.custom,
-                    message: "anchorStart and anchorEnd must be null when timePrecision is NONE",
+                    message: `anchorStart and anchorEnd must be null when timePrecision is ${data.timePrecision}`,
                     path: ["timePrecision"],
                 });
             }
@@ -278,7 +278,7 @@ const CreatePlanSchema = z
         intentText: z.string().min(1).max(2000),
         contextNote: z.string().max(2000).optional(),
         locationText: z.string().max(500).optional(),
-        timePrecision: z.enum(["UNSPECIFIED", "NONE", "WINDOW", "EXACT"]).default("UNSPECIFIED"),
+        timePrecision: z.enum(["UNSPECIFIED", "NONE", "WINDOW", "EXACT"]).default("NONE"),
         anchorStart: z.string().datetime().nullable().optional(),
         anchorEnd: z.string().datetime().nullable().optional(),
         timezone: z.string().max(64).optional(),

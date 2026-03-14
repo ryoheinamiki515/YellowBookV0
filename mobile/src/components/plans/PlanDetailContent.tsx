@@ -54,6 +54,11 @@ import type { SocialPlanTimePrecision } from "../../api/generated/model/socialPl
 import type { Person } from "../../api/generated/model/person";
 import { getInitialColor, useReducedMotionPreference } from "../../lib/planHelpers";
 import {
+    fromStorageFields,
+    toStorageFields,
+    type PlanWhen,
+} from "../../lib/planWhen";
+import {
     invalidatePeopleQueries,
     invalidatePlanQueries,
 } from "../../lib/queryInvalidation";
@@ -178,32 +183,34 @@ function normalizeOptionalPlanText(value: string): string | null {
 }
 
 function normalizePlanDraftForSave(draft: PlanEditableDraft): PlanEditableDraft {
-    const isUnanchored = draft.timePrecision === "NONE";
+    const when = fromStorageFields({
+        timePrecision: draft.timePrecision,
+        anchorStart: draft.anchorStart,
+        anchorEnd: draft.anchorEnd,
+        timezone: draft.timezone,
+    });
+    const normalized = toStorageFields(when);
 
     return {
         ...draft,
         intentText: draft.intentText.trim(),
         locationText: normalizeOptionalPlanText(draft.locationText) ?? "",
         contextNote: normalizeOptionalPlanText(draft.contextNote) ?? "",
-        anchorStart: isUnanchored ? null : draft.anchorStart,
-        anchorEnd: isUnanchored ? null : draft.anchorEnd,
-        timezone: isUnanchored ? null : draft.timezone,
+        ...normalized,
     };
 }
 
 function buildPlanPatchFromDraft(draft: PlanEditableDraft): SocialPlanPatchRequest {
     const normalizedDraft = normalizePlanDraftForSave(draft);
-    const timePrecision = normalizedDraft.timePrecision;
-    const isUnanchored = timePrecision === "NONE";
 
     return {
         intentText: normalizedDraft.intentText,
         locationText: normalizeOptionalPlanText(normalizedDraft.locationText),
         contextNote: normalizeOptionalPlanText(normalizedDraft.contextNote),
-        timePrecision,
-        anchorStart: isUnanchored ? null : normalizedDraft.anchorStart,
-        anchorEnd: isUnanchored ? null : normalizedDraft.anchorEnd,
-        timezone: isUnanchored ? null : normalizedDraft.timezone,
+        timePrecision: normalizedDraft.timePrecision,
+        anchorStart: normalizedDraft.anchorStart,
+        anchorEnd: normalizedDraft.anchorEnd,
+        timezone: normalizedDraft.timezone,
     };
 }
 
@@ -473,11 +480,7 @@ function WhenSheet({
     currentPrecision: SocialPlanTimePrecision;
     currentAnchorStart: string | null | undefined;
     currentAnchorEnd: string | null | undefined;
-    onSave: (data: {
-        timePrecision: SocialPlanTimePrecision;
-        anchorStart: string | null;
-        anchorEnd: string | null;
-    }) => void;
+    onSave: (when: PlanWhen) => void;
 }) {
     const [mode, setMode] = useState<"menu" | "date" | "datetime" | "window">("menu");
     const [pickedDate, setPickedDate] = useState(
@@ -512,28 +515,17 @@ function WhenSheet({
         setMode("window");
     }, []);
 
-    const handleNoDate = useCallback(() => {
-        onSave({
-            timePrecision: "NONE",
-            anchorStart: null,
-            anchorEnd: null,
-        });
+    const handleWhenever = useCallback(() => {
+        onSave({ kind: "whenever" });
         onOpenChange(false);
     }, [onSave, onOpenChange]);
 
     const handleDateConfirm = useCallback(() => {
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone ?? null;
         if (mode === "datetime") {
-            onSave({
-                timePrecision: "EXACT",
-                anchorStart: pickedDate.toISOString(),
-                anchorEnd: null,
-            });
+            onSave({ kind: "exactTime", datetime: pickedDate.toISOString(), timezone: tz });
         } else if (mode === "date") {
-            onSave({
-                timePrecision: "WINDOW",
-                anchorStart: pickedDate.toISOString(),
-                anchorEnd: null,
-            });
+            onSave({ kind: "day", date: pickedDate.toISOString(), timezone: tz });
         }
         onOpenChange(false);
     }, [mode, pickedDate, onSave, onOpenChange]);
@@ -546,11 +538,8 @@ function WhenSheet({
             );
             return;
         }
-        onSave({
-            timePrecision: "WINDOW",
-            anchorStart: windowStart.toISOString(),
-            anchorEnd: windowEnd.toISOString(),
-        });
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone ?? null;
+        onSave({ kind: "window", start: windowStart.toISOString(), end: windowEnd.toISOString(), timezone: tz });
         onOpenChange(false);
     }, [windowStart, windowEnd, onSave, onOpenChange]);
 
@@ -695,7 +684,7 @@ function WhenSheet({
                         </YStack>
                     </Pressable>
 
-                    <Pressable onPress={handleNoDate}>
+                    <Pressable onPress={handleWhenever}>
                         <YStack
                             backgroundColor="$backgroundStrong"
                             padding="$4"
@@ -707,7 +696,7 @@ function WhenSheet({
                                 fontWeight="500"
                                 color="$color"
                             >
-                                No date yet
+                                Whenever
                             </Text>
                             <Text
                                 fontFamily="$body"
@@ -1272,20 +1261,9 @@ export function PlanDetailContent({
     );
 
     const handleDraftWhenChange = useCallback(
-        (data: {
-            timePrecision: SocialPlanTimePrecision;
-            anchorStart: string | null;
-            anchorEnd: string | null;
-        }) => {
-            patchPlanDraft({
-                timePrecision: data.timePrecision,
-                anchorStart: data.anchorStart,
-                anchorEnd: data.anchorEnd,
-                timezone:
-                    data.timePrecision === "NONE"
-                        ? null
-                        : Intl.DateTimeFormat().resolvedOptions().timeZone,
-            });
+        (when: PlanWhen) => {
+            const fields = toStorageFields(when);
+            patchPlanDraft(fields);
         },
         [patchPlanDraft]
     );

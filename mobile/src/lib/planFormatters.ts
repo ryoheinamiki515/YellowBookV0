@@ -1,61 +1,10 @@
 import type { SocialPlan } from "../api/generated/model/socialPlan";
 import { getDaysDiff } from "./planListDerivations";
+import { fromPlan, formatBadge } from "./planWhen";
 import { getSharedPeopleForDisplay } from "./sharedPeople";
 
-export function formatRelativeDate(iso: string | null | undefined): string | null {
-    const diffDays = getDaysDiff(iso);
-    if (diffDays === null) return null;
-
-    if (diffDays === 0) return "Today";
-    if (diffDays === 1) return "Tomorrow";
-    if (diffDays === -1) return "Yesterday";
-    if (diffDays > 1 && diffDays <= 6) return `In ${diffDays} days`;
-    if (diffDays < -1 && diffDays >= -6) {
-        return `${Math.abs(diffDays)} days ago`;
-    }
-
-    const date = new Date(iso!);
-    return date.toLocaleDateString(undefined, {
-        month: "short",
-        day: "numeric",
-    });
-}
-
 export function formatWhenBadge(plan: SocialPlan): string | null {
-    if (plan.timePrecision === "NONE") return "Whenever";
-    if (plan.timePrecision === "UNSPECIFIED" || !plan.anchorStart) return null;
-
-    const start = formatRelativeDate(plan.anchorStart);
-    if (!start) return null;
-
-    if (plan.timePrecision === "EXACT") {
-        const date = new Date(plan.anchorStart);
-        const timeStr = date.toLocaleTimeString(undefined, {
-            hour: "numeric",
-            minute: "2-digit",
-        });
-        return `${start}, ${timeStr}`;
-    }
-
-    if (plan.anchorEnd) {
-        const endDate = new Date(plan.anchorEnd);
-        const startDate = new Date(plan.anchorStart);
-        if (
-            startDate.getFullYear() === endDate.getFullYear() &&
-            startDate.getMonth() === endDate.getMonth() &&
-            startDate.getDate() === endDate.getDate()
-        ) {
-            return start;
-        }
-
-        const endStr = endDate.toLocaleDateString(undefined, {
-            month: "short",
-            day: "numeric",
-        });
-        return `${start} — ${endStr}`;
-    }
-
-    return start;
+    return formatBadge(fromPlan(plan));
 }
 
 export function participantNames(plan: SocialPlan): string | null {

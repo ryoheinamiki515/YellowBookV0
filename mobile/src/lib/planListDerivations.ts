@@ -1,4 +1,12 @@
 import type { SocialPlan } from "../api/generated/model/socialPlan";
+import {
+    fromPlan,
+    isDefined,
+    isBeforeToday,
+    getTimeSection as getWhenTimeSection,
+    getDaysDiffFromIso,
+    type OpenPlanTimeSection,
+} from "./planWhen";
 
 export type PlanAttentionReason =
     | "missing-people"
@@ -14,7 +22,7 @@ export type PlanQuickActionKind =
     | "mark-done"
     | "let-go";
 
-export type OpenPlanTimeSection = "Coming Up" | "This Week" | "Later" | "Someday";
+export type { OpenPlanTimeSection };
 export type OpenPlanSection = "Needs Attention" | OpenPlanTimeSection;
 
 export type DerivedPlanListItem = {
@@ -87,38 +95,28 @@ function stableSort<T>(items: T[], compare: (a: T, b: T) => number): T[] {
         .map((entry) => entry.item);
 }
 
-function getPlanDueAnchor(plan: SocialPlan): string | null | undefined {
-    return plan.anchorEnd ?? plan.anchorStart;
-}
-
 function hasMissingPeople(plan: SocialPlan): boolean {
     return plan.participants.length === 0;
 }
 
 function hasMissingDate(plan: SocialPlan): boolean {
-    return !plan.anchorStart && plan.timePrecision !== "NONE";
+    const when = fromPlan(plan);
+    return when.kind === "unspecified";
 }
 
 export function getDaysDiff(iso: string | null | undefined): number | null {
-    if (!iso) return null;
-    const date = new Date(iso);
-    if (Number.isNaN(date.getTime())) return null;
-    const now = new Date();
-    return Math.round((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    return getDaysDiffFromIso(iso);
 }
 
 export function isPastDueOpenPlan(plan: SocialPlan): boolean {
     if (plan.state !== "OPEN") return false;
-    const dueIso = getPlanDueAnchor(plan);
-    const diff = getDaysDiff(dueIso);
-    return diff !== null && diff < 0;
+    return isBeforeToday(fromPlan(plan));
 }
 
 export function isStaleOpenPlan(plan: SocialPlan): boolean {
     if (plan.state !== "OPEN") return false;
-    const lacksAnchoredTime = !plan.anchorStart || plan.timePrecision === "UNSPECIFIED";
-    if (!lacksAnchoredTime) return false;
-    const diff = getDaysDiff(plan.updatedAt);
+    if (isDefined(fromPlan(plan))) return false;
+    const diff = getDaysDiffFromIso(plan.updatedAt);
     return diff !== null && diff <= -STALE_OPEN_THRESHOLD_DAYS;
 }
 
@@ -137,13 +135,7 @@ export function getAttentionReason(plan: SocialPlan): PlanAttentionReason | null
 }
 
 export function getOpenPlanTimeSection(plan: SocialPlan): OpenPlanTimeSection {
-    const days = getDaysDiff(plan.anchorStart);
-
-    if (days === null) return "Someday";
-    if (days < 0) return "Later";
-    if (days <= 1) return "Coming Up";
-    if (days <= 7) return "This Week";
-    return "Later";
+    return getWhenTimeSection(fromPlan(plan));
 }
 
 export function getQuickActionsForAttention(
@@ -160,9 +152,7 @@ export function getQuickActionsForAttention(
         case "past-due":
             return ["focus-when", "let-go"];
         case "stale-open":
-            return !plan.anchorStart || plan.timePrecision === "UNSPECIFIED"
-                ? ["focus-when"]
-                : ["open"];
+            return !isDefined(fromPlan(plan)) ? ["focus-when"] : ["open"];
         default:
             return [];
     }

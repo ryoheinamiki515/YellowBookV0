@@ -6,70 +6,30 @@ import type { SocialPlan } from "../../api/generated/model/socialPlan";
 import { DisclosureChevron } from "../DisclosureChevron";
 import {
     getAttentionReason,
-    getDaysDiff,
     type PlanAttentionReason,
 } from "../../lib/planListDerivations";
+
 import { getInitialColor } from "../../lib/planHelpers";
+import {
+    fromPlan,
+    formatBadge,
+    getBadgeTone,
+    getDaysDiffFromIso,
+    getStartAnchor,
+    type WhenBadgeTone,
+} from "../../lib/planWhen";
 import {
     PlanQuickActionRow,
     type PlanQuickActionRowAction,
 } from "./PlanQuickActionRow";
 import { getSharedPeopleForDisplay } from "../../lib/sharedPeople";
 
-function formatRelativeDate(iso: string | null | undefined): string | null {
-    const diffDays = getDaysDiff(iso);
-    if (diffDays === null) return null;
-
-    if (diffDays === 0) return "Today";
-    if (diffDays === 1) return "Tomorrow";
-    if (diffDays === -1) return "Yesterday";
-    if (diffDays > 1 && diffDays <= 6) return `In ${diffDays} days`;
-    if (diffDays < -1 && diffDays >= -6) {
-        return `${Math.abs(diffDays)} days ago`;
-    }
-
-    const date = new Date(iso!);
-    return date.toLocaleDateString(undefined, {
-        month: "short",
-        day: "numeric",
-    });
+function formatWhenBadge(plan: SocialPlan): string | null {
+    return formatBadge(fromPlan(plan));
 }
 
-function formatWhenBadge(plan: SocialPlan): string | null {
-    if (plan.timePrecision === "NONE") return "Whenever";
-    if (plan.timePrecision === "UNSPECIFIED" || !plan.anchorStart) return null;
-
-    const start = formatRelativeDate(plan.anchorStart);
-    if (!start) return null;
-
-    if (plan.timePrecision === "EXACT") {
-        const date = new Date(plan.anchorStart);
-        const timeStr = date.toLocaleTimeString(undefined, {
-            hour: "numeric",
-            minute: "2-digit",
-        });
-        return `${start}, ${timeStr}`;
-    }
-
-    if (plan.anchorEnd) {
-        const endDate = new Date(plan.anchorEnd);
-        const startDate = new Date(plan.anchorStart);
-        if (
-            startDate.getFullYear() === endDate.getFullYear() &&
-            startDate.getMonth() === endDate.getMonth() &&
-            startDate.getDate() === endDate.getDate()
-        ) {
-            return start;
-        }
-
-        const endStr = endDate.toLocaleDateString(undefined, {
-            month: "short",
-            day: "numeric",
-        });
-        return `${start} — ${endStr}`;
-    }
-
-    return start;
+function getWhenBadgeTone(plan: SocialPlan): WhenBadgeTone {
+    return getBadgeTone(fromPlan(plan));
 }
 
 function participantNames(plan: SocialPlan): string | null {
@@ -108,7 +68,7 @@ function planSubtitleText(
 
 function formatRelativePastLabel(iso: string | null | undefined): string | null {
     if (!iso) return null;
-    const diffDays = getDaysDiff(iso);
+    const diffDays = getDaysDiffFromIso(iso);
     if (diffDays === null) return null;
 
     if (diffDays === 0) return "today";
@@ -138,7 +98,7 @@ function planLifecycleText(plan: SocialPlan): string | null {
         !isNaN(updatedAt) &&
         Math.abs(updatedAt - createdAt) < 60 * 1000;
 
-    if (getDaysDiff(plan.updatedAt) === 0) return null;
+    if (getDaysDiffFromIso(plan.updatedAt) === 0) return null;
 
     return `${justCreated ? "Added" : "Updated"} ${relativeLabel}`;
 }
@@ -212,19 +172,6 @@ function InfoPill({
             </Text>
         </XStack>
     );
-}
-
-type WhenBadgeTone = "today" | "tomorrow" | "soon" | "pastDue" | "neutral";
-
-function getWhenBadgeTone(plan: SocialPlan): WhenBadgeTone {
-    if (plan.timePrecision === "NONE") return "neutral";
-    const days = getDaysDiff(plan.anchorStart);
-    if (days === null) return "neutral";
-    if (days < 0) return "pastDue";
-    if (days === 0) return "today";
-    if (days === 1) return "tomorrow";
-    if (days <= 7) return "soon";
-    return "neutral";
 }
 
 const whenBadgeToneStyles: Record<WhenBadgeTone, { bg: string; text: string }> = {
@@ -321,7 +268,7 @@ function getAccentColor(plan: SocialPlan): string {
     if (plan.state === "DONE" || plan.state === "DROPPED" || plan.state === "ARCHIVED") {
         return "transparent";
     }
-    const days = getDaysDiff(plan.anchorStart);
+    const days = getDaysDiffFromIso(getStartAnchor(fromPlan(plan)));
     if (days === null) return "#E2D9CC";
     if (days <= 1) return "#F5C842";
     if (days <= 7) return "#D4956A";

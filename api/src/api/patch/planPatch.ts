@@ -19,9 +19,9 @@ export function validateTimeSemantics(final: {
     anchorStart: Date | null;
     anchorEnd: Date | null;
 }) {
-    if (final.timePrecision === "NONE") {
+    if (final.timePrecision === "NONE" || final.timePrecision === "UNSPECIFIED") {
         if (final.anchorStart || final.anchorEnd) {
-            throw Object.assign(new Error("Anchors must be null when timePrecision is NONE."), {
+            throw Object.assign(new Error("Anchors must be null when timePrecision is NONE or UNSPECIFIED."), {
                 status: 400,
                 expose: true,
             });

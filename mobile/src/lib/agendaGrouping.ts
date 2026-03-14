@@ -6,6 +6,7 @@ import {
     type PlanAttentionReason,
     type PlanQuickActionKind,
 } from "./planListDerivations";
+import { fromPlan, getDateKey } from "./planWhen";
 
 export type AgendaPlanRowData = {
     plan: SocialPlan;
@@ -56,10 +57,7 @@ function getDayLabel(dateKey: string, today: Date): string {
 }
 
 function getPlanDateKey(plan: SocialPlan): string | null {
-    if (plan.timePrecision === "NONE") return null;
-    const iso = plan.anchorStart ?? plan.anchorEnd;
-    if (!iso) return null;
-    return getCalendarDateKey(iso);
+    return getDateKey(fromPlan(plan));
 }
 
 function toRowData(plan: SocialPlan, isShared: boolean): AgendaPlanRowData {
