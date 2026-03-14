@@ -1,12 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import {
-    Animated,
-    Easing,
-    Platform,
-} from "react-native";
+import { Platform, SectionList, type SectionListData } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
-import { LinearGradient } from "@tamagui/linear-gradient";
 import { YStack, XStack, Text, View, useMedia } from "tamagui";
 import { PageContainer } from "../../src/components/PageContainer";
 import { PlanDetailContent } from "../../src/components/plans/PlanDetailContent";
@@ -18,60 +13,37 @@ import {
     usePatchPlan,
 } from "../../src/api/generated/plans/plans";
 import type { SocialPlan } from "../../src/api/generated/model/socialPlan";
-import type { SocialPlanState } from "../../src/api/generated/model/socialPlanState";
-import { PlanCard } from "../../src/components/plans/PlanCard";
 import type { PlanQuickActionRowAction } from "../../src/components/plans/PlanQuickActionRow";
 import { CreatePlanSheet } from "../../src/components/plans/CreatePlanSheet";
-import { PlansSectionHeader } from "../../src/components/plans/PlansSectionHeader";
-import { TodayDateChip } from "../../src/components/DateChip";
+import { AgendaDayHeader } from "../../src/components/plans/AgendaDayHeader";
+import { AgendaPlanRow } from "../../src/components/plans/AgendaPlanRow";
+import { SwipeableRow } from "../../src/components/plans/SwipeableRow";
+import { AgendaAttentionBanner } from "../../src/components/plans/AgendaAttentionBanner";
+import { AgendaEmptyState } from "../../src/components/plans/AgendaEmptyState";
+import { AgendaSkeletonRows } from "../../src/components/plans/AgendaSkeletonRows";
+import { FloatingActionButton } from "../../src/components/plans/FloatingActionButton";
 import { useAuth } from "../../src/context/AuthContext";
-import {
-    buildFilteredSectionItems,
-    type DerivedPlanListItem,
-    type PlanListSectionItem,
-    type PlanQuickActionKind,
+import type {
+    DerivedPlanListItem,
+    PlanQuickActionKind,
 } from "../../src/lib/planListDerivations";
 import { useReducedMotionPreference } from "../../src/lib/planHelpers";
 import {
     getPlanQuickActionLabel,
     getPlanQuickActionTone,
 } from "../../src/lib/planQuickActions";
+import { planLifecycleText } from "../../src/lib/planFormatters";
 import { invalidatePlanQueries } from "../../src/lib/queryInvalidation";
+import {
+    buildAgendaSections,
+    getAttentionCount,
+    findFirstAttentionIndex,
+    type AgendaSection,
+    type AgendaPlanRowData,
+} from "../../src/lib/agendaGrouping";
 import { useKeyboardShortcut } from "../../src/hooks/useKeyboardShortcut";
 import { useDesktopResizableSplitView } from "../../src/hooks/useDesktopResizableSplitView";
 import { useRefreshOnVisible } from "../../src/hooks/useRefreshOnVisible";
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function getGreeting(): string {
-    const hour = new Date().getHours();
-    if (hour < 12) return "Good morning";
-    if (hour < 17) return "Good afternoon";
-    return "Good evening";
-}
-
-function planCountLabel(count: number, filterLabel: string): string {
-    if (count === 0) return "";
-    if (filterLabel === "Done") {
-        return count === 1 ? "1 completed" : `${count} completed`;
-    }
-    if (filterLabel === "Open") {
-        return count === 1 ? "1 open plan" : `${count} open plans`;
-    }
-    return count === 1 ? "1 plan" : `${count} plans`;
-}
-
-// ---------------------------------------------------------------------------
-// State filter chips
-// ---------------------------------------------------------------------------
-
-const STATE_FILTERS: { label: string; value: SocialPlanState[] }[] = [
-    { label: "All", value: ["OPEN", "DONE", "DROPPED"] },
-    { label: "Open", value: ["OPEN"] },
-    { label: "Done", value: ["DONE"] },
-];
 
 type PlanDetailFocusTarget = "when" | "people";
 
@@ -79,255 +51,6 @@ const DESKTOP_LIST_DEFAULT_WIDTH = 400;
 const DESKTOP_LIST_MIN_WIDTH = 280;
 const DESKTOP_DETAIL_MIN_WIDTH = 360;
 const DESKTOP_SPLITTER_WIDTH = 16;
-
-// ---------------------------------------------------------------------------
-// Skeleton loading cards — multi-shape
-// ---------------------------------------------------------------------------
-
-function SkeletonCards() {
-    const pulseAnim = useRef(new Animated.Value(0.4)).current;
-
-    useEffect(() => {
-        Animated.loop(
-            Animated.sequence([
-                Animated.timing(pulseAnim, {
-                    toValue: 0.8,
-                    duration: 900,
-                    easing: Easing.inOut(Easing.ease),
-                    useNativeDriver: Platform.OS !== "web",
-                }),
-                Animated.timing(pulseAnim, {
-                    toValue: 0.4,
-                    duration: 900,
-                    easing: Easing.inOut(Easing.ease),
-                    useNativeDriver: Platform.OS !== "web",
-                }),
-            ])
-        ).start();
-    }, []);
-
-    const skeletonColor = "#EDE7DC";
-
-    return (
-        <YStack flex={1} paddingHorizontal="$6" paddingTop="$4" gap="$3">
-            {/* Hero skeleton */}
-            <Animated.View
-                style={{
-                    opacity: pulseAnim,
-                    borderRadius: 16,
-                    backgroundColor: skeletonColor,
-                    padding: 20,
-                    height: 140,
-                }}
-            >
-                <View width="75%" height={18} borderRadius={9} backgroundColor="#E2D9CC" />
-                <View width="50%" height={14} borderRadius={7} backgroundColor="#E2D9CC" marginTop={12} />
-                <XStack marginTop={14} gap={-8}>
-                    {[0, 1, 2].map((i) => (
-                        <View
-                            key={i}
-                            width={28}
-                            height={28}
-                            borderRadius={14}
-                            backgroundColor="#E2D9CC"
-                            borderWidth={2}
-                            borderColor={skeletonColor}
-                        />
-                    ))}
-                </XStack>
-                <View width="30%" height={10} borderRadius={5} backgroundColor="#E2D9CC" marginTop={12} />
-            </Animated.View>
-
-            {/* Compact skeletons */}
-            {[72, 68].map((height, i) => (
-                <Animated.View
-                    key={i}
-                    style={{
-                        opacity: pulseAnim,
-                        height,
-                        borderRadius: 14,
-                        backgroundColor: skeletonColor,
-                        padding: 14,
-                        flexDirection: "row",
-                        alignItems: "center",
-                    }}
-                >
-                    <View flex={1}>
-                        <View width="60%" height={14} borderRadius={7} backgroundColor="#E2D9CC" />
-                        <XStack marginTop={10} gap={-8}>
-                            {[0, 1].map((j) => (
-                                <View
-                                    key={j}
-                                    width={24}
-                                    height={24}
-                                    borderRadius={12}
-                                    backgroundColor="#E2D9CC"
-                                    borderWidth={2}
-                                    borderColor={skeletonColor}
-                                />
-                            ))}
-                        </XStack>
-                    </View>
-                    <View width={48} height={28} borderRadius={14} backgroundColor="#E2D9CC" />
-                </Animated.View>
-            ))}
-        </YStack>
-    );
-}
-
-// ---------------------------------------------------------------------------
-// Empty state — breathing animation on decorative circles
-// ---------------------------------------------------------------------------
-
-function EmptyState({
-    filterLabel,
-    onAddPlan,
-    reducedMotion,
-}: {
-    filterLabel: string;
-    onAddPlan: () => void;
-    reducedMotion: boolean;
-}) {
-    const isDoneFilter = filterLabel === "Done";
-    const breatheAnim = useRef(new Animated.Value(1)).current;
-
-    useEffect(() => {
-        if (reducedMotion) return;
-        Animated.loop(
-            Animated.sequence([
-                Animated.timing(breatheAnim, {
-                    toValue: 1.08,
-                    duration: 2000,
-                    easing: Easing.inOut(Easing.ease),
-                    useNativeDriver: Platform.OS !== "web",
-                }),
-                Animated.timing(breatheAnim, {
-                    toValue: 1,
-                    duration: 2000,
-                    easing: Easing.inOut(Easing.ease),
-                    useNativeDriver: Platform.OS !== "web",
-                }),
-            ])
-        ).start();
-    }, [reducedMotion]);
-
-    return (
-        <YStack
-            flex={1}
-            justifyContent="center"
-            alignItems="center"
-            paddingHorizontal="$8"
-        >
-            {/* Decorative element — layered circles with breathing */}
-            <Animated.View
-                style={{
-                    marginBottom: 24,
-                    width: 80,
-                    height: 80,
-                    transform: [{ scale: breatheAnim }],
-                }}
-            >
-                <View position="relative" width={80} height={80}>
-                    <View
-                        position="absolute"
-                        top={0}
-                        left={8}
-                        width={64}
-                        height={64}
-                        borderRadius={32}
-                        backgroundColor="$accentBackground"
-                        opacity={0.15}
-                    />
-                    <View
-                        position="absolute"
-                        bottom={0}
-                        right={8}
-                        width={52}
-                        height={52}
-                        borderRadius={26}
-                        backgroundColor="$accentBackground"
-                        opacity={0.25}
-                    />
-                    <View
-                        position="absolute"
-                        top={16}
-                        right={0}
-                        width={36}
-                        height={36}
-                        borderRadius={18}
-                        backgroundColor="$accentBackground"
-                        opacity={0.4}
-                    />
-                </View>
-            </Animated.View>
-
-            <Text
-                fontFamily="$heading"
-                fontSize="$8"
-                color="$color"
-                textAlign="center"
-                marginBottom="$2"
-            >
-                {isDoneFilter
-                    ? "Nothing here yet"
-                    : "What are you looking forward to?"}
-            </Text>
-
-            <Text
-                fontFamily="$body"
-                fontSize="$5"
-                color="$colorSecondary"
-                textAlign="center"
-                lineHeight="$6"
-                marginBottom="$6"
-            >
-                {isDoneFilter
-                    ? "Plans you complete will show up here."
-                    : "Jot down a plan with a friend — lunch,\na walk, a call. Keep it simple."}
-            </Text>
-
-            {!isDoneFilter && (
-                <YStack
-                    height="$11"
-                    paddingHorizontal="$6"
-                    borderRadius="$6"
-                    backgroundColor="$accentBackground"
-                    justifyContent="center"
-                    alignItems="center"
-                    onPress={onAddPlan}
-                    pressStyle={{
-                        scale: 0.97,
-                        backgroundColor: "$accentBackgroundPress",
-                    }}
-                    // @ts-ignore
-                    animation="fast"
-                    accessibilityRole="button"
-                    accessibilityLabel="Add your first plan"
-                    cursor="pointer"
-                    // @ts-ignore
-                    shadowColor="#B8860B"
-                    shadowOffset={{ width: 0, height: 3 }}
-                    shadowOpacity={0.12}
-                    shadowRadius={8}
-                    elevation={3}
-                >
-                    <Text
-                        fontFamily="$body"
-                        fontSize="$4"
-                        fontWeight="600"
-                        color="$accentColor"
-                    >
-                        Add Your First Plan
-                    </Text>
-                </YStack>
-            )}
-        </YStack>
-    );
-}
-
-// ---------------------------------------------------------------------------
-// Screen
-// ---------------------------------------------------------------------------
 
 export default function PlansScreen() {
     const { signOut } = useAuth();
@@ -338,16 +61,19 @@ export default function PlansScreen() {
     const queryClient = useQueryClient();
     const patchPlan = usePatchPlan();
     const reducedMotion = useReducedMotionPreference();
-    const useNativeDriver = Platform.OS !== "web";
 
-    const [activeFilter, setActiveFilter] = useState(1); // Default to "Open"
+    const [viewMode, setViewMode] = useState<"open" | "done">("open");
     const [sheetOpen, setSheetOpen] = useState(false);
     const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
     const [selectedPlanFocus, setSelectedPlanFocus] = useState<PlanDetailFocusTarget | undefined>(undefined);
+    const [expandedPlanIds, setExpandedPlanIds] = useState<Set<string>>(new Set());
     const [pendingListMutation, setPendingListMutation] = useState<{
         planId: string;
         kind: PlanQuickActionKind;
     } | null>(null);
+
+    const sectionListRef = useRef<SectionList<AgendaPlanRowData, AgendaSection>>(null);
+
     const {
         listWidth: desktopListWidth,
         isResizing: isDesktopResizing,
@@ -367,7 +93,7 @@ export default function PlansScreen() {
         isError,
         isRefetching,
     } = useListPlans({
-        state: STATE_FILTERS[activeFilter].value,
+        state: viewMode === "open" ? ["OPEN"] : ["DONE", "DROPPED"],
         sort: "-updatedAt",
         scope: "owned",
     });
@@ -397,84 +123,12 @@ export default function PlansScreen() {
             ? (subscribedPlansResponse.data as { data: SocialPlan[] }).data
             : [];
 
-    // Group plans into section items
-    const sectionItems = useMemo<PlanListSectionItem[]>(() => {
-        const owned = buildFilteredSectionItems(plans, STATE_FILTERS[activeFilter].label);
-        if (subscribedPlans.length === 0) return owned;
+    const agendaSections = useMemo<AgendaSection[]>(() => {
+        if (viewMode !== "open") return [];
+        return buildAgendaSections(plans, subscribedPlans);
+    }, [plans, subscribedPlans, viewMode]);
 
-        const sharedSection: PlanListSectionItem[] = [
-            {
-                type: "section-header",
-                key: "section-shared",
-                title: "Shared with you",
-                count: subscribedPlans.length,
-            },
-            ...subscribedPlans.map((plan, i): PlanListSectionItem => ({
-                type: "plan",
-                key: `subscribed-${plan.id}`,
-                derived: {
-                    plan,
-                    isHeroCandidate: false,
-                    attentionReason: null,
-                    quickActions: [],
-                    section: null,
-                    sortKey: `shared:${i.toString().padStart(3, "0")}`,
-                },
-            })),
-        ];
-
-        return [...owned, ...sharedSection];
-    }, [plans, subscribedPlans, activeFilter]);
-
-    // Scroll-based header compression (disabled on desktop)
-    const scrollY = useRef(new Animated.Value(0)).current;
-    const greetingOpacity = hasDesktopSidebar
-        ? 1
-        : scrollY.interpolate({
-              inputRange: [0, 50],
-              outputRange: [1, 0],
-              extrapolate: "clamp",
-          });
-    const headerScale = hasDesktopSidebar
-        ? 1
-        : scrollY.interpolate({
-              inputRange: [0, 80],
-              outputRange: [1, 0.92],
-              extrapolate: "clamp",
-          });
-    const headerTranslateY = hasDesktopSidebar
-        ? 0
-        : scrollY.interpolate({
-              inputRange: [0, 80],
-              outputRange: [0, -6],
-              extrapolate: "clamp",
-          });
-
-    // Header entrance animation
-    const headerFade = useRef(
-        new Animated.Value(reducedMotion ? 1 : 0)
-    ).current;
-    const headerSlide = useRef(
-        new Animated.Value(reducedMotion ? 0 : -12)
-    ).current;
-
-    useEffect(() => {
-        if (reducedMotion) return;
-        Animated.parallel([
-            Animated.timing(headerFade, {
-                toValue: 1,
-                duration: 350,
-                easing: Easing.out(Easing.cubic),
-                useNativeDriver,
-            }),
-            Animated.timing(headerSlide, {
-                toValue: 0,
-                duration: 350,
-                easing: Easing.out(Easing.cubic),
-                useNativeDriver,
-            }),
-        ]).start();
-    }, []);
+    const attentionCount = useMemo(() => getAttentionCount(agendaSections), [agendaSections]);
 
     const handleRefresh = useCallback(() => {
         void refreshPlans();
@@ -512,13 +166,6 @@ export default function PlansScreen() {
             }
         },
         [router, hasDesktopSidebar]
-    );
-
-    const handlePlanPress = useCallback(
-        (plan: SocialPlan) => {
-            handleOpenPlan(plan.id);
-        },
-        [handleOpenPlan]
     );
 
     const mutatePlanStateFromList = useCallback(
@@ -562,48 +209,45 @@ export default function PlansScreen() {
     );
 
     const handleQuickAction = useCallback(
-        (derived: DerivedPlanListItem, kind: PlanQuickActionKind) => {
+        (plan: SocialPlan, kind: PlanQuickActionKind, attentionReason: any) => {
             switch (kind) {
                 case "focus-people":
-                    handleOpenPlan(derived.plan.id, "people");
+                    handleOpenPlan(plan.id, "people");
                     return;
                 case "focus-when":
-                    handleOpenPlan(derived.plan.id, "when");
+                    handleOpenPlan(plan.id, "when");
                     return;
                 case "let-go":
-                    handleLetGoFromList(derived.plan.id);
+                    handleLetGoFromList(plan.id);
                     return;
                 case "mark-done":
-                    handleMarkDoneFromList(derived.plan.id);
+                    handleMarkDoneFromList(plan.id);
                     return;
                 case "open":
                 default:
-                    handleOpenPlan(derived.plan.id);
+                    handleOpenPlan(plan.id);
             }
         },
         [handleOpenPlan, handleLetGoFromList, handleMarkDoneFromList]
     );
 
     const buildQuickActionItems = useCallback(
-        (derived: DerivedPlanListItem): PlanQuickActionRowAction[] => {
-            if (derived.quickActions.length === 0) return [];
+        (row: AgendaPlanRowData): PlanQuickActionRowAction[] => {
+            if (row.quickActions.length === 0) return [];
 
             const isBusyPlan =
-                patchPlan.isPending && pendingListMutation?.planId === derived.plan.id;
+                patchPlan.isPending && pendingListMutation?.planId === row.plan.id;
 
-            return derived.quickActions.map((kind) => {
+            return row.quickActions.map((kind) => {
                 const isLoading =
                     isBusyPlan && pendingListMutation?.kind === kind;
-                const label = getPlanQuickActionLabel(
-                    kind,
-                    derived.attentionReason
-                );
+                const label = getPlanQuickActionLabel(kind, row.attentionReason);
                 return {
-                    key: `${derived.plan.id}-${kind}`,
+                    key: `${row.plan.id}-${kind}`,
                     label,
                     tone: getPlanQuickActionTone(kind),
-                    accessibilityLabel: `${label} for ${derived.plan.intentText}`,
-                    onPress: () => handleQuickAction(derived, kind),
+                    accessibilityLabel: `${label} for ${row.plan.intentText}`,
+                    onPress: () => handleQuickAction(row.plan, kind, row.attentionReason),
                     disabled: isBusyPlan,
                     loading: isLoading,
                 };
@@ -612,343 +256,271 @@ export default function PlansScreen() {
         [handleQuickAction, patchPlan.isPending, pendingListMutation]
     );
 
-    // Track card index for staggered animations (excluding section headers)
-    const cardIndexRef = useRef(0);
-
-    const renderSectionItem = useCallback(
-        ({ item }: { item: PlanListSectionItem }) => {
-            if (item.type === "section-header") {
-                cardIndexRef.current = 0;
-                return <PlansSectionHeader title={item.title} count={item.count} />;
+    const handleToggleExpand = useCallback((planId: string) => {
+        setExpandedPlanIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(planId)) {
+                next.delete(planId);
+            } else {
+                next.add(planId);
             }
+            return next;
+        });
+    }, []);
 
-            const derived = item.derived;
-            const plan = derived.plan;
-            const quickActions = buildQuickActionItems(derived);
+    const handleNavigate = useCallback(
+        (planId: string) => {
+            handleOpenPlan(planId);
+        },
+        [handleOpenPlan]
+    );
 
-            if (derived.isHeroCandidate) {
-                return (
-                    <PlanCard
-                        plan={plan}
-                        onPress={handlePlanPress}
-                        variant="hero"
-                        reducedMotion={reducedMotion}
-                        attentionReason={derived.attentionReason}
-                        quickActions={quickActions}
-                    />
-                );
-            }
+    const handleAttentionBannerPress = useCallback(() => {
+        const target = findFirstAttentionIndex(agendaSections);
+        if (target && sectionListRef.current) {
+            sectionListRef.current.scrollToLocation({
+                sectionIndex: target.sectionIndex,
+                itemIndex: target.itemIndex,
+                animated: true,
+            });
+        }
+    }, [agendaSections]);
 
-            const idx = cardIndexRef.current++;
-            return (
-                <PlanCard
-                    plan={plan}
-                    onPress={handlePlanPress}
-                    variant="compact"
-                    index={idx}
+    useKeyboardShortcut({ key: "n" }, () => setSheetOpen(true));
+
+    const toggleViewMode = useCallback(() => {
+        setViewMode((v) => (v === "open" ? "done" : "open"));
+        setExpandedPlanIds(new Set());
+    }, []);
+
+    const renderSectionHeader = useCallback(
+        ({ section }: { section: SectionListData<AgendaPlanRowData, AgendaSection> }) => (
+            <AgendaDayHeader
+                label={section.label}
+                isToday={section.isToday}
+                count={section.data.length}
+            />
+        ),
+        []
+    );
+
+    const itemIndexRef = useRef(0);
+    // Reset index counter when sections change
+    useEffect(() => { itemIndexRef.current = 0; }, [agendaSections]);
+
+    const renderItem = useCallback(
+        ({ item }: { item: AgendaPlanRowData }) => {
+            const idx = itemIndexRef.current++;
+            const row = (
+                <AgendaPlanRow
+                    plan={item.plan}
+                    attentionReason={item.attentionReason}
+                    isShared={item.isShared}
+                    isExpanded={expandedPlanIds.has(item.plan.id)}
+                    onToggleExpand={handleToggleExpand}
+                    onNavigate={handleNavigate}
+                    quickActionItems={buildQuickActionItems(item)}
                     reducedMotion={reducedMotion}
-                    attentionReason={derived.attentionReason}
-                    quickActions={quickActions}
+                    index={idx}
                 />
             );
-        },
-        [buildQuickActionItems, handlePlanPress, reducedMotion]
-    );
 
-    const keyExtractor = useCallback((item: PlanListSectionItem) => item.key, []);
+            if (Platform.OS === "web") return row;
 
-    const countLabel = planCountLabel(
-        plans.length,
-        STATE_FILTERS[activeFilter].label
-    );
-
-    const onScroll = useMemo(
-        () =>
-            Animated.event(
-                [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-                { useNativeDriver }
-            ),
-        [scrollY, useNativeDriver]
-    );
-
-    const listContent = (
-            <>
-                {/* ---- Header ---- */}
-                <Animated.View
-                    style={{
-                        opacity: headerFade,
-                        transform: [
-                            { translateY: headerSlide },
-                            { translateY: headerTranslateY },
-                            { scale: headerScale },
-                        ],
-                        zIndex: 1,
-                    }}
+            return (
+                <SwipeableRow
+                    onSwipeRight={() => handleMarkDoneFromList(item.plan.id)}
+                    onSwipeLeft={() => handleLetGoFromList(item.plan.id)}
+                    reducedMotion={reducedMotion}
                 >
-                    <YStack paddingHorizontal="$6" paddingTop="$4" paddingBottom="$1">
-                        <XStack
-                            justifyContent="space-between"
-                            alignItems="flex-start"
-                        >
-                            <YStack flex={1}>
-                                <Animated.View style={{ opacity: greetingOpacity }}>
-                                    <Text
-                                        fontFamily="$body"
-                                        fontSize="$3"
-                                        color="$colorTertiary"
-                                        marginBottom="$0.5"
-                                    >
-                                        {getGreeting()}
-                                    </Text>
-                                </Animated.View>
-                                <Text
-                                    fontFamily="$heading"
-                                    fontSize="$9"
-                                    color="$color"
-                                >
-                                    Your Plans
-                                </Text>
-                            </YStack>
+                    {row}
+                </SwipeableRow>
+            );
+        },
+        [
+            expandedPlanIds,
+            handleToggleExpand,
+            handleNavigate,
+            buildQuickActionItems,
+            reducedMotion,
+            handleMarkDoneFromList,
+            handleLetGoFromList,
+        ]
+    );
 
-                            {!hasDesktopSidebar && (
-                                <XStack alignItems="center" gap="$2">
-                                    <View
-                                        width={36}
-                                        height={36}
-                                        borderRadius={18}
-                                        backgroundColor="$colorTertiary"
-                                        justifyContent="center"
-                                        alignItems="center"
-                                        onPress={() => router.push("/settings" as any)}
-                                        pressStyle={{ opacity: 0.7, scale: 0.95 }}
-                                        accessibilityRole="button"
-                                        accessibilityLabel="Settings"
-                                        cursor="pointer"
-                                    >
-                                        <Text
-                                            fontFamily="$body"
-                                            fontSize={14}
-                                            fontWeight="600"
-                                            color="white"
-                                        >
-                                            Y
-                                        </Text>
-                                    </View>
-                                </XStack>
-                            )}
-                        </XStack>
+    const renderDoneItem = useCallback(
+        ({ item }: { item: SocialPlan }) => (
+            <AgendaPlanRow
+                plan={item}
+                attentionReason={null}
+                isShared={false}
+                isExpanded={false}
+                onToggleExpand={handleToggleExpand}
+                onNavigate={handleNavigate}
+                quickActionItems={[]}
+                reducedMotion={reducedMotion}
+                isDoneView
+            />
+        ),
+        [handleToggleExpand, handleNavigate, reducedMotion]
+    );
 
-                        {/* Header meta */}
-                        <Animated.View style={{ opacity: greetingOpacity }}>
-                            <XStack
-                                alignItems="center"
-                                gap="$2"
-                                marginTop="$1"
-                                flexWrap="wrap"
-                            >
-                                <TodayDateChip />
-                                {!isLoading && countLabel ? (
-                                    <Text
-                                        fontFamily="$body"
-                                        fontSize="$2"
-                                        color="$colorTertiary"
-                                    >
-                                        {countLabel}
-                                    </Text>
-                                ) : null}
-                            </XStack>
-                        </Animated.View>
-                    </YStack>
+    const keyExtractor = useCallback((item: AgendaPlanRowData) => item.plan.id, []);
+    const doneKeyExtractor = useCallback((item: SocialPlan) => item.id, []);
 
-                    {/* ---- Segmented filter control ---- */}
-                    <XStack
-                        paddingHorizontal="$6"
-                        paddingTop="$2"
-                        paddingBottom="$3"
-                    >
-                        <XStack
-                            backgroundColor="$backgroundStrong"
-                            borderRadius="$12"
-                            padding={2}
-                        >
-                            {STATE_FILTERS.map((filter, i) => {
-                                const isActive = i === activeFilter;
-                                return (
-                                    <YStack
-                                        key={filter.label}
-                                        paddingHorizontal="$4"
-                                        paddingVertical="$1.5"
-                                        borderRadius="$12"
-                                        backgroundColor={
-                                            isActive
-                                                ? "$accentBackground"
-                                                : "transparent"
-                                        }
-                                        onPress={() => setActiveFilter(i)}
-                                        pressStyle={{
-                                            scale: 0.95,
-                                            opacity: 0.8,
-                                        }}
-                                        // @ts-ignore
-                                        animation="fast"
-                                        accessibilityRole="button"
-                                        accessibilityLabel={`Filter by ${filter.label}`}
-                                        accessibilityState={{ selected: isActive }}
-                                        cursor="pointer"
-                                        minHeight={32}
-                                        justifyContent="center"
-                                    >
-                                        <Text
-                                            fontFamily="$body"
-                                            fontSize="$3"
-                                            fontWeight={isActive ? "600" : "500"}
-                                            color={
-                                                isActive
-                                                    ? "$accentColor"
-                                                    : "$colorSecondary"
-                                            }
-                                        >
-                                            {filter.label}
-                                        </Text>
-                                    </YStack>
-                                );
-                            })}
-                        </XStack>
-                    </XStack>
-                </Animated.View>
-
-                {/* Subtle divider line */}
-                <View
-                    height={1}
-                    backgroundColor="$borderColorSubtle"
-                    marginHorizontal="$6"
-                />
-
-                {/* ---- Content ---- */}
-                {isLoading ? (
-                    <SkeletonCards />
-                ) : isError ? (
-                    <YStack
-                        flex={1}
-                        justifyContent="center"
-                        alignItems="center"
-                        paddingHorizontal="$6"
+    const header = (
+        <YStack backgroundColor="$background">
+            <XStack
+                paddingHorizontal="$5"
+                paddingTop="$4"
+                paddingBottom="$3"
+                alignItems="center"
+                justifyContent="space-between"
+            >
+                <Text fontFamily="$heading" fontSize="$9" color="$color">
+                    Plans
+                </Text>
+                <XStack alignItems="center" gap="$3">
+                    <View
+                        backgroundColor="$backgroundStrong"
+                        paddingHorizontal={10}
+                        paddingVertical={5}
+                        borderRadius={10}
+                        onPress={toggleViewMode}
+                        pressStyle={{ scale: 0.96, opacity: 0.7 }}
+                        // @ts-ignore
+                        animation="fast"
+                        accessibilityRole="button"
+                        accessibilityLabel={viewMode === "open" ? "Show completed plans" : "Show upcoming plans"}
+                        cursor="pointer"
                     >
                         <Text
                             fontFamily="$body"
-                            fontSize="$6"
+                            fontSize={12}
+                            fontWeight="500"
                             color="$colorSecondary"
-                            textAlign="center"
-                            lineHeight="$7"
                         >
-                            Something went wrong.{"\n"}{Platform.OS === "web" ? "Try again." : "Pull down to try again."}
+                            {viewMode === "open" ? "Show completed" : "Show upcoming"}
+                        </Text>
+                    </View>
+                    {!hasDesktopSidebar && (
+                        <View
+                            width={36}
+                            height={36}
+                            borderRadius={18}
+                            backgroundColor="$colorTertiary"
+                            justifyContent="center"
+                            alignItems="center"
+                            onPress={() => router.push("/settings" as any)}
+                            pressStyle={{ opacity: 0.7, scale: 0.95 }}
+                            accessibilityRole="button"
+                            accessibilityLabel="Settings"
+                            cursor="pointer"
+                        >
+                            <Text fontFamily="$body" fontSize={14} fontWeight="600" color="white">
+                                Y
+                            </Text>
+                        </View>
+                    )}
+                </XStack>
+            </XStack>
+            <View height={1} backgroundColor="$borderColorSubtle" marginHorizontal="$5" opacity={0.6} />
+        </YStack>
+    );
+
+    const listHeaderComponent = useMemo(() => {
+        if (viewMode !== "open" || attentionCount === 0) return null;
+        return (
+            <AgendaAttentionBanner
+                count={attentionCount}
+                onPress={handleAttentionBannerPress}
+                reducedMotion={reducedMotion}
+            />
+        );
+    }, [viewMode, attentionCount, handleAttentionBannerPress, reducedMotion]);
+
+    const listContent = (
+        <>
+            {header}
+
+            {isLoading ? (
+                <AgendaSkeletonRows />
+            ) : isError ? (
+                <YStack
+                    flex={1}
+                    justifyContent="center"
+                    alignItems="center"
+                    paddingHorizontal="$6"
+                >
+                    <Text
+                        fontFamily="$body"
+                        fontSize="$6"
+                        color="$colorSecondary"
+                        textAlign="center"
+                        lineHeight="$7"
+                    >
+                        Something went wrong.{"\n"}{Platform.OS === "web" ? "Try again." : "Pull down to try again."}
+                    </Text>
+                </YStack>
+            ) : viewMode === "done" ? (
+                plans.length === 0 ? (
+                    <YStack flex={1} justifyContent="center" alignItems="center" paddingHorizontal="$8">
+                        <Text fontFamily="$heading" fontSize="$8" color="$color" textAlign="center" marginBottom="$2">
+                            Nothing here yet
+                        </Text>
+                        <Text fontFamily="$body" fontSize="$5" color="$colorSecondary" textAlign="center" lineHeight="$6">
+                            Plans you complete will show up here.
                         </Text>
                     </YStack>
-                ) : sectionItems.length === 0 ? (
-                    <EmptyState
-                        filterLabel={STATE_FILTERS[activeFilter].label}
-                        onAddPlan={() => setSheetOpen(true)}
-                        reducedMotion={reducedMotion}
-                    />
                 ) : (
-                    <Animated.FlatList
-                        data={sectionItems}
-                        renderItem={renderSectionItem}
-                        keyExtractor={keyExtractor}
+                    <SectionList
+                        sections={[{ data: plans, dayKey: "done", label: "Completed", isToday: false }]}
+                        renderItem={renderDoneItem as any}
+                        renderSectionHeader={() => null}
+                        keyExtractor={doneKeyExtractor}
                         style={{ flex: 1 }}
-                        contentContainerStyle={{
-                            paddingHorizontal: 24,
-                            paddingTop: 12,
-                            paddingBottom: 16,
-                        }}
+                        contentContainerStyle={{ paddingBottom: 100 }}
                         showsVerticalScrollIndicator={false}
-                        removeClippedSubviews={Platform.OS !== "web"}
                         onRefresh={Platform.OS !== "web" ? handleRefresh : undefined}
                         refreshing={
                             Platform.OS !== "web"
-                                ? Boolean(
-                                      (isRefetching || isSubscribedPlansRefetching) &&
-                                          !isLoading
-                                  )
+                                ? Boolean((isRefetching || isSubscribedPlansRefetching) && !isLoading)
                                 : false
                         }
-                        onScroll={onScroll}
-                        scrollEventThrottle={16}
                     />
-                )}
-
-                {/* ---- Bottom bar: New Plan CTA ---- */}
-                <YStack position="relative">
-                    <LinearGradient
-                        pointerEvents="none"
-                        position="absolute"
-                        top={-16}
-                        left={0}
-                        right={0}
-                        height={16}
-                        zIndex={1}
-                        colors={["rgba(251, 248, 243, 0)", "#FBF8F3"]}
-                        start={[0, 0]}
-                        end={[0, 1]}
+                )
+            ) : agendaSections.length === 0 ? (
+                <AgendaEmptyState reducedMotion={reducedMotion} />
+            ) : (
+                <View flex={1} position="relative">
+                    <SectionList
+                        ref={sectionListRef}
+                        sections={agendaSections}
+                        renderItem={renderItem}
+                        renderSectionHeader={renderSectionHeader}
+                        keyExtractor={keyExtractor}
+                        stickySectionHeadersEnabled
+                        style={{ flex: 1 }}
+                        contentContainerStyle={{ paddingBottom: 100 }}
+                        showsVerticalScrollIndicator={false}
+                        ListHeaderComponent={listHeaderComponent}
+                        onRefresh={Platform.OS !== "web" ? handleRefresh : undefined}
+                        refreshing={
+                            Platform.OS !== "web"
+                                ? Boolean((isRefetching || isSubscribedPlansRefetching) && !isLoading)
+                                : false
+                        }
                     />
-                    <YStack
-                        paddingHorizontal="$6"
-                        paddingTop="$3"
-                        paddingBottom="$2"
-                        backgroundColor="$background"
-                    >
-                        <YStack
-                            height={48}
-                            borderRadius="$6"
-                            backgroundColor="$accentBackground"
-                            justifyContent="center"
-                            alignItems="center"
-                            onPress={() => setSheetOpen(true)}
-                            pressStyle={{
-                                scale: 0.96,
-                                backgroundColor: "$accentBackgroundPress",
-                            }}
-                            // @ts-ignore
-                            animation="fast"
-                            accessibilityRole="button"
-                            accessibilityLabel="Add a new plan"
-                            cursor="pointer"
-                            // @ts-ignore
-                            shadowColor="#B8860B"
-                            shadowOffset={{ width: 0, height: 4 }}
-                            shadowOpacity={0.18}
-                            shadowRadius={12}
-                            elevation={5}
-                        >
-                            <XStack alignItems="center" gap="$1.5">
-                                <Text
-                                    fontFamily="$heading"
-                                    fontSize="$7"
-                                    color="$accentColor"
-                                    marginTop={-1}
-                                >
-                                    +
-                                </Text>
-                                <Text
-                                    fontFamily="$body"
-                                    fontSize="$4"
-                                    fontWeight="600"
-                                    color="$accentColor"
-                                >
-                                    New Plan
-                                </Text>
-                            </XStack>
-                        </YStack>
-                    </YStack>
-                </YStack>
+                    <FloatingActionButton onPress={() => setSheetOpen(true)} />
+                </View>
+            )}
 
-                {/* ---- Create sheet ---- */}
-                <CreatePlanSheet
-                    open={sheetOpen}
-                    onOpenChange={setSheetOpen}
-                    onCreated={handleCreated}
-                />
-            </>
+            <CreatePlanSheet
+                open={sheetOpen}
+                onOpenChange={setSheetOpen}
+                onCreated={handleCreated}
+            />
+        </>
     );
 
     if (!hasDesktopSidebar) {

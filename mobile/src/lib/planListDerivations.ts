@@ -146,7 +146,7 @@ export function getOpenPlanTimeSection(plan: SocialPlan): OpenPlanTimeSection {
     return "Later";
 }
 
-function getQuickActionsForAttention(
+export function getQuickActionsForAttention(
     plan: SocialPlan,
     reason: PlanAttentionReason
 ): PlanQuickActionKind[] {
