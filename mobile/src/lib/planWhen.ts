@@ -224,7 +224,9 @@ export function getDaysDiffFromIso(iso: string | null | undefined): number | nul
     const date = new Date(iso);
     if (Number.isNaN(date.getTime())) return null;
     const now = new Date();
-    return Math.round((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    const dateLocal = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const nowLocal = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    return Math.round((dateLocal.getTime() - nowLocal.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 function formatRelativeDateStr(iso: string | null | undefined): string | null {

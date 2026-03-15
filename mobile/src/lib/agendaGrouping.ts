@@ -19,6 +19,7 @@ export type AgendaSection = {
     dayKey: string;
     label: string;
     isToday: boolean;
+    hasConflict: boolean;
     data: AgendaPlanRowData[];
 };
 
@@ -127,6 +128,7 @@ export function buildAgendaSections(
             dayKey: "PAST_DUE",
             label: "Past Due",
             isToday: false,
+            hasConflict: false,
             data: pastDue,
         });
     }
@@ -139,6 +141,7 @@ export function buildAgendaSections(
             dayKey: dateKey,
             label: getDayLabel(dateKey, today),
             isToday: dateKey === todayKey,
+            hasConflict: bucket.length > 1,
             data: bucket,
         });
     }
@@ -149,6 +152,7 @@ export function buildAgendaSections(
             dayKey: "SOMEDAY",
             label: "Someday",
             isToday: false,
+            hasConflict: false,
             data: someday,
         });
     }

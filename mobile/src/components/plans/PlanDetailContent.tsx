@@ -33,6 +33,7 @@ import {
 
 import {
     useGetPlan,
+    useListPlans,
     usePatchPlan,
     useDeletePlan,
     useAddPlanParticipant,
@@ -54,7 +55,9 @@ import type { SocialPlanTimePrecision } from "../../api/generated/model/socialPl
 import type { Person } from "../../api/generated/model/person";
 import { getInitialColor, useReducedMotionPreference } from "../../lib/planHelpers";
 import {
+    fromPlan,
     fromStorageFields,
+    getDateKey,
     toStorageFields,
     type PlanWhen,
 } from "../../lib/planWhen";
@@ -266,6 +269,23 @@ const RANGE_CALENDAR_TEXT_COLOR = "#F2E9DF";
 const RANGE_CALENDAR_MUTED_TEXT_COLOR = "#A99C90";
 const RANGE_CALENDAR_DISABLED_TEXT_COLOR = "#6F645A";
 
+const EXISTING_PLAN_DOT_COLOR = "#F0B881";
+
+function buildExistingPlanMarkedDates(
+    plans: SocialPlan[],
+    excludePlanId: string
+): CalendarMarkedDates {
+    const markings: CalendarMarkedDates = {};
+    for (const plan of plans) {
+        if (plan.id === excludePlanId || plan.state !== "OPEN") continue;
+        const key = getDateKey(fromPlan(plan));
+        if (key && !markings[key]) {
+            markings[key] = { marked: true, dotColor: EXISTING_PLAN_DOT_COLOR };
+        }
+    }
+    return markings;
+}
+
 function formatWindowPickerDate(date: Date): string {
     return date.toLocaleDateString(undefined, {
         month: "short",
@@ -330,6 +350,7 @@ function WindowRangeCalendarSelector({
     onSelectionStepChange,
     onStartDateChange,
     onEndDateChange,
+    existingPlanDots,
 }: {
     startDate: Date;
     endDate: Date;
@@ -337,8 +358,13 @@ function WindowRangeCalendarSelector({
     onSelectionStepChange: (step: WindowRangeSelectionStep) => void;
     onStartDateChange: (date: Date) => void;
     onEndDateChange: (date: Date) => void;
+    existingPlanDots?: CalendarMarkedDates;
 }) {
-    const markedDates = buildWindowRangeMarkedDates(startDate, endDate);
+    const rangeMarkings = buildWindowRangeMarkedDates(startDate, endDate);
+    const markedDates: CalendarMarkedDates = { ...existingPlanDots };
+    for (const [key, value] of Object.entries(rangeMarkings)) {
+        markedDates[key] = { ...markedDates[key], ...value };
+    }
 
     const handleDayPress = useCallback(
         (day: DateData) => {
@@ -474,6 +500,8 @@ function WhenSheet({
     currentAnchorStart,
     currentAnchorEnd,
     onSave,
+    otherPlans,
+    planId,
 }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -481,8 +509,11 @@ function WhenSheet({
     currentAnchorStart: string | null | undefined;
     currentAnchorEnd: string | null | undefined;
     onSave: (when: PlanWhen) => void;
+    otherPlans: SocialPlan[];
+    planId: string;
 }) {
-    const [mode, setMode] = useState<"menu" | "date" | "datetime" | "window">("menu");
+    const [mode, setMode] = useState<"menu" | "date" | "window">("menu");
+    const [includeTime, setIncludeTime] = useState(false);
     const [pickedDate, setPickedDate] = useState(
         currentAnchorStart ? new Date(currentAnchorStart) : new Date()
     );
@@ -497,18 +528,15 @@ function WhenSheet({
             const initial = currentAnchorStart ? new Date(currentAnchorStart) : new Date();
             const initialEnd = currentAnchorEnd ? new Date(currentAnchorEnd) : initial;
             setPickedDate(initial);
+            setIncludeTime(currentPrecision === "EXACT");
             setWindowStart(initial);
             setWindowEnd(initialEnd < initial ? initial : initialEnd);
             setWindowSelectionStep("start");
         }
     }, [open, currentAnchorStart, currentAnchorEnd, currentPrecision]);
 
-    const handlePickDay = useCallback(() => {
+    const handlePickDate = useCallback(() => {
         setMode("date");
-    }, []);
-
-    const handlePickExact = useCallback(() => {
-        setMode("datetime");
     }, []);
 
     const handlePickWindow = useCallback(() => {
@@ -522,13 +550,13 @@ function WhenSheet({
 
     const handleDateConfirm = useCallback(() => {
         const tz = Intl.DateTimeFormat().resolvedOptions().timeZone ?? null;
-        if (mode === "datetime") {
+        if (includeTime) {
             onSave({ kind: "exactTime", datetime: pickedDate.toISOString(), timezone: tz });
-        } else if (mode === "date") {
+        } else {
             onSave({ kind: "day", date: pickedDate.toISOString(), timezone: tz });
         }
         onOpenChange(false);
-    }, [mode, pickedDate, onSave, onOpenChange]);
+    }, [includeTime, pickedDate, onSave, onOpenChange]);
 
     const handleWindowConfirm = useCallback(() => {
         if (windowEnd < windowStart) {
@@ -609,7 +637,7 @@ function WhenSheet({
 
             {mode === "menu" ? (
                 <YStack gap="$3">
-                    <Pressable onPress={handlePickDay}>
+                    <Pressable onPress={handlePickDate}>
                         <YStack
                             backgroundColor="$backgroundStrong"
                             padding="$4"
@@ -621,7 +649,7 @@ function WhenSheet({
                                 fontWeight="500"
                                 color="$color"
                             >
-                                Pick a day
+                                Pick a date
                             </Text>
                             <Text
                                 fontFamily="$body"
@@ -629,7 +657,7 @@ function WhenSheet({
                                 color="$colorTertiary"
                                 marginTop="$1"
                             >
-                                Choose a date for this plan
+                                Choose a date, optionally add a time
                             </Text>
                         </YStack>
                     </Pressable>
@@ -655,31 +683,6 @@ function WhenSheet({
                                 marginTop="$1"
                             >
                                 Set an earliest and latest date
-                            </Text>
-                        </YStack>
-                    </Pressable>
-
-                    <Pressable onPress={handlePickExact}>
-                        <YStack
-                            backgroundColor="$backgroundStrong"
-                            padding="$4"
-                            borderRadius="$5"
-                        >
-                            <Text
-                                fontFamily="$body"
-                                fontSize="$5"
-                                fontWeight="500"
-                                color="$color"
-                            >
-                                Specific time
-                            </Text>
-                            <Text
-                                fontFamily="$body"
-                                fontSize="$2"
-                                color="$colorTertiary"
-                                marginTop="$1"
-                            >
-                                Pick a date and time
                             </Text>
                         </YStack>
                     </Pressable>
@@ -722,25 +725,160 @@ function WhenSheet({
                             onSelectionStepChange={setWindowSelectionStep}
                             onStartDateChange={setWindowStart}
                             onEndDateChange={setWindowEnd}
+                            existingPlanDots={buildExistingPlanMarkedDates(otherPlans, planId)}
                         />
 
                         {renderBackConfirmButtons(handleWindowConfirm)}
                     </YStack>
                 </ScrollView>
             ) : (
-                <YStack gap="$4" alignItems="center">
-                    <DateTimePicker
-                        value={pickedDate}
-                        mode={mode === "datetime" ? "datetime" : "date"}
-                        display="inline"
-                        onChange={(_event, date) => {
-                            if (date) setPickedDate(date);
-                        }}
-                        style={{ width: "100%" }}
-                    />
+                <ScrollView
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                >
+                    <YStack gap="$4">
+                        <YStack
+                            borderWidth={1}
+                            borderColor="$borderColor"
+                            borderRadius="$5"
+                            overflow="hidden"
+                            backgroundColor="$backgroundStrong"
+                            padding="$2.5"
+                        >
+                            <Calendar
+                                current={toCalendarDateKey(pickedDate)}
+                                enableSwipeMonths
+                                hideExtraDays
+                                markedDates={(() => {
+                                    const dots = buildExistingPlanMarkedDates(otherPlans, planId);
+                                    const selectedKey = toCalendarDateKey(pickedDate);
+                                    dots[selectedKey] = {
+                                        ...dots[selectedKey],
+                                        selected: true,
+                                        selectedColor: RANGE_ENDPOINT_COLOR,
+                                    };
+                                    return dots;
+                                })()}
+                                onDayPress={(day: DateData) => {
+                                    setPickedDate(dateFromCalendarPress(day));
+                                }}
+                                headerStyle={{
+                                    borderBottomWidth: 0,
+                                    paddingBottom: 6,
+                                    marginBottom: 2,
+                                }}
+                                theme={{
+                                    calendarBackground: RANGE_CALENDAR_SURFACE_COLOR,
+                                    monthTextColor: RANGE_CALENDAR_TEXT_COLOR,
+                                    dayTextColor: RANGE_CALENDAR_TEXT_COLOR,
+                                    textDisabledColor: RANGE_CALENDAR_DISABLED_TEXT_COLOR,
+                                    textInactiveColor: RANGE_CALENDAR_DISABLED_TEXT_COLOR,
+                                    textSectionTitleColor: RANGE_CALENDAR_MUTED_TEXT_COLOR,
+                                    todayTextColor: EXISTING_PLAN_DOT_COLOR,
+                                    arrowColor: EXISTING_PLAN_DOT_COLOR,
+                                    selectedDayBackgroundColor: RANGE_ENDPOINT_COLOR,
+                                    selectedDayTextColor: RANGE_TEXT_COLOR,
+                                    textDayFontSize: 16,
+                                    textMonthFontSize: 17,
+                                    textDayHeaderFontSize: 12,
+                                }}
+                                style={{ width: "100%" }}
+                            />
+                        </YStack>
 
-                    {renderBackConfirmButtons(handleDateConfirm)}
-                </YStack>
+                        {(() => {
+                            const selectedKey = toCalendarDateKey(pickedDate);
+                            const plansOnDate = otherPlans.filter(
+                                (p) =>
+                                    p.id !== planId &&
+                                    p.state === "OPEN" &&
+                                    getDateKey(fromPlan(p)) === selectedKey
+                            );
+                            if (plansOnDate.length === 0) return null;
+                            const names = plansOnDate.map((p) => p.intentText).join(", ");
+                            return (
+                                <XStack
+                                    backgroundColor="rgba(240, 184, 129, 0.12)"
+                                    borderRadius="$4"
+                                    padding="$3"
+                                    gap="$2.5"
+                                    alignItems="flex-start"
+                                >
+                                    <Text fontSize={14} marginTop={1}>
+                                        {"*"}
+                                    </Text>
+                                    <YStack flex={1} gap="$1">
+                                        <Text
+                                            fontFamily="$body"
+                                            fontSize="$2"
+                                            color={EXISTING_PLAN_DOT_COLOR}
+                                            fontWeight="500"
+                                        >
+                                            {plansOnDate.length === 1
+                                                ? "You have another plan on this date"
+                                                : `You have ${plansOnDate.length} other plans on this date`}
+                                        </Text>
+                                        <Text
+                                            fontFamily="$body"
+                                            fontSize="$2"
+                                            color="$colorTertiary"
+                                            numberOfLines={2}
+                                        >
+                                            {names}
+                                        </Text>
+                                    </YStack>
+                                </XStack>
+                            );
+                        })()}
+
+                        <Pressable onPress={() => setIncludeTime((v) => !v)}>
+                            <XStack
+                                alignItems="center"
+                                gap="$2"
+                                paddingVertical="$2"
+                                alignSelf="flex-start"
+                            >
+                                <View
+                                    width={20}
+                                    height={20}
+                                    borderRadius={4}
+                                    borderWidth={1.5}
+                                    borderColor={includeTime ? "$accentBackground" : "$borderColor"}
+                                    backgroundColor={includeTime ? "$accentBackground" : "transparent"}
+                                    justifyContent="center"
+                                    alignItems="center"
+                                >
+                                    {includeTime ? (
+                                        <Text fontSize={12} color="$accentColor" fontWeight="700">
+                                            ✓
+                                        </Text>
+                                    ) : null}
+                                </View>
+                                <Text
+                                    fontFamily="$body"
+                                    fontSize="$3"
+                                    color="$colorSecondary"
+                                >
+                                    Include a specific time
+                                </Text>
+                            </XStack>
+                        </Pressable>
+
+                        {includeTime ? (
+                            <DateTimePicker
+                                value={pickedDate}
+                                mode="time"
+                                display="spinner"
+                                onChange={(_event, date) => {
+                                    if (date) setPickedDate(date);
+                                }}
+                                style={{ width: "100%" }}
+                            />
+                        ) : null}
+
+                        {renderBackConfirmButtons(handleDateConfirm)}
+                    </YStack>
+                </ScrollView>
             )}
         </BottomSheetModal>
     );
@@ -1135,6 +1273,15 @@ export function PlanDetailContent({
         planResponse?.data && "data" in planResponse.data
             ? (planResponse.data as { data: SocialPlan }).data
             : undefined;
+
+    const { data: ownedPlansResponse } = useListPlans({
+        state: ["OPEN"],
+        scope: "owned",
+    });
+    const otherPlans: SocialPlan[] =
+        ownedPlansResponse?.data && "data" in ownedPlansResponse.data
+            ? (ownedPlansResponse.data as { data: SocialPlan[] }).data
+            : [];
 
     const isSubscriber = plan?.role === "subscriber";
     const { data: shareStatusResponse } = useGetShareStatus(id, {
@@ -2254,6 +2401,8 @@ export function PlanDetailContent({
                     currentAnchorStart={activePlanDraft.anchorStart}
                     currentAnchorEnd={activePlanDraft.anchorEnd}
                     onSave={handleDraftWhenChange}
+                    otherPlans={otherPlans}
+                    planId={id}
                 />
 
                 <AddPersonSheet
