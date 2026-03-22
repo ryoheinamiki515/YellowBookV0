@@ -43,6 +43,7 @@ import {
     useSharePlan,
     useGetShareStatus,
     useUnsubscribeFromPlan,
+    usePatchPlanMembership,
     getGetShareStatusQueryKey,
 } from "../../api/generated/sharing/sharing";
 import {
@@ -1268,6 +1269,7 @@ export function PlanDetailContent({
     const createPerson = useCreatePerson();
     const sharePlanMutation = useSharePlan();
     const unsubscribeMutation = useUnsubscribeFromPlan();
+    const membershipMutation = usePatchPlanMembership();
 
     const plan: SocialPlan | undefined =
         planResponse?.data && "data" in planResponse.data
@@ -1283,10 +1285,26 @@ export function PlanDetailContent({
             ? (ownedPlansResponse.data as { data: SocialPlan[] }).data
             : [];
 
-    const isSubscriber = plan?.role === "subscriber";
+    const isSubscriber = plan?.role === "member";
+    const isOwner = plan?.role === "owner";
+    const permissions = (plan as any)?.permissions as {
+        canEdit?: boolean;
+        canChangeState?: boolean;
+        canDelete?: boolean;
+        canShare?: boolean;
+        canRespond?: boolean;
+        canDiscuss?: boolean;
+        canLeave?: boolean;
+    } | undefined;
+    const membership = (plan as any)?.membership as {
+        role?: string;
+        response?: string;
+        privateNote?: string | null;
+        markedDoneAt?: string | null;
+    } | undefined;
     const { data: shareStatusResponse } = useGetShareStatus(id, {
         query: {
-            enabled: Boolean(plan && !isSubscriber),
+            enabled: Boolean(plan && isOwner),
         },
     });
     const shareStatus =
@@ -1567,11 +1585,23 @@ export function PlanDetailContent({
     // --- State actions ---
 
     const handleMarkDone = useCallback(() => {
-        patchPlan.mutate(
-            { planId: id!, data: { state: "DONE" } },
-            { onSettled: invalidateAll }
-        );
-    }, [patchPlan, id, invalidateAll]);
+        if (permissions?.canEdit) {
+            patchPlan.mutate(
+                { planId: id!, data: { state: "DONE" } },
+                { onSettled: invalidateAll }
+            );
+        } else {
+            membershipMutation.mutate(
+                { planId: id!, data: { markedDoneAt: new Date().toISOString() } },
+                {
+                    onSuccess: () => {
+                        invalidatePlanQueries(queryClient);
+                        onClose?.();
+                    },
+                }
+            );
+        }
+    }, [patchPlan, membershipMutation, permissions, id, invalidateAll, queryClient, onClose]);
 
     const handleReopen = useCallback(() => {
         patchPlan.mutate(
@@ -1934,7 +1964,7 @@ export function PlanDetailContent({
                         </Text>
                     </Pressable>
 
-                    {isSubscriber ? (
+                    {!permissions?.canDelete ? (
                         <View width={28} />
                     ) : isDraftDirty ? (
                         <View width={28} />
@@ -1970,7 +2000,7 @@ export function PlanDetailContent({
                             transform: [{ translateY: slideAnim }],
                         }}
                     >
-                        {isSubscriber ? (
+                        {!permissions?.canEdit ? (
                             <PlanReadOnlyDetails
                                 plan={plan}
                                 preface="Shared with you"
@@ -2276,7 +2306,7 @@ export function PlanDetailContent({
                           })}
                     backgroundColor="$background"
                 >
-                    {isSubscriber ? (
+                    {permissions?.canLeave ? (
                         <YStack gap="$2">
                             <Text
                                 fontFamily="$body"
@@ -2285,6 +2315,17 @@ export function PlanDetailContent({
                             >
                                 Shared with you
                             </Text>
+                            {permissions?.canChangeState && isOpen && (
+                                <DetailFooterAction
+                                    label={patchPlan.isPending ? "Saving..." : "Mark Done"}
+                                    onPress={handleMarkDone}
+                                    disabled={stateActionsDisabled}
+                                    tone="success"
+                                    variant="soft"
+                                    labelSize="$5"
+                                    accessibilityLabel="Mark plan as done"
+                                />
+                            )}
                             <DetailFooterAction
                                 label={unsubscribeMutation.isPending ? "Unsubscribing..." : "Unsubscribe"}
                                 onPress={handleUnsubscribe}

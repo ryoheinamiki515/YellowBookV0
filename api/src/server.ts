@@ -12,6 +12,7 @@ import {
     serializeSocialPlan,
     serializeSubscribedPlan,
 } from "./api/serializers/socialPlan.js";
+import { serializePlanActivity } from "./api/serializers/planActivity.js";
 import { serializePerson } from "./api/serializers/person.js";
 import { serializeConnection } from "./api/serializers/connection.js";
 import { makeRequireUser } from "./middleware/requireUser.js";
@@ -25,6 +26,12 @@ import {
     linkOrCreateLinkedPerson,
     SYSTEM_LINKED_PERSON_PLACEHOLDER,
 } from "./personLinking.js";
+import {
+    getPlanView,
+    assertPlanPermission,
+    updateMembership,
+    loadConnectionMapForUser,
+} from "./services/planView.js";
 
 const app = express();
 app.use(cors());
@@ -223,19 +230,7 @@ function requireDisplayName(value: string | null | undefined) {
     return displayName;
 }
 
-async function loadConnectionMapForUser(userId: string) {
-    const linkedPeople = await prisma.person.findMany({
-        where: { ownerId: userId, linkedUserId: { not: null } },
-        select: { linkedUserId: true, displayName: true, id: true },
-    });
-
-    return new Map(
-        linkedPeople.map((person) => [
-            person.linkedUserId!,
-            { personId: person.id, displayName: person.displayName },
-        ])
-    );
-}
+// loadConnectionMapForUser moved to services/planView.ts
 
 function toPersonCreateData(ownerId: string, input: z.infer<typeof CreatePersonSchema>): Prisma.PersonUncheckedCreateInput {
     return {
@@ -311,6 +306,9 @@ v1.post(
                     anchorStart: data.anchorStart ? new Date(data.anchorStart) : null,
                     anchorEnd: data.anchorEnd ? new Date(data.anchorEnd) : null,
                     timezone: data.timezone ?? null,
+                    memberships: {
+                        create: { userId: ownerId, role: "OWNER", response: "ACCEPTED" },
+                    },
                 },
             });
 
@@ -384,141 +382,90 @@ v1.get(
                     select: { id: true, linkedUserId: true },
                 })
                 : null;
-            const ownedParticipantFilter =
+            const participantFilter =
                 participantPersonId == null
                     ? {}
                     : participantPerson
-                      ? { participants: { some: { personId: participantPerson.id } } }
-                      : { id: { in: [] as string[] } };
-            const subscribedParticipantFilter =
-                participantPersonId == null
-                    ? {}
-                    : participantPerson?.linkedUserId
                       ? {
                           OR: [
-                              { ownerId: participantPerson.linkedUserId },
-                              {
-                                  participants: {
-                                      some: {
-                                          person: {
-                                              is: { linkedUserId: participantPerson.linkedUserId },
+                              { participants: { some: { personId: participantPerson.id } } },
+                              ...(participantPerson.linkedUserId
+                                  ? [
+                                      { ownerId: participantPerson.linkedUserId },
+                                      {
+                                          participants: {
+                                              some: {
+                                                  person: {
+                                                      is: { linkedUserId: participantPerson.linkedUserId },
+                                                  },
+                                              },
                                           },
                                       },
-                                  },
-                              },
+                                  ]
+                                  : []),
                           ],
-                      }
+                        }
                       : { id: { in: [] as string[] } };
 
-            type OwnedPlanRow = Prisma.SocialPlanGetPayload<{
+            const roleFilter =
+                scope === "owned"
+                    ? { role: "OWNER" as const }
+                    : scope === "subscribed"
+                      ? { role: "MEMBER" as const }
+                      : {};
+
+            const membershipFilter = {
+                memberships: { some: { userId, ...roleFilter } },
+            };
+
+            // Plans where the viewer marked done should be treated as DONE
+            // regardless of the plan's actual state.
+            const viewerDoneFilter = planStates.includes("DONE")
+                ? {}
+                : { memberships: { some: { userId, markedDoneAt: null } } };
+
+            const rows = await prisma.socialPlan.findMany({
+                where: {
+                    ...membershipFilter,
+                    ...cursorFilter,
+                    ...stateFilter,
+                    ...participantFilter,
+                    ...viewerDoneFilter,
+                },
+                orderBy,
+                take: limit + 1,
                 include: {
-                    participants: {
-                        include: { person: { select: { displayName: true } } };
-                    };
-                };
-            }>;
-            type SubscribedPlanRow = Prisma.SocialPlanGetPayload<{
-                include: {
-                    owner: { select: { displayName: true } };
+                    owner: { select: { displayName: true } },
+                    memberships: {
+                        where: { userId },
+                        take: 1,
+                    },
                     participants: {
                         include: {
-                            person: { select: { linkedUserId: true, displayName: true } };
-                        };
-                    };
-                };
-            }>;
-            type AnnotatedPlan =
-                | { plan: OwnedPlanRow; role: "owner" }
-                | { plan: SubscribedPlanRow; role: "subscriber" };
-
-            const annotated: AnnotatedPlan[] = [];
-
-            if (scope === "owned" || scope === "all") {
-                const ownedRows = await prisma.socialPlan.findMany({
-                    where: {
-                        ownerId: userId,
-                        ...cursorFilter,
-                        ...stateFilter,
-                        ...ownedParticipantFilter,
-                    },
-                    orderBy,
-                    take: limit + 1,
-                    include: {
-                        participants: {
-                            include: { person: { select: { displayName: true } } },
+                            person: { select: { linkedUserId: true, displayName: true } },
                         },
                     },
-                });
-                for (const row of ownedRows) {
-                    annotated.push({ plan: row, role: "owner" });
-                }
-            }
-
-            if (scope === "subscribed" || scope === "all") {
-                const subscriptions = await prisma.planSubscription.findMany({
-                    where: { userId },
-                    select: { planId: true },
-                });
-                const subscribedPlanIds = subscriptions.map((s) => s.planId);
-
-                if (subscribedPlanIds.length > 0) {
-                    const subscribedRows = await prisma.socialPlan.findMany({
-                        where: {
-                            id: { in: subscribedPlanIds },
-                            ...cursorFilter,
-                            ...stateFilter,
-                            ...subscribedParticipantFilter,
-                        },
-                        orderBy,
-                        take: limit + 1,
-                        include: {
-                            owner: { select: { displayName: true } },
-                            participants: {
-                                include: {
-                                    person: {
-                                        select: { linkedUserId: true, displayName: true },
-                                    },
-                                },
-                            },
-                        },
-                    });
-                    for (const row of subscribedRows) {
-                        annotated.push({ plan: row, role: "subscriber" });
-                    }
-                }
-            }
-
-            // Sort combined results and paginate
-            annotated.sort((a, b) => {
-                const timeDiff = b.plan.updatedAt.getTime() - a.plan.updatedAt.getTime();
-                if (timeDiff !== 0) return timeDiff;
-                return b.plan.id < a.plan.id ? -1 : b.plan.id > a.plan.id ? 1 : 0;
+                },
             });
 
-            const hasNext = annotated.length > limit;
-            const pageItems = hasNext ? annotated.slice(0, limit) : annotated;
+            const hasNext = rows.length > limit;
+            const pageItems = hasNext ? rows.slice(0, limit) : rows;
 
             let nextCursor: string | null = null;
             if (hasNext && pageItems.length > 0) {
-                const last = pageItems[pageItems.length - 1]!.plan;
+                const last = pageItems[pageItems.length - 1]!;
                 nextCursor = encodeCursor({ updatedAt: last.updatedAt.toISOString(), id: last.id });
             }
 
-            // Build connectionMap for subscriber plans
-            let connectionMap: Map<string, { personId: string; displayName: string }> | null = null;
-            const hasSubscribed = pageItems.some((a) => a.role === "subscriber");
-            if (hasSubscribed) {
-                connectionMap = await loadConnectionMapForUser(userId);
-            }
+            const connectionMap = await loadConnectionMapForUser(prisma, userId);
 
-            const serialized = pageItems.map((a) => {
-                if (a.role === "subscriber") {
-                    return {
-                        ...serializeSubscribedPlan(a.plan, connectionMap!, userId),
-                        role: "subscriber" as const,
-                    };
-                }
-                return { ...serializeSocialPlan(a.plan), role: "owner" as const };
+            const serialized = pageItems.map((row) => {
+                const membership = row.memberships[0]!;
+                const role = membership.role === "OWNER" ? "owner" as const : "member" as const;
+                const context = membership.role === "OWNER"
+                    ? { role: "owner" as const }
+                    : { role: "member" as const, connectionMap, viewerUserId: userId };
+                return { ...serializeSocialPlan(row, context), role };
             });
 
             res.setHeader("Cache-Control", "no-cache");
@@ -542,49 +489,21 @@ v1.get("/plans/:planId", ...requireUser(["read:socialplans"]), async (req, res, 
         const userId = (req as any).userId as string;
         const planId = req.params.planId;
 
-        const plan = await prisma.socialPlan.findFirst({
-            where: { id: planId },
-            include: {
-                owner: { select: { displayName: true } },
-                participants: {
-                    include: {
-                        person: { select: { linkedUserId: true, displayName: true } },
-                    },
-                },
+        const view = await getPlanView(prisma, userId, planId);
+        if (!view) return next({ status: 404, expose: true, message: "not_found" });
+
+        const payload = toJsonSafe({
+            data: {
+                ...view.plan,
+                role: view.membership.role,
+                membership: view.membership,
+                permissions: view.permissions,
             },
         });
-        if (!plan) return next({ status: 404, expose: true, message: "not_found" });
 
-        const isOwner = plan.ownerId === userId;
-        const isSubscriber = !isOwner && await prisma.planSubscription.findUnique({
-            where: { planId_userId: { planId, userId } },
-        });
-
-        if (!isOwner && !isSubscriber) {
-            return next({ status: 404, expose: true, message: "not_found" });
-        }
-
-        if (isOwner) {
-            const payload = toJsonSafe({
-                data: { ...serializeSocialPlan(plan), role: "owner" as const },
-            });
-
-            res.setHeader("ETag", representationEtag(payload));
-            res.setHeader("Cache-Control", "no-cache");
-            res.json(payload);
-        } else {
-            const connectionMap = await loadConnectionMapForUser(userId);
-            const payload = toJsonSafe({
-                data: {
-                    ...serializeSubscribedPlan(plan, connectionMap, userId),
-                    role: "subscriber" as const,
-                },
-            });
-
-            res.setHeader("ETag", representationEtag(payload));
-            res.setHeader("Cache-Control", "no-cache");
-            res.json(payload);
-        }
+        res.setHeader("ETag", representationEtag(payload));
+        res.setHeader("Cache-Control", "no-cache");
+        res.json(payload);
     } catch (e) {
         next(e);
     }
@@ -595,10 +514,12 @@ v1.get("/plans/:planId", ...requireUser(["read:socialplans"]), async (req, res, 
 // ---------------------------------------------------------------------------
 v1.patch("/plans/:planId", ...requireUser(["create:socialplans"]), async (req: any, res, next) => {
     try {
-        const ownerId = req.userId as string;
+        const userId = req.userId as string;
         const planId = req.params.planId;
 
-        const current = await prisma.socialPlan.findFirst({ where: { id: planId, ownerId } });
+        await assertPlanPermission(prisma, userId, planId, "canEdit");
+
+        const current = await prisma.socialPlan.findFirst({ where: { id: planId, ownerId: userId } });
         if (!current) return next({ status: 404, expose: true, message: "not_found" });
 
         const currentEtag = planEtag(current);
@@ -644,16 +565,12 @@ v1.patch("/plans/:planId", ...requireUser(["create:socialplans"]), async (req: a
 // ---------------------------------------------------------------------------
 v1.delete("/plans/:planId", ...requireUser(["create:socialplans"]), async (req, res, next) => {
     try {
-        const ownerId = (req as any).userId as string;
+        const userId = (req as any).userId as string;
         const planId = req.params.planId as string;
 
-        const result = await prisma.socialPlan.deleteMany({
-            where: { id: planId, ownerId },
-        });
+        await assertPlanPermission(prisma, userId, planId, "canDelete");
 
-        if (result.count === 0) {
-            return next({ status: 404, expose: true, message: "not_found" });
-        }
+        await prisma.socialPlan.delete({ where: { id: planId } });
 
         res.status(204).end();
     } catch (e) {
@@ -1208,6 +1125,8 @@ v1.post("/plans/:planId/share", ...requireUser(["create:socialplans"]), async (r
         const ownerId = (req as any).userId as string;
         const planId = req.params.planId;
 
+        await assertPlanPermission(prisma, ownerId, planId, "canShare");
+
         const plan = await prisma.socialPlan.findFirst({
             where: { id: planId, ownerId },
             include: { participants: { include: { person: { select: { linkedUserId: true } } } } },
@@ -1224,7 +1143,7 @@ v1.post("/plans/:planId/share", ...requireUser(["create:socialplans"]), async (r
             });
         }
 
-        // Create PlanSubscription for each connected participant
+        // Create PlanMembership for each connected participant
         const linkedUserIds = plan.participants
             .map((p) => p.person?.linkedUserId)
             .filter((id): id is string => id != null && id !== ownerId);
@@ -1232,12 +1151,11 @@ v1.post("/plans/:planId/share", ...requireUser(["create:socialplans"]), async (r
         const subscribedUserIds: string[] = [];
         for (const linkedUserId of linkedUserIds) {
             try {
-                await prisma.planSubscription.create({
-                    data: { planId, userId: linkedUserId },
+                await prisma.planMembership.create({
+                    data: { planId, userId: linkedUserId, role: "MEMBER", response: "PENDING" },
                 });
                 subscribedUserIds.push(linkedUserId);
             } catch (e: any) {
-                // Ignore unique constraint violations (already subscribed)
                 if (e?.code !== "P2002") throw e;
                 subscribedUserIds.push(linkedUserId);
             }
@@ -1263,18 +1181,17 @@ v1.post("/plans/:planId/share", ...requireUser(["create:socialplans"]), async (r
 // ---------------------------------------------------------------------------
 v1.get("/plans/:planId/share", ...requireUser(["read:socialplans"]), async (req, res, next) => {
     try {
-        const ownerId = (req as any).userId as string;
+        const userId = (req as any).userId as string;
         const planId = req.params.planId;
 
-        const plan = await prisma.socialPlan.findFirst({ where: { id: planId, ownerId } });
-        if (!plan) return next({ status: 404, expose: true, message: "not_found" });
+        await assertPlanPermission(prisma, userId, planId, "canShare");
 
         const shareToken = await prisma.shareToken.findFirst({
             where: { planId, revokedAt: null },
         });
 
-        const subscribers = await prisma.planSubscription.findMany({
-            where: { planId },
+        const members = await prisma.planMembership.findMany({
+            where: { planId, role: "MEMBER" },
             include: { user: { select: { id: true, displayName: true } } },
         });
 
@@ -1287,10 +1204,10 @@ v1.get("/plans/:planId/share", ...requireUser(["read:socialplans"]), async (req,
                           url: `${APP_BASE_URL}/share/${shareToken.token}`,
                       }
                     : null,
-                subscribers: subscribers.map((s) => ({
-                    userId: s.user.id,
-                    displayName: s.user.displayName,
-                    subscribedAt: s.createdAt.toISOString(),
+                subscribers: members.map((m) => ({
+                    userId: m.user.id,
+                    displayName: m.user.displayName,
+                    subscribedAt: m.createdAt.toISOString(),
                 })),
             },
         });
@@ -1304,18 +1221,17 @@ v1.get("/plans/:planId/share", ...requireUser(["read:socialplans"]), async (req,
 // ---------------------------------------------------------------------------
 v1.delete("/plans/:planId/share", ...requireUser(["create:socialplans"]), async (req, res, next) => {
     try {
-        const ownerId = (req as any).userId as string;
+        const userId = (req as any).userId as string;
         const planId = req.params.planId;
 
-        const plan = await prisma.socialPlan.findFirst({ where: { id: planId, ownerId } });
-        if (!plan) return next({ status: 404, expose: true, message: "not_found" });
+        await assertPlanPermission(prisma, userId, planId, "canShare");
 
         await prisma.$transaction(async (tx) => {
             await tx.shareToken.updateMany({
                 where: { planId, revokedAt: null },
                 data: { revokedAt: new Date() },
             });
-            await tx.planSubscription.deleteMany({ where: { planId } });
+            await tx.planMembership.deleteMany({ where: { planId, role: "MEMBER" } });
         });
 
         res.status(204).end();
@@ -1425,8 +1341,8 @@ v1.post("/shared/:token/subscribe", ...requireUser([]), async (req, res, next) =
             });
 
             try {
-                await tx.planSubscription.create({
-                    data: { planId: shareToken.plan.id, userId },
+                await tx.planMembership.create({
+                    data: { planId: shareToken.plan.id, userId, role: "MEMBER", response: "PENDING" },
                 });
             } catch (e: any) {
                 if (e?.code === "P2002") {
@@ -1455,8 +1371,8 @@ v1.delete("/plans/:planId/subscription", ...requireUser([]), async (req, res, ne
         const userId = (req as any).userId as string;
         const planId = req.params.planId;
 
-        const result = await prisma.planSubscription.deleteMany({
-            where: { planId, userId },
+        const result = await prisma.planMembership.deleteMany({
+            where: { planId, userId, role: "MEMBER" },
         });
 
         if (result.count === 0) {
@@ -1464,6 +1380,159 @@ v1.delete("/plans/:planId/subscription", ...requireUser([]), async (req, res, ne
         }
 
         res.status(204).end();
+    } catch (e) {
+        next(e);
+    }
+});
+
+// ---------------------------------------------------------------------------
+// PATCH /v1/plans/:planId/membership — Update own membership (response, privateNote, markedDoneAt)
+// ---------------------------------------------------------------------------
+const MembershipPatchSchema = z.object({
+    response: z.enum(["PENDING", "ACCEPTED", "DECLINED", "MAYBE"]).optional(),
+    privateNote: z.string().max(20000).nullable().optional(),
+    markedDoneAt: z.string().datetime().nullable().optional(),
+});
+
+v1.patch("/plans/:planId/membership", ...requireUser([]), async (req, res, next) => {
+    try {
+        const userId = (req as any).userId as string;
+        const planId = req.params.planId;
+
+        const patch = MembershipPatchSchema.parse(req.body);
+
+        const updateData: Parameters<typeof updateMembership>[3] = {};
+        if (patch.response !== undefined) updateData.response = patch.response as any;
+        if (patch.privateNote !== undefined) updateData.privateNote = patch.privateNote;
+        if (patch.markedDoneAt !== undefined) {
+            updateData.markedDoneAt = patch.markedDoneAt === null ? null : new Date(patch.markedDoneAt);
+        }
+
+        const membershipView = await updateMembership(prisma, userId, planId, updateData);
+
+        res.json({ data: { membership: membershipView } });
+    } catch (e) {
+        next(e);
+    }
+});
+
+// ---------------------------------------------------------------------------
+// DELETE /v1/plans/:planId/membership — Leave a plan (alias for unsubscribe)
+// ---------------------------------------------------------------------------
+v1.delete("/plans/:planId/membership", ...requireUser([]), async (req, res, next) => {
+    try {
+        const userId = (req as any).userId as string;
+        const planId = req.params.planId;
+
+        const result = await prisma.planMembership.deleteMany({
+            where: { planId, userId, role: "MEMBER" },
+        });
+
+        if (result.count === 0) {
+            return next({ status: 404, expose: true, message: "not_found" });
+        }
+
+        res.status(204).end();
+    } catch (e) {
+        next(e);
+    }
+});
+
+// ---------------------------------------------------------------------------
+// GET /v1/plans/:planId/activity — Activity feed (discussion, events)
+// ---------------------------------------------------------------------------
+v1.get("/plans/:planId/activity", ...requireUser([]), async (req, res, next) => {
+    try {
+        const userId = (req as any).userId as string;
+        const planId = req.params.planId;
+
+        const membership = await prisma.planMembership.findUnique({
+            where: { planId_userId: { planId, userId } },
+        });
+        if (!membership) return next({ status: 404, expose: true, message: "not_found" });
+
+        const limit = Math.min(Math.max(Number(req.query.limit ?? 50), 1), 200);
+        const cursorStr = typeof req.query.cursor === "string" ? req.query.cursor : undefined;
+
+        let cursorFilter = {};
+        if (cursorStr) {
+            try {
+                const decoded = Buffer.from(cursorStr, "base64url").toString("utf8");
+                const { createdAt, id } = JSON.parse(decoded);
+                cursorFilter = {
+                    OR: [
+                        { createdAt: { gt: new Date(createdAt) } },
+                        { createdAt: new Date(createdAt), id: { gt: id } },
+                    ],
+                };
+            } catch {
+                return next({ status: 400, expose: true, message: "invalid_cursor" });
+            }
+        }
+
+        const activities = await prisma.planActivity.findMany({
+            where: { planId, ...cursorFilter },
+            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+            take: limit + 1,
+            include: { actor: { select: { displayName: true } } },
+        });
+
+        const hasNext = activities.length > limit;
+        const pageItems = hasNext ? activities.slice(0, limit) : activities;
+
+        let nextCursor: string | null = null;
+        if (hasNext && pageItems.length > 0) {
+            const last = pageItems[pageItems.length - 1]!;
+            nextCursor = Buffer.from(
+                JSON.stringify({ createdAt: last.createdAt.toISOString(), id: last.id })
+            ).toString("base64url");
+        }
+
+        const connectionMap = await loadConnectionMapForUser(prisma, userId);
+
+        res.json({
+            data: pageItems.map((a) => serializePlanActivity(a, connectionMap, userId)),
+            page: { limit, nextCursor },
+        });
+    } catch (e) {
+        next(e);
+    }
+});
+
+// ---------------------------------------------------------------------------
+// POST /v1/plans/:planId/activity — Post a discussion message
+// ---------------------------------------------------------------------------
+const PostActivitySchema = z.object({
+    body: z.string().min(1).max(20000),
+});
+
+v1.post("/plans/:planId/activity", ...requireUser([]), async (req, res, next) => {
+    try {
+        const userId = (req as any).userId as string;
+        const planId = req.params.planId;
+
+        const membership = await prisma.planMembership.findUnique({
+            where: { planId_userId: { planId, userId } },
+        });
+        if (!membership) return next({ status: 404, expose: true, message: "not_found" });
+
+        const data = PostActivitySchema.parse(req.body);
+
+        const activity = await prisma.planActivity.create({
+            data: {
+                planId,
+                actorId: userId,
+                kind: "MESSAGE",
+                body: data.body,
+            },
+            include: { actor: { select: { displayName: true } } },
+        });
+
+        const connectionMap = await loadConnectionMapForUser(prisma, userId);
+
+        res.status(201).json({
+            data: serializePlanActivity(activity, connectionMap, userId),
+        });
     } catch (e) {
         next(e);
     }

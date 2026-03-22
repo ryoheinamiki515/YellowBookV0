@@ -16,11 +16,15 @@ Non-goals for this surface (intentionally excluded):
 
  * OpenAPI spec version: 1.0.0
  */
+import type { PlanMemberResponse } from './planMemberResponse';
 
-export type PlanRole = typeof PlanRole[keyof typeof PlanRole];
-
-
-export const PlanRole = {
-  owner: 'owner',
-  member: 'member',
-} as const;
+export interface PlanMembershipPatchRequest {
+  response?: PlanMemberResponse;
+  /**
+   * @maxLength 20000
+   * @nullable
+   */
+  privateNote?: string | null;
+  /** @nullable */
+  markedDoneAt?: string | null;
+}

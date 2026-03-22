@@ -9,7 +9,7 @@ export function formatWhenBadge(plan: SocialPlan): string | null {
 
 export function participantNames(plan: SocialPlan): string | null {
     const names = getSharedPeopleForDisplay(plan, {
-        excludeViewer: plan.role === "subscriber",
+        excludeViewer: plan.role === "member",
     }).map((person) => person.displayName);
 
     if (names.length === 0) return null;

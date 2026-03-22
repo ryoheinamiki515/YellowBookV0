@@ -515,6 +515,130 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /v1/plans/{planId}/membership:
+    parameters:
+      - $ref: "#/components/parameters/PlanId"
+
+    patch:
+      tags: [Sharing]
+      summary: Update own membership (response, private note, mark done)
+      operationId: patchPlanMembership
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlanMembershipPatchRequest"
+      responses:
+        "200":
+          description: Membership updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      membership:
+                        $ref: "#/components/schemas/PlanMembershipView"
+                    required: [membership]
+                required: [data]
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      tags: [Sharing]
+      summary: Leave a plan
+      operationId: leavePlan
+      responses:
+        "204":
+          description: Left plan
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1/plans/{planId}/activity:
+    parameters:
+      - $ref: "#/components/parameters/PlanId"
+
+    get:
+      tags: [Sharing]
+      summary: List plan activity (discussion, events)
+      operationId: listPlanActivity
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Activity list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PlanActivity"
+                  page:
+                    type: object
+                    properties:
+                      limit:
+                        type: integer
+                      nextCursor:
+                        type: [string, "null"]
+                    required: [limit, nextCursor]
+                required: [data, page]
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    post:
+      tags: [Sharing]
+      summary: Post a discussion message
+      operationId: postPlanActivity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                body:
+                  type: string
+                  minLength: 1
+                  maxLength: 20000
+              required: [body]
+      responses:
+        "201":
+          description: Message posted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/PlanActivity"
+                required: [data]
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   /v1/shared/{token}:
     parameters:
       - name: token
@@ -1009,7 +1133,82 @@ components:
 
     PlanRole:
       type: string
-      enum: [owner, subscriber]
+      enum: [owner, member]
+
+    PlanMemberResponse:
+      type: string
+      enum: [PENDING, ACCEPTED, DECLINED, MAYBE]
+
+    PlanMembershipView:
+      type: object
+      properties:
+        role:
+          $ref: "#/components/schemas/PlanRole"
+        response:
+          $ref: "#/components/schemas/PlanMemberResponse"
+        privateNote:
+          type: [string, "null"]
+        markedDoneAt:
+          type: [string, "null"]
+          format: date-time
+      required: [role, response]
+
+    PlanPermissions:
+      type: object
+      properties:
+        canEdit:
+          type: boolean
+        canChangeState:
+          type: boolean
+        canDelete:
+          type: boolean
+        canShare:
+          type: boolean
+        canRespond:
+          type: boolean
+        canDiscuss:
+          type: boolean
+        canLeave:
+          type: boolean
+      required: [canEdit, canChangeState, canDelete, canShare, canRespond, canDiscuss, canLeave]
+
+    PlanMembershipPatchRequest:
+      type: object
+      properties:
+        response:
+          $ref: "#/components/schemas/PlanMemberResponse"
+        privateNote:
+          type: [string, "null"]
+          maxLength: 20000
+        markedDoneAt:
+          type: [string, "null"]
+          format: date-time
+
+    PlanActivityKind:
+      type: string
+      enum: [MESSAGE, RESPONSE, STATE_CHANGE, MILESTONE]
+
+    PlanActivity:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        planId:
+          $ref: "#/components/schemas/Uuid"
+        actorDisplayName:
+          type: string
+        actorIsViewer:
+          type: boolean
+        kind:
+          $ref: "#/components/schemas/PlanActivityKind"
+        body:
+          type: [string, "null"]
+        metadata:
+          type: [object, "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, planId, actorDisplayName, actorIsViewer, kind, createdAt]
 
     # -----------------------
     # Core resource schemas
@@ -1112,6 +1311,10 @@ components:
             $ref: "#/components/schemas/SharedPlanPerson"
         role:
           $ref: "#/components/schemas/PlanRole"
+        membership:
+          $ref: "#/components/schemas/PlanMembershipView"
+        permissions:
+          $ref: "#/components/schemas/PlanPermissions"
         createdAt:
           type: string
           format: date-time

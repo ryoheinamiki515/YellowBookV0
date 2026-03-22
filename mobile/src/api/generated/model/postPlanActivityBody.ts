@@ -17,10 +17,10 @@ Non-goals for this surface (intentionally excluded):
  * OpenAPI spec version: 1.0.0
  */
 
-export type PlanRole = typeof PlanRole[keyof typeof PlanRole];
-
-
-export const PlanRole = {
-  owner: 'owner',
-  member: 'member',
-} as const;
+export type PostPlanActivityBody = {
+  /**
+   * @minLength 1
+   * @maxLength 20000
+   */
+  body: string;
+};

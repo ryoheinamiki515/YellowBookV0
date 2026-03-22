@@ -16,11 +16,19 @@ Non-goals for this surface (intentionally excluded):
 
  * OpenAPI spec version: 1.0.0
  */
+import type { PlanActivityKind } from './planActivityKind';
+import type { PlanActivityMetadata } from './planActivityMetadata';
+import type { Uuid } from './uuid';
 
-export type PlanRole = typeof PlanRole[keyof typeof PlanRole];
-
-
-export const PlanRole = {
-  owner: 'owner',
-  member: 'member',
-} as const;
+export interface PlanActivity {
+  id: Uuid;
+  planId: Uuid;
+  actorDisplayName: string;
+  actorIsViewer: boolean;
+  kind: PlanActivityKind;
+  /** @nullable */
+  body?: string | null;
+  /** @nullable */
+  metadata?: PlanActivityMetadata;
+  createdAt: string;
+}

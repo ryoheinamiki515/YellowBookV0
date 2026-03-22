@@ -74,11 +74,23 @@ export function buildAgendaSections(
     subscribedPlans: SocialPlan[]
 ): AgendaSection[] {
     const openOwned = ownedPlans.filter((p) => p.state === "OPEN");
-    const openSubscribed = subscribedPlans.filter((p) => p.state === "OPEN");
-    const allOpen = [
-        ...openOwned.map((p) => toRowData(p, false)),
-        ...openSubscribed.map((p) => toRowData(p, true)),
-    ];
+    const openSubscribed = subscribedPlans.filter(
+        (p) => p.state === "OPEN" && !p.membership?.markedDoneAt
+    );
+    const seen = new Set<string>();
+    const allOpen: AgendaPlanRowData[] = [];
+    for (const p of openOwned) {
+        if (!seen.has(p.id)) {
+            seen.add(p.id);
+            allOpen.push(toRowData(p, false));
+        }
+    }
+    for (const p of openSubscribed) {
+        if (!seen.has(p.id)) {
+            seen.add(p.id);
+            allOpen.push(toRowData(p, true));
+        }
+    }
 
     const todayKey = getTodayKey();
     const today = new Date();

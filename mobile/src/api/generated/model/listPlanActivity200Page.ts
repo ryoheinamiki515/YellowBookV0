@@ -17,10 +17,8 @@ Non-goals for this surface (intentionally excluded):
  * OpenAPI spec version: 1.0.0
  */
 
-export type PlanRole = typeof PlanRole[keyof typeof PlanRole];
-
-
-export const PlanRole = {
-  owner: 'owner',
-  member: 'member',
-} as const;
+export type ListPlanActivity200Page = {
+  limit: number;
+  /** @nullable */
+  nextCursor: string | null;
+};

@@ -16,6 +16,8 @@ Non-goals for this surface (intentionally excluded):
 
  * OpenAPI spec version: 1.0.0
  */
+import type { PlanMembershipView } from './planMembershipView';
+import type { PlanPermissions } from './planPermissions';
 import type { PlanRole } from './planRole';
 import type { SharedPlanPerson } from './sharedPlanPerson';
 import type { SocialPlanParticipant } from './socialPlanParticipant';
@@ -69,6 +71,8 @@ export interface SocialPlan {
   /** Canonical people list for read-only shared/subscriber displays. */
   sharedPeople?: SharedPlanPerson[];
   role?: PlanRole;
+  membership?: PlanMembershipView;
+  permissions?: PlanPermissions;
   createdAt: string;
   updatedAt: string;
   [key: string]: unknown;

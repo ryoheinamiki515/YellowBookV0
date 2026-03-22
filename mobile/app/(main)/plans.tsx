@@ -12,6 +12,7 @@ import {
     useListPlans,
     usePatchPlan,
 } from "../../src/api/generated/plans/plans";
+import { usePatchPlanMembership } from "../../src/api/generated/sharing/sharing";
 import type { SocialPlan } from "../../src/api/generated/model/socialPlan";
 import type { PlanQuickActionRowAction } from "../../src/components/plans/PlanQuickActionRow";
 import { CreatePlanSheet } from "../../src/components/plans/CreatePlanSheet";
@@ -60,6 +61,7 @@ export default function PlansScreen() {
     const hasDesktopSidebar = media.lg && Platform.OS === "web";
     const queryClient = useQueryClient();
     const patchPlan = usePatchPlan();
+    const membershipMutation = usePatchPlanMembership();
     const reducedMotion = useReducedMotionPreference();
 
     const [viewMode, setViewMode] = useState<"open" | "done">("open");
@@ -188,9 +190,25 @@ export default function PlansScreen() {
 
     const handleMarkDoneFromList = useCallback(
         (planId: string) => {
-            mutatePlanStateFromList(planId, "DONE", "mark-done");
+            const plan = [...plans, ...subscribedPlans].find((p) => p.id === planId);
+            if (!plan) return;
+
+            setPendingListMutation({ planId, kind: "mark-done" });
+            const onSettled = () => {
+                invalidatePlanCaches(planId);
+                setPendingListMutation((c) => (c?.planId === planId ? null : c));
+            };
+
+            if (plan.role === "owner") {
+                patchPlan.mutate({ planId, data: { state: "DONE" } }, { onSettled });
+            } else {
+                membershipMutation.mutate(
+                    { planId, data: { markedDoneAt: new Date().toISOString() } },
+                    { onSettled }
+                );
+            }
         },
-        [mutatePlanStateFromList]
+        [plans, subscribedPlans, patchPlan, membershipMutation, invalidatePlanCaches]
     );
 
     const handleLetGoFromList = useCallback(

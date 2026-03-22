@@ -42,6 +42,7 @@ import type {
   NotFoundResponse,
   PersonCreateRequest,
   PersonListResponse,
+  PersonMergeRequest,
   PersonPatchRequest,
   PersonResponse,
   UnauthorizedResponse
@@ -595,5 +596,110 @@ export const useDeletePerson = <TError = UnauthorizedResponse | NotFoundResponse
         TContext
       > => {
       return useMutation(getDeletePersonMutationOptions(options), queryClient);
+    }
+    /**
+ * @summary Merge another person into this person
+ */
+export type mergePersonResponse200 = {
+  data: PersonResponse
+  status: 200
+}
+
+export type mergePersonResponse400 = {
+  data: BadRequestResponse
+  status: 400
+}
+
+export type mergePersonResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type mergePersonResponse404 = {
+  data: NotFoundResponse
+  status: 404
+}
+
+export type mergePersonResponse409 = {
+  data: ConflictResponse
+  status: 409
+}
+
+export type mergePersonResponseSuccess = (mergePersonResponse200) & {
+  headers: Headers;
+};
+export type mergePersonResponseError = (mergePersonResponse400 | mergePersonResponse401 | mergePersonResponse404 | mergePersonResponse409) & {
+  headers: Headers;
+};
+
+export type mergePersonResponse = (mergePersonResponseSuccess | mergePersonResponseError)
+
+export const getMergePersonUrl = (personId: string,) => {
+
+
+  
+
+  return `/v1/people/${personId}/merge`
+}
+
+export const mergePerson = async (personId: string,
+    personMergeRequest: PersonMergeRequest, options?: RequestInit): Promise<mergePersonResponse> => {
+  
+  return customFetch<mergePersonResponse>(getMergePersonUrl(personId),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      personMergeRequest,)
+  }
+);}
+
+
+
+
+export const getMergePersonMutationOptions = <TError = BadRequestResponse | UnauthorizedResponse | NotFoundResponse | ConflictResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof mergePerson>>, TError,{personId: string;data: PersonMergeRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof mergePerson>>, TError,{personId: string;data: PersonMergeRequest}, TContext> => {
+
+const mutationKey = ['mergePerson'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof mergePerson>>, {personId: string;data: PersonMergeRequest}> = (props) => {
+          const {personId,data} = props ?? {};
+
+          return  mergePerson(personId,data,requestOptions)
+        }
+
+
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type MergePersonMutationResult = NonNullable<Awaited<ReturnType<typeof mergePerson>>>
+    export type MergePersonMutationBody = PersonMergeRequest
+    export type MergePersonMutationError = BadRequestResponse | UnauthorizedResponse | NotFoundResponse | ConflictResponse
+
+    /**
+ * @summary Merge another person into this person
+ */
+export const useMergePerson = <TError = BadRequestResponse | UnauthorizedResponse | NotFoundResponse | ConflictResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof mergePerson>>, TError,{personId: string;data: PersonMergeRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof mergePerson>>,
+        TError,
+        {personId: string;data: PersonMergeRequest},
+        TContext
+      > => {
+      return useMutation(getMergePersonMutationOptions(options), queryClient);
     }
     

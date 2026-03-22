@@ -18,7 +18,8 @@ model User {
   connectionsAsTarget Connection[]       @relation("connectionTarget")
   connectionInvites   ConnectionInvite[]
   linkedPeople        Person[]           @relation("linkedPeople")
-  subscriptions       PlanSubscription[]
+  memberships         PlanMembership[]
+  planActivities      PlanActivity[]
 }
 
 model Person {
@@ -89,7 +90,8 @@ model SocialPlan {
 
   participants  SocialPlanParticipant[]
   shareTokens   ShareToken[]
-  subscriptions PlanSubscription[]
+  memberships   PlanMembership[]
+  activities    PlanActivity[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -166,17 +168,55 @@ model ShareToken {
   @@index([planId])
 }
 
-model PlanSubscription {
-  id        String     @id @default(uuid()) @db.Uuid
-  planId    String     @db.Uuid
-  plan      SocialPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
-  userId    String     @db.Uuid
-  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt DateTime   @default(now())
+enum PlanMemberRole {
+  OWNER
+  MEMBER
+}
+
+enum PlanMemberResponse {
+  PENDING
+  ACCEPTED
+  DECLINED
+  MAYBE
+}
+
+model PlanMembership {
+  id           String             @id @default(uuid()) @db.Uuid
+  planId       String             @db.Uuid
+  plan         SocialPlan         @relation(fields: [planId], references: [id], onDelete: Cascade)
+  userId       String             @db.Uuid
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role         PlanMemberRole     @default(MEMBER)
+  response     PlanMemberResponse @default(PENDING)
+  privateNote  String?            @db.Text
+  markedDoneAt DateTime?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
 
   @@unique([planId, userId])
   @@index([userId])
   @@index([planId])
+}
+
+enum PlanActivityKind {
+  MESSAGE
+  RESPONSE
+  STATE_CHANGE
+  MILESTONE
+}
+
+model PlanActivity {
+  id        String           @id @default(uuid()) @db.Uuid
+  planId    String           @db.Uuid
+  plan      SocialPlan       @relation(fields: [planId], references: [id], onDelete: Cascade)
+  actorId   String           @db.Uuid
+  actor     User             @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  kind      PlanActivityKind
+  body      String?          @db.Text
+  metadata  Json?
+  createdAt DateTime         @default(now())
+
+  @@index([planId, createdAt])
 }
 
 enum SocialPlanState {

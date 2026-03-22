@@ -16,11 +16,8 @@ Non-goals for this surface (intentionally excluded):
 
  * OpenAPI spec version: 1.0.0
  */
+import type { PlanActivity } from './planActivity';
 
-export type PlanRole = typeof PlanRole[keyof typeof PlanRole];
-
-
-export const PlanRole = {
-  owner: 'owner',
-  member: 'member',
-} as const;
+export type PostPlanActivity201 = {
+  data: PlanActivity;
+};

@@ -2,7 +2,10 @@ import type {
     SocialPlan as DbPlan,
     SocialPlanParticipant as DbParticipant,
     User as DbUser,
+    PlanMemberRole,
+    PlanMemberResponse,
 } from "@prisma/client";
+import type { PlanPermissions, MembershipView } from "../../services/planView.js";
 
 type ParticipantWithLinkedUser = DbParticipant & {
     person?: { linkedUserId: string | null; displayName?: string | null } | null;
@@ -24,6 +27,11 @@ export type SerializationContext =
     | { role: "owner" }
     | {
           role: "subscriber";
+          connectionMap: Map<string, { personId: string; displayName: string }>;
+          viewerUserId: string;
+      }
+    | {
+          role: "member";
           connectionMap: Map<string, { personId: string; displayName: string }>;
           viewerUserId: string;
       };
@@ -126,11 +134,11 @@ export function serializeSocialPlan(
     context: SerializationContext = { role: "owner" }
 ) {
     const ownerDisplayName =
-        context.role === "subscriber"
+        context.role !== "owner"
             ? context.connectionMap.get(p.ownerId)?.displayName ?? p.owner?.displayName ?? null
             : p.owner?.displayName ?? null;
     const sharedPeople =
-        context.role === "subscriber"
+        context.role !== "owner"
             ? buildSharedPeople({
                   ownerId: p.ownerId,
                   ownerDisplayName,
@@ -145,7 +153,7 @@ export function serializeSocialPlan(
         ownerId: p.ownerId,
         ownerDisplayName,
         intentText: p.intentText,
-        contextNote: context.role === "subscriber" ? null : p.contextNote ?? null,
+        contextNote: context.role !== "owner" ? null : p.contextNote ?? null,
         locationText: p.locationText ?? null,
         state: p.state,
         timePrecision: p.timePrecision,
@@ -155,7 +163,7 @@ export function serializeSocialPlan(
         participants: (p.participants || []).map((part) => {
             const currentPersonDisplayName =
                 "person" in part ? part.person?.displayName ?? null : null;
-            if (context.role === "subscriber") {
+            if (context.role !== "owner") {
                 const linkedUserId =
                     "person" in part ? part.person?.linkedUserId : null;
                 const connected = linkedUserId

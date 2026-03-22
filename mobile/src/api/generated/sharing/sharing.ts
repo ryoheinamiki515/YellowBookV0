@@ -37,7 +37,13 @@ import type {
 
 import type {
   ConflictResponse,
+  ListPlanActivity200,
+  ListPlanActivityParams,
   NotFoundResponse,
+  PatchPlanMembership200,
+  PlanMembershipPatchRequest,
+  PostPlanActivity201,
+  PostPlanActivityBody,
   SharePlanResponse,
   ShareStatusResponse,
   SharedPlanResponse,
@@ -452,6 +458,426 @@ export const useUnsubscribeFromPlan = <TError = UnauthorizedResponse | NotFoundR
         TContext
       > => {
       return useMutation(getUnsubscribeFromPlanMutationOptions(options), queryClient);
+    }
+    /**
+ * @summary Update own membership (response, private note, mark done)
+ */
+export type patchPlanMembershipResponse200 = {
+  data: PatchPlanMembership200
+  status: 200
+}
+
+export type patchPlanMembershipResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type patchPlanMembershipResponse404 = {
+  data: NotFoundResponse
+  status: 404
+}
+
+export type patchPlanMembershipResponseSuccess = (patchPlanMembershipResponse200) & {
+  headers: Headers;
+};
+export type patchPlanMembershipResponseError = (patchPlanMembershipResponse401 | patchPlanMembershipResponse404) & {
+  headers: Headers;
+};
+
+export type patchPlanMembershipResponse = (patchPlanMembershipResponseSuccess | patchPlanMembershipResponseError)
+
+export const getPatchPlanMembershipUrl = (planId: string,) => {
+
+
+  
+
+  return `/v1/plans/${planId}/membership`
+}
+
+export const patchPlanMembership = async (planId: string,
+    planMembershipPatchRequest: PlanMembershipPatchRequest, options?: RequestInit): Promise<patchPlanMembershipResponse> => {
+  
+  return customFetch<patchPlanMembershipResponse>(getPatchPlanMembershipUrl(planId),
+  {      
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      planMembershipPatchRequest,)
+  }
+);}
+
+
+
+
+export const getPatchPlanMembershipMutationOptions = <TError = UnauthorizedResponse | NotFoundResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchPlanMembership>>, TError,{planId: string;data: PlanMembershipPatchRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof patchPlanMembership>>, TError,{planId: string;data: PlanMembershipPatchRequest}, TContext> => {
+
+const mutationKey = ['patchPlanMembership'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof patchPlanMembership>>, {planId: string;data: PlanMembershipPatchRequest}> = (props) => {
+          const {planId,data} = props ?? {};
+
+          return  patchPlanMembership(planId,data,requestOptions)
+        }
+
+
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PatchPlanMembershipMutationResult = NonNullable<Awaited<ReturnType<typeof patchPlanMembership>>>
+    export type PatchPlanMembershipMutationBody = PlanMembershipPatchRequest
+    export type PatchPlanMembershipMutationError = UnauthorizedResponse | NotFoundResponse
+
+    /**
+ * @summary Update own membership (response, private note, mark done)
+ */
+export const usePatchPlanMembership = <TError = UnauthorizedResponse | NotFoundResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchPlanMembership>>, TError,{planId: string;data: PlanMembershipPatchRequest}, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof patchPlanMembership>>,
+        TError,
+        {planId: string;data: PlanMembershipPatchRequest},
+        TContext
+      > => {
+      return useMutation(getPatchPlanMembershipMutationOptions(options), queryClient);
+    }
+    /**
+ * @summary Leave a plan
+ */
+export type leavePlanResponse204 = {
+  data: void
+  status: 204
+}
+
+export type leavePlanResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type leavePlanResponse404 = {
+  data: NotFoundResponse
+  status: 404
+}
+
+export type leavePlanResponseSuccess = (leavePlanResponse204) & {
+  headers: Headers;
+};
+export type leavePlanResponseError = (leavePlanResponse401 | leavePlanResponse404) & {
+  headers: Headers;
+};
+
+export type leavePlanResponse = (leavePlanResponseSuccess | leavePlanResponseError)
+
+export const getLeavePlanUrl = (planId: string,) => {
+
+
+  
+
+  return `/v1/plans/${planId}/membership`
+}
+
+export const leavePlan = async (planId: string, options?: RequestInit): Promise<leavePlanResponse> => {
+  
+  return customFetch<leavePlanResponse>(getLeavePlanUrl(planId),
+  {      
+    ...options,
+    method: 'DELETE'
+    
+    
+  }
+);}
+
+
+
+
+export const getLeavePlanMutationOptions = <TError = UnauthorizedResponse | NotFoundResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof leavePlan>>, TError,{planId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof leavePlan>>, TError,{planId: string}, TContext> => {
+
+const mutationKey = ['leavePlan'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof leavePlan>>, {planId: string}> = (props) => {
+          const {planId} = props ?? {};
+
+          return  leavePlan(planId,requestOptions)
+        }
+
+
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LeavePlanMutationResult = NonNullable<Awaited<ReturnType<typeof leavePlan>>>
+    
+    export type LeavePlanMutationError = UnauthorizedResponse | NotFoundResponse
+
+    /**
+ * @summary Leave a plan
+ */
+export const useLeavePlan = <TError = UnauthorizedResponse | NotFoundResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof leavePlan>>, TError,{planId: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof leavePlan>>,
+        TError,
+        {planId: string},
+        TContext
+      > => {
+      return useMutation(getLeavePlanMutationOptions(options), queryClient);
+    }
+    /**
+ * @summary List plan activity (discussion, events)
+ */
+export type listPlanActivityResponse200 = {
+  data: ListPlanActivity200
+  status: 200
+}
+
+export type listPlanActivityResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type listPlanActivityResponse404 = {
+  data: NotFoundResponse
+  status: 404
+}
+
+export type listPlanActivityResponseSuccess = (listPlanActivityResponse200) & {
+  headers: Headers;
+};
+export type listPlanActivityResponseError = (listPlanActivityResponse401 | listPlanActivityResponse404) & {
+  headers: Headers;
+};
+
+export type listPlanActivityResponse = (listPlanActivityResponseSuccess | listPlanActivityResponseError)
+
+export const getListPlanActivityUrl = (planId: string,
+    params?: ListPlanActivityParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/v1/plans/${planId}/activity?${stringifiedParams}` : `/v1/plans/${planId}/activity`
+}
+
+export const listPlanActivity = async (planId: string,
+    params?: ListPlanActivityParams, options?: RequestInit): Promise<listPlanActivityResponse> => {
+  
+  return customFetch<listPlanActivityResponse>(getListPlanActivityUrl(planId,params),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+
+
+
+export const getListPlanActivityQueryKey = (planId: string,
+    params?: ListPlanActivityParams,) => {
+    return [
+    `/v1/plans/${planId}/activity`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+    
+export const getListPlanActivityQueryOptions = <TData = Awaited<ReturnType<typeof listPlanActivity>>, TError = UnauthorizedResponse | NotFoundResponse>(planId: string,
+    params?: ListPlanActivityParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlanActivity>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListPlanActivityQueryKey(planId,params);
+
+  
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listPlanActivity>>> = ({ signal }) => listPlanActivity(planId,params, { signal, ...requestOptions });
+
+      
+
+      
+
+   return  { queryKey, queryFn, enabled: !!(planId), ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listPlanActivity>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListPlanActivityQueryResult = NonNullable<Awaited<ReturnType<typeof listPlanActivity>>>
+export type ListPlanActivityQueryError = UnauthorizedResponse | NotFoundResponse
+
+
+export function useListPlanActivity<TData = Awaited<ReturnType<typeof listPlanActivity>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ planId: string,
+    params: undefined |  ListPlanActivityParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlanActivity>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPlanActivity>>,
+          TError,
+          Awaited<ReturnType<typeof listPlanActivity>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPlanActivity<TData = Awaited<ReturnType<typeof listPlanActivity>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ planId: string,
+    params?: ListPlanActivityParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlanActivity>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listPlanActivity>>,
+          TError,
+          Awaited<ReturnType<typeof listPlanActivity>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListPlanActivity<TData = Awaited<ReturnType<typeof listPlanActivity>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ planId: string,
+    params?: ListPlanActivityParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlanActivity>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List plan activity (discussion, events)
+ */
+
+export function useListPlanActivity<TData = Awaited<ReturnType<typeof listPlanActivity>>, TError = UnauthorizedResponse | NotFoundResponse>(
+ planId: string,
+    params?: ListPlanActivityParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listPlanActivity>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient 
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListPlanActivityQueryOptions(planId,params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+/**
+ * @summary Post a discussion message
+ */
+export type postPlanActivityResponse201 = {
+  data: PostPlanActivity201
+  status: 201
+}
+
+export type postPlanActivityResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type postPlanActivityResponse404 = {
+  data: NotFoundResponse
+  status: 404
+}
+
+export type postPlanActivityResponseSuccess = (postPlanActivityResponse201) & {
+  headers: Headers;
+};
+export type postPlanActivityResponseError = (postPlanActivityResponse401 | postPlanActivityResponse404) & {
+  headers: Headers;
+};
+
+export type postPlanActivityResponse = (postPlanActivityResponseSuccess | postPlanActivityResponseError)
+
+export const getPostPlanActivityUrl = (planId: string,) => {
+
+
+  
+
+  return `/v1/plans/${planId}/activity`
+}
+
+export const postPlanActivity = async (planId: string,
+    postPlanActivityBody: PostPlanActivityBody, options?: RequestInit): Promise<postPlanActivityResponse> => {
+  
+  return customFetch<postPlanActivityResponse>(getPostPlanActivityUrl(planId),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      postPlanActivityBody,)
+  }
+);}
+
+
+
+
+export const getPostPlanActivityMutationOptions = <TError = UnauthorizedResponse | NotFoundResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postPlanActivity>>, TError,{planId: string;data: PostPlanActivityBody}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof postPlanActivity>>, TError,{planId: string;data: PostPlanActivityBody}, TContext> => {
+
+const mutationKey = ['postPlanActivity'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postPlanActivity>>, {planId: string;data: PostPlanActivityBody}> = (props) => {
+          const {planId,data} = props ?? {};
+
+          return  postPlanActivity(planId,data,requestOptions)
+        }
+
+
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostPlanActivityMutationResult = NonNullable<Awaited<ReturnType<typeof postPlanActivity>>>
+    export type PostPlanActivityMutationBody = PostPlanActivityBody
+    export type PostPlanActivityMutationError = UnauthorizedResponse | NotFoundResponse
+
+    /**
+ * @summary Post a discussion message
+ */
+export const usePostPlanActivity = <TError = UnauthorizedResponse | NotFoundResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postPlanActivity>>, TError,{planId: string;data: PostPlanActivityBody}, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof postPlanActivity>>,
+        TError,
+        {planId: string;data: PostPlanActivityBody},
+        TContext
+      > => {
+      return useMutation(getPostPlanActivityMutationOptions(options), queryClient);
     }
     /**
  * @summary View a shared plan (public)

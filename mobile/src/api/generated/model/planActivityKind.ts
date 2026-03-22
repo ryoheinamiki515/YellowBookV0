@@ -17,10 +17,12 @@ Non-goals for this surface (intentionally excluded):
  * OpenAPI spec version: 1.0.0
  */
 
-export type PlanRole = typeof PlanRole[keyof typeof PlanRole];
+export type PlanActivityKind = typeof PlanActivityKind[keyof typeof PlanActivityKind];
 
 
-export const PlanRole = {
-  owner: 'owner',
-  member: 'member',
+export const PlanActivityKind = {
+  MESSAGE: 'MESSAGE',
+  RESPONSE: 'RESPONSE',
+  STATE_CHANGE: 'STATE_CHANGE',
+  MILESTONE: 'MILESTONE',
 } as const;

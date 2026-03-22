@@ -34,7 +34,7 @@ function getWhenBadgeTone(plan: SocialPlan): WhenBadgeTone {
 
 function participantNames(plan: SocialPlan): string | null {
     const names = getSharedPeopleForDisplay(plan, {
-        excludeViewer: plan.role === "subscriber",
+        excludeViewer: plan.role === "member",
     }).map((person) => person.displayName);
 
     if (names.length === 0) return null;
@@ -435,7 +435,7 @@ export function PlanCard({
     index?: number;
 }) {
     const isHero = variant === "hero";
-    const isSubscribed = plan.role === "subscriber";
+    const isSubscribed = plan.role === "member";
     const compactWebMinHeight = !isHero && Platform.OS === "web" ? 72 : undefined;
     const when = formatWhenBadge(plan);
     const whenTone = getWhenBadgeTone(plan);

@@ -271,3 +271,108 @@ describe("buildSharedPeople", () => {
         assert.equal(serialized.participants[0]?.displayName, "ChanMi");
     });
 });
+
+// ===========================================================================
+// Membership-context serialization (PlanCollaboration layer)
+// ===========================================================================
+describe("serializeSocialPlan — membership context", () => {
+    test("owner context includes contextNote", () => {
+        const plan = makePlan();
+        const serialized = serializeSocialPlan(plan, { role: "owner" });
+        assert.equal(serialized.contextNote, "Catch up");
+    });
+
+    test("member context redacts contextNote to null", () => {
+        const plan = makePlan();
+        const serialized = serializeSocialPlan(plan, {
+            role: "member",
+            connectionMap: new Map(),
+            viewerUserId: "user-viewer",
+        });
+        assert.equal(serialized.contextNote, null);
+    });
+
+    test("subscriber context also redacts contextNote (backward compat)", () => {
+        const plan = makePlan();
+        const serialized = serializeSocialPlan(plan, {
+            role: "subscriber",
+            connectionMap: new Map(),
+            viewerUserId: "user-viewer",
+        });
+        assert.equal(serialized.contextNote, null);
+    });
+
+    test("member context builds sharedPeople", () => {
+        const plan = makePlan({
+            participants: [
+                makeParticipant({
+                    id: "participant-bob",
+                    displayName: "Bob",
+                    linkedUserId: "user-bob",
+                }),
+            ],
+        });
+
+        const serialized = serializeSocialPlan(plan, {
+            role: "member",
+            connectionMap: new Map([
+                ["user-bob", { personId: "person-bob", displayName: "Bobby" }],
+            ]),
+            viewerUserId: "user-bob",
+        });
+
+        assert.ok(serialized.sharedPeople);
+        assert.ok(serialized.sharedPeople.length > 0);
+        const viewer = serialized.sharedPeople.find((p) => p.isViewer);
+        assert.ok(viewer);
+        assert.equal(viewer.displayName, "Bobby");
+    });
+
+    test("owner context does not include sharedPeople", () => {
+        const plan = makePlan();
+        const serialized = serializeSocialPlan(plan, { role: "owner" });
+        assert.equal(serialized.sharedPeople, undefined);
+    });
+
+    test("member context strips personId and isPrimary from participants", () => {
+        const plan = makePlan({
+            participants: [
+                makeParticipant({
+                    id: "participant-sam",
+                    displayName: "Sam",
+                    linkedUserId: "user-sam",
+                }),
+            ],
+        });
+
+        const serialized = serializeSocialPlan(plan, {
+            role: "member",
+            connectionMap: new Map(),
+            viewerUserId: "user-viewer",
+        });
+
+        const participant = serialized.participants[0] as any;
+        assert.equal(participant.personId, undefined);
+        assert.equal(participant.isPrimary, undefined);
+        assert.ok(participant.displayName);
+        assert.ok(participant.createdAt);
+    });
+
+    test("owner context includes personId and isPrimary in participants", () => {
+        const plan = makePlan({
+            participants: [
+                makeParticipant({
+                    id: "participant-sam",
+                    displayName: "Sam",
+                    linkedUserId: "user-sam",
+                }),
+            ],
+        });
+
+        const serialized = serializeSocialPlan(plan, { role: "owner" });
+
+        const participant = serialized.participants[0] as any;
+        assert.ok("personId" in participant);
+        assert.ok("isPrimary" in participant);
+    });
+});
