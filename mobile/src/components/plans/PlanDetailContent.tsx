@@ -2185,6 +2185,27 @@ export function PlanDetailContent({
                                                         >
                                                             {name}
                                                         </Text>
+                                                        {canEdit && (
+                                                            <View
+                                                                width={16}
+                                                                height={16}
+                                                                borderRadius={8}
+                                                                backgroundColor="$colorTertiary"
+                                                                justifyContent="center"
+                                                                alignItems="center"
+                                                                marginLeft="$1"
+                                                            >
+                                                                <Text
+                                                                    fontFamily="$body"
+                                                                    fontSize={10}
+                                                                    fontWeight="700"
+                                                                    color="white"
+                                                                    lineHeight={12}
+                                                                >
+                                                                    {"×"}
+                                                                </Text>
+                                                            </View>
+                                                        )}
                                                     </XStack>
                                                 );
 
@@ -2195,18 +2216,14 @@ export function PlanDetailContent({
                                                 return (
                                                     <Pressable
                                                         key={p.key}
-                                                        onLongPress={() =>
+                                                        onPress={() =>
                                                             handleRemoveParticipantChip(
                                                                 p
                                                             )
                                                         }
                                                         disabled={isMutating}
                                                         accessibilityRole="button"
-                                                        accessibilityHint={
-                                                            p.source === "server"
-                                                                ? "Long press to remove and save later"
-                                                                : "Long press to remove this staged addition"
-                                                        }
+                                                        accessibilityHint="Tap to remove"
                                                     >
                                                         {chip}
                                                     </Pressable>
