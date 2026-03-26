@@ -901,6 +901,7 @@ function AddPersonSheet({
     currentParticipants,
     onStageExistingPerson,
     onStageNewPerson,
+    onRemoveParticipant,
     disabled = false,
 }: {
     open: boolean;
@@ -908,6 +909,7 @@ function AddPersonSheet({
     currentParticipants: PlanPersonIdentity[];
     onStageExistingPerson: (person: Person) => void;
     onStageNewPerson: (displayName: string) => void;
+    onRemoveParticipant: (identity: PlanPersonIdentity) => void;
     disabled?: boolean;
 }) {
     const [searchText, setSearchText] = useState("");
@@ -949,15 +951,15 @@ function AddPersonSheet({
             .filter(Boolean) as string[]
     );
 
-    // Filter out people already added as participants (by personId or displayName)
-    const people = allPeople.filter(
-        (p) => {
-            const normalizedName = normalizePersonDisplayName(p.displayName);
+    const isPersonOnPlan = useCallback(
+        (person: Person): boolean => {
+            const normalizedName = normalizePersonDisplayName(person.displayName);
             return (
-                !existingPersonIds.has(p.id) &&
-                !(normalizedName && existingDisplayNames.has(normalizedName))
+                existingPersonIds.has(person.id) ||
+                !!(normalizedName && existingDisplayNames.has(normalizedName))
             );
-        }
+        },
+        [existingPersonIds, existingDisplayNames]
     );
 
     const allOnPlan = allPlanPeople.filter(
@@ -965,12 +967,19 @@ function AddPersonSheet({
             Boolean(p.displayName)
     );
 
-    const handleSelectPerson = useCallback(
+    const handleTogglePerson = useCallback(
         (person: Person) => {
-            onStageExistingPerson(person);
+            if (isPersonOnPlan(person)) {
+                onRemoveParticipant({
+                    personId: person.id,
+                    displayName: person.displayName,
+                });
+            } else {
+                onStageExistingPerson(person);
+            }
             setSearchText("");
         },
-        [onStageExistingPerson]
+        [isPersonOnPlan, onRemoveParticipant, onStageExistingPerson]
     );
 
     const handleCreateAndAdd = useCallback(() => {
@@ -986,7 +995,7 @@ function AddPersonSheet({
         ? existingDisplayNames.has(normalizedSearch)
         : false;
     const exactMatchInLibrary = normalizedSearch
-        ? people.find(
+        ? allPeople.find(
               (p) =>
                   normalizePersonDisplayName(p.displayName) === normalizedSearch
           )
@@ -1040,42 +1049,67 @@ function AddPersonSheet({
                             const chipKey = person.personId || `name:${nameKey}`;
 
                             return (
-                                <XStack
+                                <Pressable
                                     key={chipKey}
-                                    alignItems="center"
-                                    gap="$1.5"
-                                    backgroundColor="$backgroundStrong"
-                                    borderWidth={1}
-                                    borderColor="$borderColorSubtle"
-                                    paddingHorizontal="$2.5"
-                                    paddingVertical="$1"
-                                    borderRadius="$10"
+                                    onPress={() => onRemoveParticipant(person)}
+                                    disabled={disabled}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={`Remove ${name} from this plan`}
                                 >
-                                    <View
-                                        width={20}
-                                        height={20}
-                                        borderRadius={10}
-                                        backgroundColor={getInitialColor(name)}
-                                        justifyContent="center"
+                                    <XStack
                                         alignItems="center"
+                                        gap="$1.5"
+                                        backgroundColor="$backgroundStrong"
+                                        borderWidth={1}
+                                        borderColor="$borderColorSubtle"
+                                        paddingHorizontal="$2.5"
+                                        paddingVertical="$1"
+                                        borderRadius="$10"
                                     >
+                                        <View
+                                            width={20}
+                                            height={20}
+                                            borderRadius={10}
+                                            backgroundColor={getInitialColor(name)}
+                                            justifyContent="center"
+                                            alignItems="center"
+                                        >
+                                            <Text
+                                                fontFamily="$body"
+                                                fontSize={9}
+                                                fontWeight="600"
+                                                color="white"
+                                            >
+                                                {name.charAt(0).toUpperCase()}
+                                            </Text>
+                                        </View>
                                         <Text
                                             fontFamily="$body"
-                                            fontSize={9}
-                                            fontWeight="600"
-                                            color="white"
+                                            fontSize="$2"
+                                            color="$color"
                                         >
-                                            {name.charAt(0).toUpperCase()}
+                                            {name}
                                         </Text>
-                                    </View>
-                                    <Text
-                                        fontFamily="$body"
-                                        fontSize="$2"
-                                        color="$color"
-                                    >
-                                        {name}
-                                    </Text>
-                                </XStack>
+                                        <View
+                                            width={14}
+                                            height={14}
+                                            borderRadius={7}
+                                            backgroundColor="$colorTertiary"
+                                            justifyContent="center"
+                                            alignItems="center"
+                                        >
+                                            <Text
+                                                fontFamily="$body"
+                                                fontSize={9}
+                                                fontWeight="700"
+                                                color="white"
+                                                lineHeight={11}
+                                            >
+                                                {"×"}
+                                            </Text>
+                                        </View>
+                                    </XStack>
+                                </Pressable>
                             );
                         })}
                     </XStack>
@@ -1088,45 +1122,63 @@ function AddPersonSheet({
                     keyboardShouldPersistTaps="handled"
                 >
                     <YStack gap="$2" paddingBottom="$1">
-                        {people.map((person) => (
-                            <BottomSheetListRow
-                                key={person.id}
-                                onPress={() => handleSelectPerson(person)}
-                                disabled={disabled}
-                                accessibilityLabel={`Add ${person.displayName} to this plan`}
-                                leading={
-                                    <View
-                                        width={32}
-                                        height={32}
-                                        borderRadius={16}
-                                        backgroundColor={getInitialColor(
-                                            person.displayName
-                                        )}
-                                        justifyContent="center"
-                                        alignItems="center"
-                                    >
-                                        <Text
-                                            fontFamily="$body"
-                                            fontSize={13}
-                                            fontWeight="600"
-                                            color="white"
+                        {allPeople.map((person) => {
+                            const onPlan = isPersonOnPlan(person);
+                            return (
+                                <BottomSheetListRow
+                                    key={person.id}
+                                    onPress={() => handleTogglePerson(person)}
+                                    disabled={disabled}
+                                    accessibilityLabel={
+                                        onPlan
+                                            ? `Remove ${person.displayName} from this plan`
+                                            : `Add ${person.displayName} to this plan`
+                                    }
+                                    leading={
+                                        <View
+                                            width={32}
+                                            height={32}
+                                            borderRadius={16}
+                                            backgroundColor={getInitialColor(
+                                                person.displayName
+                                            )}
+                                            justifyContent="center"
+                                            alignItems="center"
                                         >
-                                            {person.displayName
-                                                .charAt(0)
-                                                .toUpperCase()}
-                                        </Text>
-                                    </View>
-                                }
-                                title={person.displayName}
-                                subtitle={
-                                    person.pronouns || person.neighborhood
-                                        ? [person.pronouns, person.neighborhood]
-                                              .filter(Boolean)
-                                              .join(" · ")
-                                        : undefined
-                                }
-                            />
-                        ))}
+                                            <Text
+                                                fontFamily="$body"
+                                                fontSize={13}
+                                                fontWeight="600"
+                                                color="white"
+                                            >
+                                                {person.displayName
+                                                    .charAt(0)
+                                                    .toUpperCase()}
+                                            </Text>
+                                        </View>
+                                    }
+                                    title={person.displayName}
+                                    subtitle={
+                                        person.pronouns || person.neighborhood
+                                            ? [person.pronouns, person.neighborhood]
+                                                  .filter(Boolean)
+                                                  .join(" · ")
+                                            : undefined
+                                    }
+                                    trailing={
+                                        onPlan ? (
+                                            <Text
+                                                fontFamily="$body"
+                                                fontSize="$4"
+                                                color="$accentColor"
+                                            >
+                                                {"✓"}
+                                            </Text>
+                                        ) : undefined
+                                    }
+                                />
+                            );
+                        })}
 
                         {/* "Already on this plan" hint */}
                         {searchText.trim().length > 0 && nameAlreadyOnPlan && (
@@ -1212,7 +1264,7 @@ function AddPersonSheet({
                         )}
 
                         {/* Empty state when no people exist */}
-                        {people.length === 0 &&
+                        {allPeople.length === 0 &&
                             !searchText.trim() && (
                                 <YStack
                                     padding="$4"
@@ -1754,35 +1806,67 @@ export function PlanDetailContent({
     );
 
     const handleRemoveParticipantChip = useCallback(
-        async (participant: DisplayPlanParticipantChip) => {
-            const name = participant.displayName || "this person";
-            const description =
-                participant.source === "server"
-                    ? "They'll be removed when you save."
-                    : "They won't be added unless you save.";
+        (participant: DisplayPlanParticipantChip) => {
+            if (participant.source === "server" && participant.participantId) {
+                setRemovedParticipantIds((prev) =>
+                    prev.includes(participant.participantId!)
+                        ? prev
+                        : [...prev, participant.participantId!]
+                );
+                return;
+            }
 
-            const confirmed = await confirm({
-                title: `Remove ${name}?`,
-                message: description,
-                confirmLabel: "Remove",
-                destructive: true,
-            });
-            if (confirmed) {
-                if (participant.source === "server" && participant.participantId) {
+            setStagedParticipantAdds((prev) =>
+                prev.filter((draft) => draft.draftId !== participant.key)
+            );
+        },
+        []
+    );
+
+    const handleRemoveParticipantByIdentity = useCallback(
+        (identity: PlanPersonIdentity) => {
+            const normalizedName = normalizePersonDisplayName(identity.displayName);
+
+            // Check server participants first
+            if (plan) {
+                const serverMatch = plan.participants.find(
+                    (p) =>
+                        !removedParticipantIds.includes(p.id) &&
+                        ((identity.personId && p.personId === identity.personId) ||
+                            (normalizedName &&
+                                normalizePersonDisplayName(p.displayName) ===
+                                    normalizedName))
+                );
+                if (serverMatch) {
                     setRemovedParticipantIds((prev) =>
-                        prev.includes(participant.participantId!)
+                        prev.includes(serverMatch.id)
                             ? prev
-                            : [...prev, participant.participantId!]
+                            : [...prev, serverMatch.id]
                     );
                     return;
                 }
-
-                setStagedParticipantAdds((prev) =>
-                    prev.filter((draft) => draft.draftId !== participant.key)
-                );
             }
+
+            // Check staged additions
+            setStagedParticipantAdds((prev) =>
+                prev.filter((draft) => {
+                    if (
+                        identity.personId &&
+                        draft.kind === "existing-person"
+                    ) {
+                        return draft.personId !== identity.personId;
+                    }
+                    if (normalizedName) {
+                        return (
+                            normalizePersonDisplayName(draft.displayName) !==
+                            normalizedName
+                        );
+                    }
+                    return true;
+                })
+            );
         },
-        [confirm]
+        [plan, removedParticipantIds]
     );
 
     const handleSharePlan = useCallback(() => {
@@ -2529,6 +2613,7 @@ export function PlanDetailContent({
                     ]}
                     onStageExistingPerson={handleStageExistingPersonParticipant}
                     onStageNewPerson={handleStageNewPersonParticipant}
+                    onRemoveParticipant={handleRemoveParticipantByIdentity}
                     disabled={isMutating}
                 />
             </YStack>
