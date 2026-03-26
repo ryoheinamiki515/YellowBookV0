@@ -98,7 +98,7 @@ export default function PlansScreen() {
         isRefetching,
     } = useListPlans({
         state: viewMode === "open" ? ["OPEN"] : ["DONE", "DROPPED"],
-        sort: "-updatedAt",
+        sort: viewMode === "open" ? "anchorStart" : "-updatedAt",
         scope: "owned",
     });
 
@@ -107,7 +107,7 @@ export default function PlansScreen() {
         isRefetching: isSubscribedPlansRefetching,
     } = useListPlans({
         scope: "subscribed",
-        sort: "-updatedAt",
+        sort: "anchorStart",
     });
 
     const refreshPlans = useCallback(() => {
