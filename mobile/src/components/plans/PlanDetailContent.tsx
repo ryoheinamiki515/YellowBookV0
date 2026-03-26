@@ -27,6 +27,7 @@ import {
 import { EditableText } from "../EditableText";
 import { useConfirm } from "../ConfirmDialog";
 import { DetailFooterAction } from "../DetailFooterAction";
+import { PlanQuickActionRow } from "./PlanQuickActionRow";
 import { formatPlanWhenDisplay } from "./PlanReadOnlyDetails";
 
 import {
@@ -52,6 +53,7 @@ import type { SocialPlan } from "../../api/generated/model/socialPlan";
 import type { SocialPlanPatchRequest } from "../../api/generated/model/socialPlanPatchRequest";
 import type { SocialPlanTimePrecision } from "../../api/generated/model/socialPlanTimePrecision";
 import type { Person } from "../../api/generated/model/person";
+import { PlanMemberResponse } from "../../api/generated/model/planMemberResponse";
 import { getInitialColor, useReducedMotionPreference } from "../../lib/planHelpers";
 import { getSharedPeopleForDisplay } from "../../lib/sharedPeople";
 import {
@@ -1308,6 +1310,15 @@ type PlanDetailContentProps = {
     showNavBar?: boolean;
 };
 
+function responseStatusLabel(response?: string): string {
+    switch (response) {
+        case "ACCEPTED": return "Shared with you \u00b7 Going";
+        case "MAYBE":    return "Shared with you \u00b7 Maybe";
+        case "DECLINED": return "Shared with you \u00b7 Can\u2019t go";
+        default:         return "Shared with you";
+    }
+}
+
 export function PlanDetailContent({
     planId: id,
     focusTarget: focusProp,
@@ -1662,6 +1673,21 @@ export function PlanDetailContent({
             );
         }
     }, [patchPlan, membershipMutation, permissions, id, invalidateAll, queryClient, onClose]);
+
+    const handleRespond = useCallback(
+        (newResponse: PlanMemberResponse) => {
+            if (!id) return;
+            const value =
+                membership?.response === newResponse
+                    ? PlanMemberResponse.PENDING
+                    : newResponse;
+            membershipMutation.mutate(
+                { planId: id, data: { response: value } },
+                { onSuccess: () => invalidatePlanQueries(queryClient) }
+            );
+        },
+        [id, membership?.response, membershipMutation, queryClient]
+    );
 
     const handleReopen = useCallback(() => {
         patchPlan.mutate(
@@ -2462,13 +2488,44 @@ export function PlanDetailContent({
                                 fontSize="$2"
                                 color="$colorSecondary"
                             >
-                                Shared with you
+                                {responseStatusLabel(membership?.response)}
                             </Text>
+                            {permissions?.canRespond && isOpen && (
+                                <PlanQuickActionRow
+                                    compact
+                                    actions={[
+                                        {
+                                            key: "accept",
+                                            label: "Going",
+                                            onPress: () => handleRespond(PlanMemberResponse.ACCEPTED),
+                                            accessibilityLabel: "Accept this plan",
+                                            tone: membership?.response === "ACCEPTED" ? "accent" : "neutral",
+                                            loading: membershipMutation.isPending,
+                                        },
+                                        {
+                                            key: "maybe",
+                                            label: "Maybe",
+                                            onPress: () => handleRespond(PlanMemberResponse.MAYBE),
+                                            accessibilityLabel: "Respond maybe to this plan",
+                                            tone: membership?.response === "MAYBE" ? "accent" : "neutral",
+                                            loading: membershipMutation.isPending,
+                                        },
+                                        {
+                                            key: "decline",
+                                            label: "Can\u2019t go",
+                                            onPress: () => handleRespond(PlanMemberResponse.DECLINED),
+                                            accessibilityLabel: "Decline this plan",
+                                            tone: membership?.response === "DECLINED" ? "accent" : "neutral",
+                                            loading: membershipMutation.isPending,
+                                        },
+                                    ]}
+                                />
+                            )}
                             {permissions?.canChangeState && isOpen && (
                                 <DetailFooterAction
-                                    label={patchPlan.isPending ? "Saving..." : "Mark Done"}
+                                    label={membershipMutation.isPending ? "Saving..." : "Mark Done"}
                                     onPress={handleMarkDone}
-                                    disabled={stateActionsDisabled}
+                                    disabled={stateActionsDisabled || membershipMutation.isPending}
                                     tone="success"
                                     variant="soft"
                                     labelSize="$5"

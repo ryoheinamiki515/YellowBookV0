@@ -18,6 +18,7 @@ Non-goals for this surface (intentionally excluded):
  */
 import type { CursorParameter } from './cursorParameter';
 import type { LimitParameter } from './limitParameter';
+import type { ListPlansMarkedDone } from './listPlansMarkedDone';
 import type { ListPlansScope } from './listPlansScope';
 import type { SocialPlanState } from './socialPlanState';
 import type { SortPlansParameter } from './sortPlansParameter';
@@ -49,6 +50,13 @@ scope?: ListPlansScope;
  * Filter by one or more states.
  */
 state?: SocialPlanState[];
+/**
+ * When true with scope=subscribed, returns only plans the viewer
+personally marked done (markedDoneAt is set). Inverts the default
+filter that hides member-completed plans.
+
+ */
+markedDone?: ListPlansMarkedDone;
 /**
  * Filter plans containing a participant with this personId.
  */

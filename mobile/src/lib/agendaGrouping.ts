@@ -63,9 +63,12 @@ function getPlanDateKey(plan: SocialPlan): string | null {
 
 function toRowData(plan: SocialPlan, isShared: boolean): AgendaPlanRowData {
     const attentionReason = plan.state === "OPEN" ? getAttentionReason(plan) : null;
-    const quickActions = attentionReason
+    let quickActions = attentionReason
         ? getQuickActionsForAttention(plan, attentionReason)
         : [];
+    if (isShared && attentionReason === "past-due") {
+        quickActions = ["mark-done"];
+    }
     return { plan, attentionReason, quickActions, isShared };
 }
 

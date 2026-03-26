@@ -110,6 +110,13 @@ export default function PlansScreen() {
         sort: "anchorStart",
     });
 
+    const {
+        data: subscribedDoneResponse,
+    } = useListPlans(
+        { scope: "subscribed", markedDone: "true", sort: "-updatedAt" },
+        { query: { enabled: viewMode === "done" } }
+    );
+
     const refreshPlans = useCallback(() => {
         return invalidatePlanQueries(queryClient);
     }, [queryClient]);
@@ -126,6 +133,17 @@ export default function PlansScreen() {
         subscribedPlansResponse?.data && "data" in subscribedPlansResponse.data
             ? (subscribedPlansResponse.data as { data: SocialPlan[] }).data
             : [];
+
+    const subscribedDonePlans: SocialPlan[] =
+        subscribedDoneResponse?.data && "data" in subscribedDoneResponse.data
+            ? (subscribedDoneResponse.data as { data: SocialPlan[] }).data
+            : [];
+
+    const allDonePlans = useMemo<SocialPlan[]>(() => {
+        if (viewMode !== "done") return plans;
+        const seen = new Set(plans.map((p) => p.id));
+        return [...plans, ...subscribedDonePlans.filter((p) => !seen.has(p.id))];
+    }, [plans, subscribedDonePlans, viewMode]);
 
     const agendaSections = useMemo<AgendaSection[]>(() => {
         if (viewMode !== "open") return [];
@@ -454,7 +472,7 @@ export default function PlansScreen() {
                     </Text>
                 </YStack>
             ) : viewMode === "done" ? (
-                plans.length === 0 ? (
+                allDonePlans.length === 0 ? (
                     <YStack flex={1} justifyContent="center" alignItems="center" paddingHorizontal="$8">
                         <Text fontFamily="$heading" fontSize="$8" color="$color" textAlign="center" marginBottom="$2">
                             Nothing here yet
@@ -465,7 +483,7 @@ export default function PlansScreen() {
                     </YStack>
                 ) : (
                     <SectionList
-                        sections={[{ data: plans, dayKey: "done", label: "Completed", isToday: false }]}
+                        sections={[{ data: allDonePlans, dayKey: "done", label: "Completed", isToday: false }]}
                         renderItem={renderDoneItem as any}
                         renderSectionHeader={() => null}
                         keyExtractor={doneKeyExtractor}

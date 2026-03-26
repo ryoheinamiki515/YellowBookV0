@@ -136,6 +136,15 @@ paths:
             items:
               $ref: "#/components/schemas/SocialPlanState"
           example: [OPEN]
+        - name: markedDone
+          in: query
+          description: |
+            When true with scope=subscribed, returns only plans the viewer
+            personally marked done (markedDoneAt is set). Inverts the default
+            filter that hides member-completed plans.
+          schema:
+            type: string
+            enum: ["true"]
         - name: participantPersonId
           in: query
           description: Filter plans containing a participant with this personId.

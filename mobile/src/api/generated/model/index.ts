@@ -37,6 +37,7 @@ export * from './listPeopleParams';
 export * from './listPlanActivity200';
 export * from './listPlanActivity200Page';
 export * from './listPlanActivityParams';
+export * from './listPlansMarkedDone';
 export * from './listPlansParams';
 export * from './listPlansScope';
 export * from './meResponse';

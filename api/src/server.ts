@@ -330,6 +330,7 @@ v1.get(
         try {
             const userId = (req as any).userId as string;
             const scope = (typeof req.query.scope === "string" ? req.query.scope : "owned") as "owned" | "subscribed" | "all";
+            const markedDone = req.query.markedDone === "true";
             const participantPersonId =
                 typeof req.query.participantPersonId === "string"
                     ? req.query.participantPersonId
@@ -418,11 +419,13 @@ v1.get(
                 memberships: { some: { userId, ...roleFilter } },
             };
 
-            // Plans where the viewer marked done should be treated as DONE
-            // regardless of the plan's actual state.
-            const viewerDoneFilter = planStates.includes("DONE")
-                ? {}
-                : { memberships: { some: { userId, markedDoneAt: null } } };
+            // markedDone=true: fetch only plans the viewer personally marked done
+            // (inverts the default filter that hides them)
+            const viewerDoneFilter = markedDone
+                ? { memberships: { some: { userId, markedDoneAt: { not: null } } } }
+                : planStates.includes("DONE")
+                  ? {}
+                  : { memberships: { some: { userId, markedDoneAt: null } } };
 
             const rows = await prisma.socialPlan.findMany({
                 where: {
@@ -465,7 +468,16 @@ v1.get(
                 const context = membership.role === "OWNER"
                     ? { role: "owner" as const }
                     : { role: "member" as const, connectionMap, viewerUserId: userId };
-                return { ...serializeSocialPlan(row, context), role };
+                return {
+                    ...serializeSocialPlan(row, context),
+                    role,
+                    membership: {
+                        role,
+                        response: membership.response,
+                        privateNote: membership.privateNote,
+                        markedDoneAt: membership.markedDoneAt?.toISOString() ?? null,
+                    },
+                };
             });
 
             res.setHeader("Cache-Control", "no-cache");
