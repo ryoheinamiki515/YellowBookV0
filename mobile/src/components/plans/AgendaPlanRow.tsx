@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useRef } from "react";
 import { Animated, Easing, Platform } from "react-native";
 import { Text, View, XStack, YStack } from "tamagui";
 
+import { palette } from "../../../tamagui.config";
+
 import type { SocialPlan } from "../../api/generated/model/socialPlan";
 import type { PlanAttentionReason } from "../../lib/planListDerivations";
 import {
@@ -186,7 +188,7 @@ export function AgendaPlanRow({
                             width={7}
                             height={7}
                             borderRadius={3.5}
-                            backgroundColor="#D4805A"
+                            backgroundColor={palette.terracotta}
                             flexShrink={0}
                         />
                     ) : null}

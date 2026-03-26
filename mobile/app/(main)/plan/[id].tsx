@@ -1,7 +1,7 @@
 import React, { useCallback } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { AppSafeAreaView } from "../../../src/components/AppSafeAreaView";
 import { PageContainer } from "../../../src/components/PageContainer";
 import { PlanDetailContent } from "../../../src/components/plans/PlanDetailContent";
 import { getGetPlanQueryKey } from "../../../src/api/generated/plans/plans";
@@ -27,7 +27,7 @@ export default function PlanDetailScreen() {
     useRefreshOnVisible(refreshPlan);
 
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF8F3" }}>
+        <AppSafeAreaView>
             <PageContainer backgroundColor="$background">
                 <PlanDetailContent
                     key={id}
@@ -36,6 +36,6 @@ export default function PlanDetailScreen() {
                     onClose={() => router.back()}
                 />
             </PageContainer>
-        </SafeAreaView>
+        </AppSafeAreaView>
     );
 }

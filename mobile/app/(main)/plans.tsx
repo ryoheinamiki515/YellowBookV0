@@ -4,9 +4,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { YStack, XStack, Text, View, useMedia } from "tamagui";
 import { PageContainer } from "../../src/components/PageContainer";
+import { AppSafeAreaView } from "../../src/components/AppSafeAreaView";
 import { PlanDetailContent } from "../../src/components/plans/PlanDetailContent";
 import { useConfirm } from "../../src/components/ConfirmDialog";
-import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
     useListPlans,
@@ -16,8 +16,9 @@ import { usePatchPlanMembership } from "../../src/api/generated/sharing/sharing"
 import type { SocialPlan } from "../../src/api/generated/model/socialPlan";
 import type { PlanQuickActionRowAction } from "../../src/components/plans/PlanQuickActionRow";
 import { CreatePlanSheet } from "../../src/components/plans/CreatePlanSheet";
+import { PlanDetailSheet } from "../../src/components/plans/PlanDetailSheet";
+import { PlanCard } from "../../src/components/plans/PlanCard";
 import { AgendaDayHeader } from "../../src/components/plans/AgendaDayHeader";
-import { AgendaPlanRow } from "../../src/components/plans/AgendaPlanRow";
 import { SwipeableRow } from "../../src/components/plans/SwipeableRow";
 import { AgendaAttentionBanner } from "../../src/components/plans/AgendaAttentionBanner";
 import { AgendaEmptyState } from "../../src/components/plans/AgendaEmptyState";
@@ -68,7 +69,8 @@ export default function PlansScreen() {
     const [sheetOpen, setSheetOpen] = useState(false);
     const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
     const [selectedPlanFocus, setSelectedPlanFocus] = useState<PlanDetailFocusTarget | undefined>(undefined);
-    const [expandedPlanIds, setExpandedPlanIds] = useState<Set<string>>(new Set());
+    const [detailSheetPlanId, setDetailSheetPlanId] = useState<string | null>(null);
+    const [detailSheetFocus, setDetailSheetFocus] = useState<PlanDetailFocusTarget | undefined>(undefined);
     const [pendingListMutation, setPendingListMutation] = useState<{
         planId: string;
         kind: PlanQuickActionKind;
@@ -163,11 +165,11 @@ export default function PlansScreen() {
                 setSelectedPlanId(planId);
                 setSelectedPlanFocus(focus);
             } else {
-                const query = focus ? `?focus=${focus}` : "";
-                router.push(`/plan/${planId}${query}`);
+                setDetailSheetPlanId(planId);
+                setDetailSheetFocus(focus);
             }
         },
-        [router, hasDesktopSidebar]
+        [hasDesktopSidebar]
     );
 
     const mutatePlanStateFromList = useCallback(
@@ -274,25 +276,6 @@ export default function PlansScreen() {
         [handleQuickAction, patchPlan.isPending, pendingListMutation]
     );
 
-    const handleToggleExpand = useCallback((planId: string) => {
-        setExpandedPlanIds((prev) => {
-            const next = new Set(prev);
-            if (next.has(planId)) {
-                next.delete(planId);
-            } else {
-                next.add(planId);
-            }
-            return next;
-        });
-    }, []);
-
-    const handleNavigate = useCallback(
-        (planId: string) => {
-            handleOpenPlan(planId);
-        },
-        [handleOpenPlan]
-    );
-
     const handleAttentionBannerPress = useCallback(() => {
         const target = findFirstAttentionIndex(agendaSections);
         if (target && sectionListRef.current) {
@@ -308,7 +291,6 @@ export default function PlansScreen() {
 
     const toggleViewMode = useCallback(() => {
         setViewMode((v) => (v === "open" ? "done" : "open"));
-        setExpandedPlanIds(new Set());
     }, []);
 
     const renderSectionHeader = useCallback(
@@ -329,21 +311,19 @@ export default function PlansScreen() {
     const renderItem = useCallback(
         ({ item }: { item: AgendaPlanRowData }) => {
             const idx = itemIndexRef.current++;
-            const row = (
-                <AgendaPlanRow
+            const card = (
+                <PlanCard
                     plan={item.plan}
+                    variant="compact"
+                    onPress={(plan) => handleOpenPlan(plan.id)}
                     attentionReason={item.attentionReason}
-                    isShared={item.isShared}
-                    isExpanded={expandedPlanIds.has(item.plan.id)}
-                    onToggleExpand={handleToggleExpand}
-                    onNavigate={handleNavigate}
-                    quickActionItems={buildQuickActionItems(item)}
+                    quickActions={buildQuickActionItems(item)}
                     reducedMotion={reducedMotion}
                     index={idx}
                 />
             );
 
-            if (Platform.OS === "web") return row;
+            if (Platform.OS === "web") return card;
 
             return (
                 <SwipeableRow
@@ -351,14 +331,12 @@ export default function PlansScreen() {
                     onSwipeLeft={() => handleLetGoFromList(item.plan.id)}
                     reducedMotion={reducedMotion}
                 >
-                    {row}
+                    {card}
                 </SwipeableRow>
             );
         },
         [
-            expandedPlanIds,
-            handleToggleExpand,
-            handleNavigate,
+            handleOpenPlan,
             buildQuickActionItems,
             reducedMotion,
             handleMarkDoneFromList,
@@ -368,19 +346,14 @@ export default function PlansScreen() {
 
     const renderDoneItem = useCallback(
         ({ item }: { item: SocialPlan }) => (
-            <AgendaPlanRow
+            <PlanCard
                 plan={item}
-                attentionReason={null}
-                isShared={false}
-                isExpanded={false}
-                onToggleExpand={handleToggleExpand}
-                onNavigate={handleNavigate}
-                quickActionItems={[]}
+                variant="compact"
+                onPress={(plan) => handleOpenPlan(plan.id)}
                 reducedMotion={reducedMotion}
-                isDoneView
             />
         ),
-        [handleToggleExpand, handleNavigate, reducedMotion]
+        [handleOpenPlan, reducedMotion]
     );
 
     const keyExtractor = useCallback((item: AgendaPlanRowData) => item.plan.id, []);
@@ -538,21 +511,33 @@ export default function PlansScreen() {
                 onOpenChange={setSheetOpen}
                 onCreated={handleCreated}
             />
+
+            <PlanDetailSheet
+                planId={detailSheetPlanId}
+                open={detailSheetPlanId !== null}
+                onOpenChange={(open) => {
+                    if (!open) {
+                        setDetailSheetPlanId(null);
+                        setDetailSheetFocus(undefined);
+                    }
+                }}
+                focusTarget={detailSheetFocus}
+            />
         </>
     );
 
     if (!hasDesktopSidebar) {
         return (
-            <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF8F3" }}>
+            <AppSafeAreaView>
                 <PageContainer backgroundColor="$background">
                     {listContent}
                 </PageContainer>
-            </SafeAreaView>
+            </AppSafeAreaView>
         );
     }
 
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF8F3" }}>
+        <AppSafeAreaView>
             <XStack
                 flex={1}
                 backgroundColor="$background"
@@ -604,6 +589,6 @@ export default function PlansScreen() {
                     )}
                 </YStack>
             </XStack>
-        </SafeAreaView>
+        </AppSafeAreaView>
     );
 }

@@ -15,7 +15,6 @@ export function AgendaDayHeader({ label, isToday, count }: AgendaDayHeaderProps)
             justifyContent="space-between"
             paddingVertical="$2"
             paddingHorizontal="$4"
-            marginTop="$1"
             backgroundColor="$background"
             opacity={0.97}
             {...(Platform.OS === "web"

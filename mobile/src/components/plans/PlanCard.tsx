@@ -1,6 +1,8 @@
 import React, { useEffect, useRef } from "react";
 import { Animated, Easing, Platform } from "react-native";
-import { Text, View, XStack, YStack } from "tamagui";
+import { Text, View, XStack, YStack, useTheme } from "tamagui";
+
+import { palette } from "../../../tamagui.config";
 
 import type { SocialPlan } from "../../api/generated/model/socialPlan";
 import { DisclosureChevron } from "../DisclosureChevron";
@@ -145,11 +147,14 @@ function InfoPill({
     tone?: PillTone;
     compact?: boolean;
 }) {
+    const theme = useTheme();
+    const bgStrong = theme.backgroundStrong?.val ?? palette.linen;
+    const textSecondary = theme.colorSecondary?.val ?? palette.charcoal;
     const toneStyles: Record<PillTone, { backgroundColor: string; color: string }> = {
-        neutral: { backgroundColor: "#F0ECE4", color: "#6E6258" },
-        muted: { backgroundColor: "#F5F2EC", color: "#8D8176" },
-        success: { backgroundColor: "rgba(125,174,120,0.14)", color: "#4E7A4A" },
-        warning: { backgroundColor: "rgba(212,149,106,0.16)", color: "#8E5532" },
+        neutral: { backgroundColor: bgStrong, color: textSecondary },
+        muted: { backgroundColor: palette.parchment, color: textSecondary },
+        success: { backgroundColor: `rgba(125,174,120,0.22)`, color: palette.sageDark },
+        warning: { backgroundColor: `rgba(212,149,106,0.25)`, color: palette.terracottaDark },
     };
     const styles = toneStyles[tone];
 
@@ -175,10 +180,10 @@ function InfoPill({
 }
 
 const whenBadgeToneStyles: Record<WhenBadgeTone, { bg: string; text: string }> = {
-    today: { bg: "rgba(245,200,66,0.18)", text: "#8E6B00" },
-    tomorrow: { bg: "rgba(232,169,74,0.16)", text: "#8E5D1A" },
-    soon: { bg: "rgba(212,128,90,0.14)", text: "#8E4E2A" },
-    pastDue: { bg: "rgba(200,112,112,0.14)", text: "#8E3A3A" },
+    today: { bg: "rgba(245,200,66,0.30)", text: "#6B5000" },
+    tomorrow: { bg: "rgba(232,169,74,0.28)", text: "#6B4510" },
+    soon: { bg: "rgba(212,128,90,0.25)", text: "#6B3818" },
+    pastDue: { bg: "rgba(200,112,112,0.25)", text: "#6B2828" },
     neutral: { bg: "", text: "" },
 };
 
@@ -269,10 +274,10 @@ function getAccentColor(plan: SocialPlan): string {
         return "transparent";
     }
     const days = getDaysDiffFromIso(getStartAnchor(fromPlan(plan)));
-    if (days === null) return "#E2D9CC";
-    if (days <= 1) return "#F5C842";
-    if (days <= 7) return "#D4956A";
-    return "#E2D9CC";
+    if (days === null) return palette.fog;
+    if (days <= 1) return palette.honey;
+    if (days <= 7) return palette.terracotta;
+    return palette.fog;
 }
 
 function AvatarStack({
@@ -411,7 +416,7 @@ function usePlanCardAnimations({
 
     const flashBg = flashAnim.interpolate({
         inputRange: [0, 1],
-        outputRange: ["rgba(125,174,120,0)", "rgba(125,174,120,0.12)"],
+        outputRange: ["rgba(125,174,120,0)", "rgba(125,174,120,0.20)"],
     });
 
     return { fadeAnim, slideAnim, flashBg };
@@ -460,6 +465,7 @@ export function PlanCard({
                 opacity: fadeAnim,
                 transform: [{ translateY: slideAnim }],
                 marginBottom: isHero ? 16 : 10,
+                marginHorizontal: isHero ? 0 : 8,
             }}
         >
             <Animated.View style={{ backgroundColor: flashBg, borderRadius: cornerRadius }}>
@@ -488,7 +494,7 @@ export function PlanCard({
                             width={80}
                             height={80}
                             borderRadius={40}
-                            backgroundColor="rgba(253,233,168,0.12)"
+                            backgroundColor={`${palette.honeyLight}2E`}
                             pointerEvents="none"
                         />
                     ) : null}

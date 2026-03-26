@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
+import { palette } from "../../tamagui.config";
 import { YStack, XStack, Text, View, Input, useMedia } from "tamagui";
 import { PageContainer } from "../../src/components/PageContainer";
 import { PersonDetailContent } from "../../src/components/PersonDetailContent";
@@ -274,7 +275,7 @@ function SkeletonCards() {
         ).start();
     }, []);
 
-    const skeletonColor = "#EDE7DC";
+    const skeletonColor = palette.linen;
 
     return (
         <YStack flex={1} paddingHorizontal="$6" paddingTop="$4" gap="$3">
@@ -296,20 +297,20 @@ function SkeletonCards() {
                         width={40}
                         height={40}
                         borderRadius={20}
-                        backgroundColor="#E2D9CC"
+                        backgroundColor={palette.fog}
                     />
                     <View flex={1}>
                         <View
                             width="60%"
                             height={14}
                             borderRadius={7}
-                            backgroundColor="#E2D9CC"
+                            backgroundColor={palette.fog}
                         />
                         <View
                             width="40%"
                             height={10}
                             borderRadius={5}
-                            backgroundColor="#E2D9CC"
+                            backgroundColor={palette.fog}
                             marginTop={8}
                         />
                     </View>

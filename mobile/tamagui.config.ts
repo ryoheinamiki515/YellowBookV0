@@ -7,7 +7,7 @@ import { createFont, createTamagui, createTokens } from 'tamagui'
 //    Named by role, not by hue, so swapping palettes never breaks semantics.
 // ---------------------------------------------------------------------------
 
-const palette = {
+export const palette = {
     // Warm whites & off-whites — the "paper" of the notebook
     cream: '#FBF8F3',
     parchment: '#F5F0E8',
@@ -18,6 +18,7 @@ const palette = {
     fog: '#D4CBC0',
     stone: '#B5A99A',
     driftwood: '#8C7F72',
+    bark: '#736659',
     walnut: '#645850',
     charcoal: '#3D352F',
     espresso: '#2A2420',
@@ -299,7 +300,7 @@ const lightTheme: ThemeShape = {
     backgroundHover: palette.parchment,
     backgroundPress: palette.linen,
     backgroundFocus: palette.parchment,
-    backgroundStrong: palette.parchment,
+    backgroundStrong: palette.linen,
     backgroundTransparent: palette.transparent,
 
     // Surface elevation (cards, sheets, modals)
@@ -315,16 +316,16 @@ const lightTheme: ThemeShape = {
     colorPress: palette.charcoal,
     colorFocus: palette.espresso,
     colorTransparent: palette.transparent,
-    colorSecondary: palette.walnut,
-    colorTertiary: palette.driftwood,
-    colorMuted: palette.fog,
+    colorSecondary: palette.charcoal,
+    colorTertiary: palette.walnut,
+    colorMuted: palette.stone,
 
     // Borders & dividers
-    borderColor: palette.fog,
-    borderColorHover: palette.fog,
+    borderColor: palette.stone,
+    borderColorHover: palette.driftwood,
     borderColorFocus: palette.honey,
     borderColorPress: palette.fog,
-    borderColorSubtle: palette.sand,
+    borderColorSubtle: palette.fog,
 
     // Interactive — primary (honey/gold)
     accentBackground: palette.honey,
@@ -347,7 +348,7 @@ const lightTheme: ThemeShape = {
     destructiveColor: palette.roseDark,
 
     // Forms
-    placeholderColor: palette.stone,
+    placeholderColor: palette.driftwood,
     outlineColor: 'rgba(245,200,66,0.35)',
     inputBackground: '#FFFFFF',
 
@@ -691,7 +692,7 @@ export const config = createTamagui({
         defaultFont: 'body',
         styleCompat: 'react-native',
         fastSchemeChange: true,
-        shouldAddPrefersColorThemes: true,
+        shouldAddPrefersColorThemes: false,
         onlyAllowShorthands: false,
         mediaQueryDefaultActive: {
             touchable: true,    // mobile-first: assume touch by default

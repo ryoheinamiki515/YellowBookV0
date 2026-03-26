@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import { YStack, XStack, Text, View, useMedia } from "tamagui";
+import { palette } from "../../../tamagui.config";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Calendar } from "react-native-calendars";
 import type { CalendarProps, DateData } from "react-native-calendars";
@@ -26,10 +27,7 @@ import {
 import { EditableText } from "../EditableText";
 import { useConfirm } from "../ConfirmDialog";
 import { DetailFooterAction } from "../DetailFooterAction";
-import {
-    formatPlanWhenDisplay,
-    PlanReadOnlyDetails,
-} from "./PlanReadOnlyDetails";
+import { formatPlanWhenDisplay } from "./PlanReadOnlyDetails";
 
 import {
     useGetPlan,
@@ -55,6 +53,7 @@ import type { SocialPlanPatchRequest } from "../../api/generated/model/socialPla
 import type { SocialPlanTimePrecision } from "../../api/generated/model/socialPlanTimePrecision";
 import type { Person } from "../../api/generated/model/person";
 import { getInitialColor, useReducedMotionPreference } from "../../lib/planHelpers";
+import { getSharedPeopleForDisplay } from "../../lib/sharedPeople";
 import {
     fromPlan,
     fromStorageFields,
@@ -231,30 +230,36 @@ function FieldRow({
     label: string;
     value: string | null;
     placeholder: string;
-    onPress: () => void;
+    onPress?: () => void;
 }) {
+    const content = (
+        <YStack gap="$1">
+            <Text
+                fontFamily="$body"
+                fontSize={11}
+                fontWeight="600"
+                color="$colorTertiary"
+                letterSpacing={1}
+                textTransform="uppercase"
+            >
+                {label}
+            </Text>
+            <Text
+                fontFamily="$body"
+                fontSize="$4"
+                color={value ? "$color" : "$colorTertiary"}
+                fontStyle={value ? "normal" : "italic"}
+            >
+                {value || placeholder}
+            </Text>
+        </YStack>
+    );
+
+    if (!onPress) return content;
+
     return (
         <Pressable onPress={onPress} accessibilityRole="button">
-            <YStack gap="$1">
-                <Text
-                    fontFamily="$body"
-                    fontSize={11}
-                    fontWeight="600"
-                    color="$colorTertiary"
-                    letterSpacing={1}
-                    textTransform="uppercase"
-                >
-                    {label}
-                </Text>
-                <Text
-                    fontFamily="$body"
-                    fontSize="$4"
-                    color={value ? "$color" : "$colorTertiary"}
-                    fontStyle={value ? "normal" : "italic"}
-                >
-                    {value || placeholder}
-                </Text>
-            </YStack>
+            {content}
         </Pressable>
     );
 }
@@ -263,14 +268,14 @@ type WindowRangeSelectionStep = "start" | "end";
 type CalendarMarkedDates = NonNullable<CalendarProps["markedDates"]>;
 type WindowRangeMarking = CalendarMarkedDates[string];
 
-const RANGE_ENDPOINT_COLOR = "#C17A56";
+const RANGE_ENDPOINT_COLOR = palette.terracottaDark;
 const RANGE_TEXT_COLOR = "#FFFFFF";
-const RANGE_CALENDAR_SURFACE_COLOR = "#221D19";
-const RANGE_CALENDAR_TEXT_COLOR = "#F2E9DF";
-const RANGE_CALENDAR_MUTED_TEXT_COLOR = "#A99C90";
-const RANGE_CALENDAR_DISABLED_TEXT_COLOR = "#6F645A";
+const RANGE_CALENDAR_SURFACE_COLOR = palette.parchment;
+const RANGE_CALENDAR_TEXT_COLOR = palette.espresso;
+const RANGE_CALENDAR_MUTED_TEXT_COLOR = palette.driftwood;
+const RANGE_CALENDAR_DISABLED_TEXT_COLOR = palette.stone;
 
-const EXISTING_PLAN_DOT_COLOR = "#F0B881";
+const EXISTING_PLAN_DOT_COLOR = palette.amberLight;
 
 function buildExistingPlanMarkedDates(
     plans: SocialPlan[],
@@ -799,7 +804,7 @@ function WhenSheet({
                             const names = plansOnDate.map((p) => p.intentText).join(", ");
                             return (
                                 <XStack
-                                    backgroundColor="rgba(240, 184, 129, 0.12)"
+                                    backgroundColor="rgba(240, 184, 129, 0.22)"
                                     borderRadius="$4"
                                     padding="$3"
                                     gap="$2.5"
@@ -870,6 +875,7 @@ function WhenSheet({
                                 value={pickedDate}
                                 mode="time"
                                 display="spinner"
+                                themeVariant="light"
                                 onChange={(_event, date) => {
                                     if (date) setPickedDate(date);
                                 }}
@@ -1247,12 +1253,14 @@ type PlanDetailContentProps = {
     planId: string;
     focusTarget?: string;
     onClose: () => void;
+    showNavBar?: boolean;
 };
 
 export function PlanDetailContent({
     planId: id,
     focusTarget: focusProp,
     onClose,
+    showNavBar = true,
 }: PlanDetailContentProps) {
     const queryClient = useQueryClient();
     const confirm = useConfirm();
@@ -1844,19 +1852,19 @@ export function PlanDetailContent({
                         width="40%"
                         height={16}
                         borderRadius={8}
-                        backgroundColor="#EDE7DC"
+                        backgroundColor={palette.sand}
                     />
                     <View
                         width="80%"
                         height={24}
                         borderRadius={12}
-                        backgroundColor="#EDE7DC"
+                        backgroundColor={palette.sand}
                     />
                     <View
                         width="60%"
                         height={14}
                         borderRadius={7}
-                        backgroundColor="#EDE7DC"
+                        backgroundColor={palette.sand}
                     />
                 </Animated.View>
             </YStack>
@@ -1866,15 +1874,17 @@ export function PlanDetailContent({
     if (isError || !plan) {
         return (
             <YStack flex={1} backgroundColor="$background" padding="$6">
-                <Pressable onPress={onClose}>
-                    <Text
-                        fontFamily="$body"
-                        fontSize="$4"
-                        color="$accentColor"
-                    >
-                        Back
-                    </Text>
-                </Pressable>
+                {showNavBar ? (
+                    <Pressable onPress={onClose}>
+                        <Text
+                            fontFamily="$body"
+                            fontSize="$4"
+                            color="$accentColor"
+                        >
+                            Back
+                        </Text>
+                    </Pressable>
+                ) : null}
                 <YStack
                     flex={1}
                     justifyContent="center"
@@ -1893,6 +1903,7 @@ export function PlanDetailContent({
         );
     }
 
+    const canEdit = Boolean(permissions?.canEdit);
     const isDone = plan.state === "DONE";
     const isDropped = plan.state === "DROPPED";
     const isOpen = plan.state === "OPEN";
@@ -1915,81 +1926,90 @@ export function PlanDetailContent({
     const visibleServerParticipants = plan.participants.filter(
         (p) => (p.displayName || p.personId) && !removedParticipantIdSet.has(p.id)
     );
-    const participants: DisplayPlanParticipantChip[] = [
-        ...visibleServerParticipants.map((participant) => ({
-            key: participant.id,
+    const participants: DisplayPlanParticipantChip[] = canEdit
+        ? [
+            ...visibleServerParticipants.map((participant) => ({
+                key: participant.id,
+                source: "server" as const,
+                participantId: participant.id,
+                personId: participant.personId ?? null,
+                displayName: participant.displayName || "Unknown",
+            })),
+            ...stagedParticipantAdds.map((participant) => ({
+                key: participant.draftId,
+                source:
+                    participant.kind === "existing-person"
+                        ? ("staged-existing-person" as const)
+                        : ("staged-new-person" as const),
+                personId:
+                    participant.kind === "existing-person"
+                        ? participant.personId
+                        : null,
+                displayName: participant.displayName,
+            })),
+        ]
+        : getSharedPeopleForDisplay(plan, { localizeViewer: true }).map((person) => ({
+            key: person.key,
             source: "server" as const,
-            participantId: participant.id,
-            personId: participant.personId ?? null,
-            displayName: participant.displayName || "Unknown",
-        })),
-        ...stagedParticipantAdds.map((participant) => ({
-            key: participant.draftId,
-            source:
-                participant.kind === "existing-person"
-                    ? ("staged-existing-person" as const)
-                    : ("staged-new-person" as const),
-            personId:
-                participant.kind === "existing-person"
-                    ? participant.personId
-                    : null,
-            displayName: participant.displayName,
-        })),
-    ];
+            participantId: undefined,
+            personId: null,
+            displayName: person.label,
+        }));
 
     return (
-            <YStack flex={1} backgroundColor="$background" position="relative">
-                {/* Navigation bar */}
-                <XStack
-                    paddingHorizontal="$5"
-                    paddingVertical="$3"
-                    alignItems="center"
-                    justifyContent="space-between"
-                >
-                    <Pressable
-                        onPress={handleCancelOrBack}
-                        disabled={isMutating}
-                        hitSlop={12}
-                        accessibilityRole="button"
-                        accessibilityLabel="Go back"
+        <YStack flex={1} backgroundColor="$background" position="relative">
+                {showNavBar ? (
+                    <XStack
+                        paddingHorizontal="$5"
+                        paddingVertical="$3"
+                        alignItems="center"
+                        justifyContent="space-between"
                     >
-                        <Text
-                            fontFamily="$body"
-                            fontSize="$4"
-                            color="$accentColor"
-                            fontWeight="500"
-                            opacity={isMutating ? 0.5 : 1}
-                        >
-                            Back
-                        </Text>
-                    </Pressable>
-
-                    {!permissions?.canDelete ? (
-                        <View width={28} />
-                    ) : isDraftDirty ? (
-                        <View width={28} />
-                    ) : (
                         <Pressable
-                            onPress={handleDelete}
+                            onPress={handleCancelOrBack}
+                            disabled={isMutating}
                             hitSlop={12}
                             accessibilityRole="button"
-                            accessibilityLabel="Delete plan"
+                            accessibilityLabel="Go back"
                         >
                             <Text
                                 fontFamily="$body"
-                                fontSize="$6"
-                                color="$colorTertiary"
+                                fontSize="$4"
+                                color="$accentColor"
+                                fontWeight="500"
+                                opacity={isMutating ? 0.5 : 1}
                             >
-                                ···
+                                Back
                             </Text>
                         </Pressable>
-                    )}
-                </XStack>
+
+                        {!permissions?.canDelete ? (
+                            <View width={28} />
+                        ) : isDraftDirty ? (
+                            <View width={28} />
+                        ) : (
+                            <Pressable
+                                onPress={handleDelete}
+                                hitSlop={12}
+                                accessibilityRole="button"
+                                accessibilityLabel="Delete plan"
+                            >
+                                <Text
+                                    fontFamily="$body"
+                                    fontSize="$6"
+                                    color="$colorTertiary"
+                                >
+                                    ···
+                                </Text>
+                            </Pressable>
+                        )}
+                    </XStack>
+                ) : null}
 
                 <ScrollView
                     contentContainerStyle={{
                         paddingHorizontal: 24,
-                        paddingBottom: isDesktopWeb ? 24 : 140,
+                        paddingBottom: isDesktopWeb ? 24 : showNavBar ? 140 : 24,
                     }}
                     showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
@@ -2000,13 +2020,18 @@ export function PlanDetailContent({
                             transform: [{ translateY: slideAnim }],
                         }}
                     >
-                        {!permissions?.canEdit ? (
-                            <PlanReadOnlyDetails
-                                plan={plan}
-                                preface="Shared with you"
-                            />
-                        ) : (
-                            <>
+                        <>
+                                {isSubscriber && plan.ownerDisplayName ? (
+                                    <Text
+                                        fontFamily="$body"
+                                        fontSize="$3"
+                                        color="$colorSecondary"
+                                        marginBottom="$2"
+                                    >
+                                        Shared by {plan.ownerDisplayName}
+                                    </Text>
+                                ) : null}
+
                                 <View
                                     alignSelf="flex-start"
                                     backgroundColor={
@@ -2046,6 +2071,7 @@ export function PlanDetailContent({
                                         value={activePlanDraft.intentText}
                                         onChangeText={handleDraftIntentChange}
                                         saveOnBlur={false}
+                                        readOnly={!canEdit}
                                         placeholder="What's the plan?"
                                         textStyle={{
                                             fontFamily: "$heading",
@@ -2059,8 +2085,8 @@ export function PlanDetailContent({
                                     <FieldRow
                                         label="When"
                                         value={whenDisplay.primary}
-                                        placeholder="When are you thinking?"
-                                        onPress={() => setWhenSheetOpen(true)}
+                                        placeholder={canEdit ? "When are you thinking?" : "Not set"}
+                                        onPress={canEdit ? () => setWhenSheetOpen(true) : undefined}
                                     />
                                     {whenDisplay.secondary && (
                                         <Text
@@ -2090,7 +2116,8 @@ export function PlanDetailContent({
                                         value={activePlanDraft.locationText}
                                         onChangeText={handleDraftLocationChange}
                                         saveOnBlur={false}
-                                        placeholder="Add a place"
+                                        readOnly={!canEdit}
+                                        placeholder={canEdit ? "Add a place" : "Not set"}
                                         textStyle={{
                                             fontSize: 16,
                                             color: "$color",
@@ -2111,14 +2138,59 @@ export function PlanDetailContent({
                                         Who
                                     </Text>
 
-                                    {participants.length > 0 && (
+                                    {participants.length > 0 ? (
                                         <XStack
                                             flexWrap="wrap"
                                             gap="$2"
-                                            marginBottom="$2"
+                                            marginBottom={canEdit ? "$2" : 0}
                                         >
                                             {participants.map((p) => {
                                                 const name = p.displayName || "Unknown";
+
+                                                const chip = (
+                                                    <XStack
+                                                        alignItems="center"
+                                                        gap="$2"
+                                                        backgroundColor="$backgroundStrong"
+                                                        paddingHorizontal="$3"
+                                                        paddingVertical="$1.5"
+                                                        borderRadius="$10"
+                                                        opacity={canEdit && isMutating ? 0.5 : 1}
+                                                    >
+                                                        <View
+                                                            width={24}
+                                                            height={24}
+                                                            borderRadius={12}
+                                                            backgroundColor={getInitialColor(
+                                                                name
+                                                            )}
+                                                            justifyContent="center"
+                                                            alignItems="center"
+                                                        >
+                                                            <Text
+                                                                fontFamily="$body"
+                                                                fontSize={11}
+                                                                fontWeight="600"
+                                                                color="white"
+                                                            >
+                                                                {name
+                                                                    .charAt(0)
+                                                                    .toUpperCase()}
+                                                            </Text>
+                                                        </View>
+                                                        <Text
+                                                            fontFamily="$body"
+                                                            fontSize="$3"
+                                                            color="$color"
+                                                        >
+                                                            {name}
+                                                        </Text>
+                                                    </XStack>
+                                                );
+
+                                                if (!canEdit) {
+                                                    return <React.Fragment key={p.key}>{chip}</React.Fragment>;
+                                                }
 
                                                 return (
                                                     <Pressable
@@ -2136,90 +2208,66 @@ export function PlanDetailContent({
                                                                 : "Long press to remove this staged addition"
                                                         }
                                                     >
-                                                        <XStack
-                                                            alignItems="center"
-                                                            gap="$2"
-                                                            backgroundColor="$backgroundStrong"
-                                                            paddingHorizontal="$3"
-                                                            paddingVertical="$1.5"
-                                                            borderRadius="$10"
-                                                            opacity={isMutating ? 0.5 : 1}
-                                                        >
-                                                            <View
-                                                                width={24}
-                                                                height={24}
-                                                                borderRadius={12}
-                                                                backgroundColor={getInitialColor(
-                                                                    name
-                                                                )}
-                                                                justifyContent="center"
-                                                                alignItems="center"
-                                                            >
-                                                                <Text
-                                                                    fontFamily="$body"
-                                                                    fontSize={11}
-                                                                    fontWeight="600"
-                                                                    color="white"
-                                                                >
-                                                                    {name
-                                                                        .charAt(0)
-                                                                        .toUpperCase()}
-                                                                </Text>
-                                                            </View>
-                                                            <Text
-                                                                fontFamily="$body"
-                                                                fontSize="$3"
-                                                                color="$color"
-                                                            >
-                                                                {name}
-                                                            </Text>
-                                                        </XStack>
+                                                        {chip}
                                                     </Pressable>
                                                 );
                                             })}
                                         </XStack>
-                                    )}
-
-                                    <Pressable
-                                        onPress={() => setAddPersonSheetOpen(true)}
-                                        disabled={isMutating}
-                                        accessibilityRole="button"
-                                        accessibilityLabel="Add someone to this plan"
-                                    >
-                                        <XStack
-                                            alignItems="center"
-                                            gap="$2"
-                                            opacity={isMutating ? 0.5 : 1}
-                                        >
-                                            <View
-                                                width={28}
-                                                height={28}
-                                                borderRadius={14}
-                                                borderWidth={1.5}
-                                                borderColor="$accentColor"
-                                                borderStyle="dashed"
-                                                justifyContent="center"
-                                                alignItems="center"
-                                            >
-                                                <Text
-                                                    fontFamily="$heading"
-                                                    fontSize="$4"
-                                                    color="$accentColor"
-                                                    marginTop={-1}
-                                                >
-                                                    +
-                                                </Text>
-                                            </View>
+                                    ) : (
+                                        !canEdit ? (
                                             <Text
                                                 fontFamily="$body"
-                                                fontSize="$3"
-                                                color="$accentColor"
-                                                fontWeight="500"
+                                                fontSize="$4"
+                                                color="$colorTertiary"
+                                                fontStyle="italic"
                                             >
-                                                Add someone
+                                                No one added yet
                                             </Text>
-                                        </XStack>
-                                    </Pressable>
+                                        ) : null
+                                    )}
+
+                                    {canEdit ? (
+                                        <Pressable
+                                            onPress={() => setAddPersonSheetOpen(true)}
+                                            disabled={isMutating}
+                                            accessibilityRole="button"
+                                            accessibilityLabel="Add someone to this plan"
+                                        >
+                                            <XStack
+                                                alignItems="center"
+                                                gap="$2"
+                                                opacity={isMutating ? 0.5 : 1}
+                                            >
+                                                <View
+                                                    width={28}
+                                                    height={28}
+                                                    borderRadius={14}
+                                                    borderWidth={1.5}
+                                                    borderColor="$accentColor"
+                                                    borderStyle="dashed"
+                                                    justifyContent="center"
+                                                    alignItems="center"
+                                                >
+                                                    <Text
+                                                        fontFamily="$heading"
+                                                        fontSize="$4"
+                                                        color="$accentColor"
+                                                        marginTop={-1}
+                                                    >
+                                                        +
+                                                    </Text>
+                                                </View>
+                                                <Text
+                                                    fontFamily="$body"
+                                                    fontSize="$3"
+                                                    color="$accentColor"
+                                                    fontWeight="500"
+                                                >
+                                                    Add someone
+                                                </Text>
+                                            </XStack>
+                                        </Pressable>
+                                    ) : null}
                                 </YStack>
 
                                 <YStack marginBottom="$5">
@@ -2238,7 +2286,8 @@ export function PlanDetailContent({
                                         value={activePlanDraft.contextNote}
                                         onChangeText={handleDraftNoteChange}
                                         saveOnBlur={false}
-                                        placeholder="Any context? Why this matters, what to remember..."
+                                        readOnly={!canEdit}
+                                        placeholder={canEdit ? "Any context? Why this matters, what to remember..." : "No notes"}
                                         multiline
                                         textStyle={{
                                             fontSize: 16,
@@ -2287,13 +2336,12 @@ export function PlanDetailContent({
                                     </Text>
                                 </YStack>
                             </>
-                        )}
                     </Animated.View>
                 </ScrollView>
 
                 {/* 6. Bottom action bar — contextual */}
                 <YStack
-                    {...(isDesktopWeb
+                    {...(isDesktopWeb || !showNavBar
                         ? { paddingHorizontal: "$6", paddingVertical: "$4" }
                         : {
                               position: "absolute" as const,

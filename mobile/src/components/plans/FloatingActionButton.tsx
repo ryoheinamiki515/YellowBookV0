@@ -2,6 +2,8 @@ import React from "react";
 import { Platform } from "react-native";
 import { Text, View } from "tamagui";
 
+import { palette } from "../../../tamagui.config";
+
 type FloatingActionButtonProps = {
     onPress: () => void;
 };
@@ -29,7 +31,7 @@ export function FloatingActionButton({ onPress }: FloatingActionButtonProps) {
             cursor="pointer"
             zIndex={10}
             // @ts-ignore
-            shadowColor="#B8860B"
+            shadowColor={palette.honeyDeep}
             shadowOffset={{ width: 0, height: 4 }}
             shadowOpacity={0.22}
             shadowRadius={12}

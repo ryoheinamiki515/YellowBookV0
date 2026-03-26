@@ -5,6 +5,7 @@ import { Text, View, XStack, YStack, useMedia } from "tamagui";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../src/context/AuthContext";
 import { ConfirmProvider } from "../../src/components/ConfirmDialog";
+import { palette } from "../../tamagui.config";
 
 type NavItem = {
     label: string;
@@ -179,18 +180,18 @@ function MobileTabs() {
             screenOptions={{
                 headerShown: false,
                 tabBarStyle: {
-                    backgroundColor: "#FBF8F3",
-                    borderTopColor: "#E2D9CC",
+                    backgroundColor: palette.cream,
+                    borderTopColor: palette.stone,
                     borderTopWidth: 1,
                     height: tabBarHeight,
                     paddingTop: 6,
                     paddingBottom: Math.max(insets.bottom, 8),
                 },
                 tabBarLabelStyle: MOBILE_TAB_LABEL_STYLE,
-                tabBarActiveTintColor: "#2A2420",
-                tabBarInactiveTintColor: "#8C7F72",
+                tabBarActiveTintColor: palette.espresso,
+                tabBarInactiveTintColor: palette.walnut,
                 tabBarHideOnKeyboard: true,
-                sceneStyle: { backgroundColor: "#FBF8F3" },
+                sceneStyle: { backgroundColor: palette.cream },
             }}
         >
             <Tabs.Screen

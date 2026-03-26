@@ -8,6 +8,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "test": "tsx --test src/**/*.test.ts",
     "api:gen": "orval --config ./orval.config.ts",
     "api:watch": "orval --config ./orval.config.ts --watch"
   },
@@ -50,6 +51,7 @@
     "@types/react": "~19.1.0",
     "babel-preset-expo": "~12.0.0",
     "orval": "^8.4.0",
+    "tsx": "^4.21.0",
     "typescript": "~5.9.2"
   },
   "overrides": {

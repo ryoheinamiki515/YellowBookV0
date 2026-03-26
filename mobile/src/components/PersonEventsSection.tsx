@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Animated, Easing, Platform } from "react-native";
 import { Text, View, XStack, YStack } from "tamagui";
 
+import { palette } from "../../tamagui.config";
+
 import {
     getListPlansQueryKey,
     listPlans,
@@ -116,7 +118,7 @@ function EventsSkeletonRows() {
                     style={{
                         opacity: pulseAnim,
                         borderRadius: 14,
-                        backgroundColor: "#EDE7DC",
+                        backgroundColor: palette.linen,
                         height: 76,
                     }}
                 />

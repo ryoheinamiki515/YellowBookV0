@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from "react";
 import { Animated, Easing, Platform } from "react-native";
 import { Text, XStack, View } from "tamagui";
 
+import { palette } from "../../../tamagui.config";
+
 type AgendaAttentionBannerProps = {
     count: number;
     onPress: () => void;
@@ -46,7 +48,7 @@ export function AgendaAttentionBanner({
                 marginBottom="$1"
                 paddingHorizontal="$3"
                 paddingVertical="$2.5"
-                backgroundColor="rgba(212,128,90,0.1)"
+                backgroundColor="rgba(212,128,90,0.20)"
                 borderRadius={12}
             >
                 <XStack
@@ -62,9 +64,9 @@ export function AgendaAttentionBanner({
                         width={6}
                         height={6}
                         borderRadius={3}
-                        backgroundColor="#D4805A"
+                        backgroundColor={palette.terracotta}
                     />
-                    <Text fontFamily="$body" fontSize={13} color="#8E5532">
+                    <Text fontFamily="$body" fontSize={13} color={palette.terracottaDark}>
                         {count} {count === 1 ? "plan needs" : "plans need"} your attention
                     </Text>
                 </XStack>

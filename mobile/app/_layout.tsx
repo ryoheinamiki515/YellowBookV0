@@ -8,6 +8,7 @@ import {
     DMSans_600SemiBold,
     DMSans_700Bold,
 } from "@expo-google-fonts/dm-sans";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -192,12 +193,14 @@ export default function RootLayout() {
     }
 
     return (
-        <TamaguiProvider config={tamaguiConfig} defaultTheme="light">
-            <AuthProvider>
-                <QueryClientProvider client={queryClient}>
-                    <ProtectedLayout />
-                </QueryClientProvider>
-            </AuthProvider>
-        </TamaguiProvider>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+            <TamaguiProvider config={tamaguiConfig} defaultTheme="light">
+                <AuthProvider>
+                    <QueryClientProvider client={queryClient}>
+                        <ProtectedLayout />
+                    </QueryClientProvider>
+                </AuthProvider>
+            </TamaguiProvider>
+        </GestureHandlerRootView>
     );
 }

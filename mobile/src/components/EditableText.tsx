@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, TextInput as RNTextInput } from "react-native";
 import { Text, XStack, YStack } from "tamagui";
 
+import { palette } from "../../tamagui.config";
+
 import { AppTextInput } from "./AppTextInput";
 
 type EditableTextProps = {
@@ -15,6 +17,7 @@ type EditableTextProps = {
     showMultilineDoneAction?: boolean;
     multilineDoneLabel?: string;
     saveOnBlur?: boolean;
+    readOnly?: boolean;
 };
 
 export function EditableText({
@@ -28,6 +31,7 @@ export function EditableText({
     showMultilineDoneAction = true,
     multilineDoneLabel = "Done",
     saveOnBlur = true,
+    readOnly = false,
 }: EditableTextProps) {
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState(value);
@@ -73,7 +77,7 @@ export function EditableText({
         inputRef.current?.blur();
     }, []);
 
-    if (editing) {
+    if (!readOnly && editing) {
         return (
             <YStack gap={multiline && showMultilineDoneAction ? "$2" : 0}>
                 <AppTextInput
@@ -87,7 +91,7 @@ export function EditableText({
                     style={[
                         {
                             fontFamily: "System",
-                            color: "#2A2420",
+                            color: palette.espresso,
                             padding: 0,
                             margin: 0,
                             textAlignVertical: multiline ? "top" : "center",
@@ -131,22 +135,28 @@ export function EditableText({
 
     const isEmpty = !value;
 
+    const displayText = (
+        <Text
+            fontFamily={
+                (textStyle as any)?.fontFamily === "$heading"
+                    ? "$heading"
+                    : "$body"
+            }
+            fontSize={(textStyle as any)?.fontSize ?? "$5"}
+            color={isEmpty ? placeholderColor : (textStyle as any)?.color ?? "$color"}
+            fontStyle={isEmpty ? "italic" : "normal"}
+            fontWeight={(textStyle as any)?.fontWeight}
+            lineHeight={(textStyle as any)?.lineHeight}
+        >
+            {isEmpty ? placeholder : value}
+        </Text>
+    );
+
+    if (readOnly) return displayText;
+
     return (
         <Pressable onPress={() => setEditing(true)} accessibilityRole="button">
-            <Text
-                fontFamily={
-                    (textStyle as any)?.fontFamily === "$heading"
-                        ? "$heading"
-                        : "$body"
-                }
-                fontSize={(textStyle as any)?.fontSize ?? "$5"}
-                color={isEmpty ? placeholderColor : (textStyle as any)?.color ?? "$color"}
-                fontStyle={isEmpty ? "italic" : "normal"}
-                fontWeight={(textStyle as any)?.fontWeight}
-                lineHeight={(textStyle as any)?.lineHeight}
-            >
-                {isEmpty ? placeholder : value}
-            </Text>
+            {displayText}
         </Pressable>
     );
 }

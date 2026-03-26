@@ -1,24 +1,26 @@
 import React from "react";
 import { Text, View, XStack } from "tamagui";
 
+import { palette } from "../../../tamagui.config";
+
 type PlansSectionHeaderProps = {
     title: string;
     count?: number;
 };
 
 const sectionDotColors: Record<string, string> = {
-    "Needs Attention": "#D4805A",  // terracotta
-    "Upcoming": "#F5C842",         // honey
-    "History": "#B5A99A",          // stone
-    "Coming Up": "#F5C842",        // gold
-    "This Week": "#7DAE78",        // sage
-    "Later": "#B5A99A",            // stone
-    "Someday": "#D4CBC0",          // fog
-    "Shared with you": "#8FA4C4",   // slate blue
+    "Needs Attention": palette.terracotta,
+    "Upcoming": palette.honey,
+    "History": palette.driftwood,
+    "Coming Up": palette.honey,
+    "This Week": palette.sage,
+    "Later": palette.driftwood,
+    "Someday": palette.stone,
+    "Shared with you": "#8FA4C4",
 };
 
 function getSectionDotColor(title: string): string {
-    return sectionDotColors[title] ?? "#D4CBC0";
+    return sectionDotColors[title] ?? palette.stone;
 }
 
 export function PlansSectionHeader({

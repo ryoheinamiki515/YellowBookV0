@@ -2,6 +2,8 @@ import React, { useRef, useCallback } from "react";
 import { Animated, PanResponder, Platform } from "react-native";
 import { Text, View } from "tamagui";
 
+import { palette } from "../../../tamagui.config";
+
 type SwipeableRowProps = {
     children: React.ReactNode;
     onSwipeRight?: () => void;
@@ -89,13 +91,13 @@ export function SwipeableRow({
                     bottom: 0,
                     left: 0,
                     right: 0,
-                    backgroundColor: "rgba(125,174,120,0.2)",
+                    backgroundColor: "rgba(125,174,120,0.30)",
                     justifyContent: "center",
                     paddingLeft: 20,
                     opacity: rightRevealOpacity,
                 }}
             >
-                <Text fontFamily="$body" fontSize={14} fontWeight="600" color="#4E7A4A">
+                <Text fontFamily="$body" fontSize={14} fontWeight="600" color={palette.sageDark}>
                     Done
                 </Text>
             </Animated.View>
@@ -108,14 +110,14 @@ export function SwipeableRow({
                     bottom: 0,
                     left: 0,
                     right: 0,
-                    backgroundColor: "rgba(200,112,112,0.15)",
+                    backgroundColor: "rgba(200,112,112,0.25)",
                     justifyContent: "center",
                     alignItems: "flex-end",
                     paddingRight: 20,
                     opacity: leftRevealOpacity,
                 }}
             >
-                <Text fontFamily="$body" fontSize={14} fontWeight="600" color="#8E3A3A">
+                <Text fontFamily="$body" fontSize={14} fontWeight="600" color={palette.roseDark}>
                     Let Go
                 </Text>
             </Animated.View>

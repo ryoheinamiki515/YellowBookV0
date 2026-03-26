@@ -12,7 +12,16 @@ import {
 } from "react-native";
 import type { KeyboardEvent } from "react-native";
 import { Input, Spinner, Text, View, XStack, YStack } from "tamagui";
+import {
+    GestureHandlerRootView,
+    PanGestureHandler,
+    State,
+    type PanGestureHandlerGestureEvent,
+    type PanGestureHandlerStateChangeEvent,
+} from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { palette } from "../../tamagui.config";
 
 import { useNativeKeyboardAppearance } from "./AppTextInput";
 
@@ -25,7 +34,7 @@ const SHEET_SHADOW_STYLE = {
 } as const;
 
 const PRIMARY_BUTTON_SHADOW_STYLE = {
-    shadowColor: "#B8860B",
+    shadowColor: palette.honeyDeep,
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.12,
     shadowRadius: 8,
@@ -47,12 +56,118 @@ const SCREEN_HEIGHT = Dimensions.get("screen").height;
 const KEYBOARD_SHEET_OVERLAP_PX = 20;
 const SHEET_TOP_SAFE_GAP_PX = 12;
 const SHEET_BOTTOM_PADDING_PX = 20;
+const SHEET_HANDLE_TOUCH_HEIGHT_PX = 32;
+const SHEET_DRAG_DISMISS_DISTANCE_PX = 72;
+const SHEET_DRAG_DISMISS_VELOCITY_PX_PER_S = 1200;
+
+type DragHandleIndicatorProps = {
+    interactive?: boolean;
+    dragOffset?: Animated.Value;
+    onDismiss?: () => void;
+};
+
+function DragHandleIndicator({
+    interactive = false,
+    dragOffset,
+    onDismiss,
+}: DragHandleIndicatorProps) {
+    const isInteractive = interactive && Boolean(dragOffset && onDismiss);
+    const resetDragOffset = React.useCallback(() => {
+        if (!dragOffset) return;
+
+        Animated.spring(dragOffset, {
+            toValue: 0,
+            tension: 80,
+            friction: 14,
+            useNativeDriver: true,
+        }).start();
+    }, [dragOffset]);
+
+    const handleGestureEvent = React.useCallback(
+        (event: PanGestureHandlerGestureEvent) => {
+            if (!dragOffset) return;
+            dragOffset.setValue(Math.max(0, event.nativeEvent.translationY));
+        },
+        [dragOffset]
+    );
+
+    const handleGestureStateChange = React.useCallback(
+        (event: PanGestureHandlerStateChangeEvent) => {
+            if (!dragOffset || !onDismiss) return;
+
+            const { oldState, state, translationY, velocityY } = event.nativeEvent;
+
+            if (state === State.BEGAN) {
+                dragOffset.stopAnimation();
+                return;
+            }
+
+            if (oldState !== State.ACTIVE) {
+                if (state === State.CANCELLED || state === State.FAILED) {
+                    resetDragOffset();
+                }
+                return;
+            }
+
+            const shouldDismiss =
+                translationY >= SHEET_DRAG_DISMISS_DISTANCE_PX ||
+                velocityY >= SHEET_DRAG_DISMISS_VELOCITY_PX_PER_S;
+
+            if (shouldDismiss) {
+                onDismiss();
+                return;
+            }
+
+            resetDragOffset();
+        },
+        [dragOffset, onDismiss, resetDragOffset]
+    );
+
+    const content = (
+        <Animated.View
+            style={{
+                width: "100%",
+                alignItems: "center",
+                justifyContent: "center",
+                height: SHEET_HANDLE_TOUCH_HEIGHT_PX,
+                marginBottom: 8,
+            }}
+        >
+            <View
+                alignSelf="center"
+                width={36}
+                height={4}
+                borderRadius={2}
+                backgroundColor="$colorTertiary"
+                opacity={0.50}
+            />
+        </Animated.View>
+    );
+
+    if (!isInteractive) {
+        return content;
+    }
+
+    return (
+        <PanGestureHandler
+            activeOffsetY={5}
+            failOffsetX={[-16, 16]}
+            onGestureEvent={handleGestureEvent}
+            onHandlerStateChange={handleGestureStateChange}
+        >
+            {content}
+        </PanGestureHandler>
+    );
+}
+
+type BottomSheetModalVariant = "default" | "full";
 
 type BottomSheetModalProps = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     children: React.ReactNode;
     minHeight?: number;
+    variant?: BottomSheetModalVariant;
 };
 
 export function BottomSheetModal({
@@ -60,6 +175,7 @@ export function BottomSheetModal({
     onOpenChange,
     children,
     minHeight,
+    variant = "default",
 }: BottomSheetModalProps) {
     const insets = useSafeAreaInsets();
     const { width, height: windowHeight } = useWindowDimensions();
@@ -67,15 +183,18 @@ export function BottomSheetModal({
     const [visible, setVisible] = React.useState(open);
     const transition = React.useRef(new Animated.Value(open ? 1 : 0)).current;
     const keyboardOffset = React.useRef(new Animated.Value(0)).current;
+    const dragOffset = React.useRef(new Animated.Value(0)).current;
     const safeTopInset = Math.max(insets.top, 0);
     const maxSheetHeight = Math.max(
         120,
         windowHeight - safeTopInset - SHEET_TOP_SAFE_GAP_PX
     );
+    const isFull = variant === "full";
+    const effectiveMinHeight = isFull ? maxSheetHeight : minHeight;
     const resolvedMinHeight =
-        typeof minHeight === "number"
-            ? Math.min(minHeight, maxSheetHeight)
-            : minHeight;
+        typeof effectiveMinHeight === "number"
+            ? Math.min(effectiveMinHeight, maxSheetHeight)
+            : effectiveMinHeight;
 
     const animateKeyboardOffset = React.useCallback(
         (toValue: number, duration = 250) => {
@@ -93,9 +212,10 @@ export function BottomSheetModal({
 
     React.useEffect(() => {
         if (open) {
+            dragOffset.setValue(0);
             setVisible(true);
         }
-    }, [open]);
+    }, [dragOffset, open]);
 
     React.useEffect(() => {
         if (!visible) {
@@ -161,13 +281,14 @@ export function BottomSheetModal({
     React.useEffect(() => {
         if (!visible) {
             keyboardOffset.setValue(0);
+            dragOffset.setValue(0);
         }
-    }, [keyboardOffset, visible]);
+    }, [dragOffset, keyboardOffset, visible]);
 
-    const handleClose = () => {
+    const handleClose = React.useCallback(() => {
         Keyboard.dismiss();
         onOpenChange(false);
-    };
+    }, [onOpenChange]);
 
     if (!visible) {
         return null;
@@ -186,51 +307,54 @@ export function BottomSheetModal({
                 animationType="none"
                 onRequestClose={handleClose}
             >
-                <Pressable
-                    style={[
-                        StyleSheet.absoluteFill,
-                        {
-                            justifyContent: "center",
-                            alignItems: "center",
-                        },
-                    ]}
-                    onPress={handleClose}
-                >
-                    <Animated.View
-                        pointerEvents="none"
-                        style={[
-                            StyleSheet.absoluteFill,
-                            {
-                                backgroundColor: BACKDROP_COLOR,
-                                opacity: transition,
-                            },
-                        ]}
-                    />
+                <GestureHandlerRootView style={{ flex: 1 }}>
+                        <Pressable
+                            style={[
+                                StyleSheet.absoluteFill,
+                                {
+                                    justifyContent: "center",
+                                    alignItems: "center",
+                                },
+                            ]}
+                            onPress={handleClose}
+                        >
+                            <Animated.View
+                                pointerEvents="none"
+                                style={[
+                                    StyleSheet.absoluteFill,
+                                    {
+                                        backgroundColor: BACKDROP_COLOR,
+                                        opacity: transition,
+                                    },
+                                ]}
+                            />
 
-                    <Animated.View
-                        style={{
-                            width: "100%",
-                            maxWidth: 640,
-                            opacity: transition,
-                            transform: [{ scale: dialogScale }],
-                        }}
-                    >
-                        <Pressable onPress={(e) => e.stopPropagation()}>
-                            <YStack
-                                backgroundColor="$surface"
-                                borderRadius="$8"
-                                padding="$6"
-                                paddingBottom={SHEET_BOTTOM_PADDING_PX}
-                                minHeight={resolvedMinHeight}
-                                maxHeight={maxSheetHeight}
-                                flexShrink={1}
-                                style={DIALOG_SHADOW_STYLE}
+                            <Animated.View
+                                style={{
+                                    width: "100%",
+                                    maxWidth: isFull ? 720 : 640,
+                                    opacity: transition,
+                                    transform: [{ scale: dialogScale }],
+                                }}
                             >
-                                {children}
-                            </YStack>
+                                <Pressable onPress={(e) => e.stopPropagation()}>
+                                    <YStack
+                                        backgroundColor="$surface"
+                                        borderRadius="$8"
+                                        padding="$6"
+                                        paddingBottom={SHEET_BOTTOM_PADDING_PX}
+                                        minHeight={resolvedMinHeight}
+                                        maxHeight={maxSheetHeight}
+                                        flexShrink={1}
+                                        style={DIALOG_SHADOW_STYLE}
+                                    >
+                                        {isFull ? <DragHandleIndicator /> : null}
+                                        {children}
+                                    </YStack>
+                                </Pressable>
+                            </Animated.View>
                         </Pressable>
-                    </Animated.View>
-                </Pressable>
+                </GestureHandlerRootView>
             </Modal>
         );
     }
@@ -256,65 +380,76 @@ export function BottomSheetModal({
             animationType="none"
             onRequestClose={handleClose}
         >
-            <Pressable
-                style={StyleSheet.absoluteFill}
-                onPress={handleClose}
-            >
-                <Animated.View
-                    pointerEvents="none"
-                    style={[
-                        StyleSheet.absoluteFill,
-                        {
-                            backgroundColor: BACKDROP_COLOR,
-                            opacity: transition,
-                        },
-                    ]}
-                />
-            </Pressable>
+            <GestureHandlerRootView style={{ flex: 1 }}>
+                    <Pressable
+                        style={StyleSheet.absoluteFill}
+                        onPress={handleClose}
+                    >
+                        <Animated.View
+                            pointerEvents="none"
+                            style={[
+                                StyleSheet.absoluteFill,
+                                {
+                                    backgroundColor: BACKDROP_COLOR,
+                                    opacity: transition,
+                                },
+                            ]}
+                        />
+                    </Pressable>
 
-            <Animated.View
-                pointerEvents="none"
-                style={{
-                    position: "absolute",
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    height: SCREEN_HEIGHT,
-                    transform: [
-                        { translateY: sheetTranslateY },
-                        { translateY: keyboardFillTranslateY },
-                    ],
-                }}
-            >
-                <YStack flex={1} backgroundColor="$surface" />
-            </Animated.View>
+                    <Animated.View
+                        pointerEvents="none"
+                        style={{
+                            position: "absolute",
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            height: SCREEN_HEIGHT,
+                            transform: [
+                                { translateY: sheetTranslateY },
+                                { translateY: dragOffset },
+                                { translateY: keyboardFillTranslateY },
+                            ],
+                        }}
+                    >
+                        <YStack flex={1} backgroundColor="$surface" />
+                    </Animated.View>
 
-            <Animated.View
-                style={{
-                    position: "absolute",
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    transform: [
-                        { translateY: sheetTranslateY },
-                        { translateY: Animated.multiply(keyboardLift, -1) },
-                    ],
-                }}
-            >
-                <YStack
-                    backgroundColor="$surface"
-                    borderTopLeftRadius="$8"
-                    borderTopRightRadius="$8"
-                    padding="$6"
-                    paddingBottom={Math.max(insets.bottom, 0) + SHEET_BOTTOM_PADDING_PX}
-                    minHeight={resolvedMinHeight}
-                    maxHeight={maxSheetHeight}
-                    flexShrink={1}
-                    style={SHEET_SHADOW_STYLE}
-                >
-                    {children}
-                </YStack>
-            </Animated.View>
+                    <Animated.View
+                        style={{
+                            position: "absolute",
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            transform: [
+                                { translateY: sheetTranslateY },
+                                { translateY: dragOffset },
+                                { translateY: Animated.multiply(keyboardLift, -1) },
+                            ],
+                        }}
+                    >
+                        <YStack
+                            backgroundColor="$surface"
+                            borderTopLeftRadius="$8"
+                            borderTopRightRadius="$8"
+                            padding="$6"
+                            paddingBottom={Math.max(insets.bottom, 0) + SHEET_BOTTOM_PADDING_PX}
+                            minHeight={resolvedMinHeight}
+                            maxHeight={maxSheetHeight}
+                            flexShrink={1}
+                            style={SHEET_SHADOW_STYLE}
+                        >
+                            {isFull ? (
+                                <DragHandleIndicator
+                                    interactive
+                                    dragOffset={dragOffset}
+                                    onDismiss={handleClose}
+                                />
+                            ) : null}
+                            {children}
+                        </YStack>
+                    </Animated.View>
+            </GestureHandlerRootView>
         </Modal>
     );
 }
