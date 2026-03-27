@@ -16,19 +16,10 @@ Non-goals for this surface (intentionally excluded):
 
  * OpenAPI spec version: 1.0.0
  */
-import type { PatchMeRequestBirthday } from './patchMeRequestBirthday';
 
-export interface PatchMeRequest {
-  /**
-   * @minLength 1
-   * @maxLength 120
-   */
-  displayName?: string;
-  /** @nullable */
-  birthday?: PatchMeRequestBirthday;
-  /**
-   * @maxLength 2048
-   * @nullable
-   */
-  profileImageUrl?: string | null;
-}
+export type ProfileImageUploadResponseData = {
+  /** Presigned PUT URL — upload the image directly to this URL */
+  uploadUrl: string;
+  /** Public URL of the image after upload */
+  publicUrl: string;
+};

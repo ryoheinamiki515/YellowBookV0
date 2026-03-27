@@ -11,7 +11,7 @@ import {
     type PlanAttentionReason,
 } from "../../lib/planListDerivations";
 
-import { getInitialColor } from "../../lib/planHelpers";
+import { Avatar } from "../Avatar";
 import {
     fromPlan,
     formatBadge,
@@ -302,38 +302,21 @@ function AvatarStack({
     return (
         <XStack alignItems="center" marginTop={inline ? 0 : "$1"}>
             <XStack>
-                {displayed.map((name, i) => {
-                    const bgColor = getInitialColor(name);
-                    return (
-                        <View
-                            key={name + i}
-                            width={avatarSize}
-                            height={avatarSize}
-                            borderRadius={radius}
-                            backgroundColor={bgColor}
-                            justifyContent="center"
-                            alignItems="center"
+                {displayed.map((name, i) => (
+                    <View
+                        key={name + i}
+                        marginLeft={i === 0 ? 0 : overlap}
+                        zIndex={displayed.length - i}
+                    >
+                        <Avatar
+                            name={name}
+                            size={avatarSize}
                             borderWidth={hero ? 2.5 : 2}
                             borderColor="$surface"
-                            marginLeft={i === 0 ? 0 : overlap}
-                            zIndex={displayed.length - i}
-                            // @ts-ignore - shadow props for hero avatar glow
-                            shadowColor={hero ? bgColor : undefined}
-                            shadowOffset={hero ? { width: 0, height: 1 } : undefined}
-                            shadowOpacity={hero ? 0.3 : 0}
-                            shadowRadius={hero ? 4 : 0}
-                        >
-                            <Text
-                                fontFamily="$body"
-                                fontSize={compact ? 10 : 12}
-                                fontWeight="600"
-                                color="white"
-                            >
-                                {name.charAt(0).toUpperCase()}
-                            </Text>
-                        </View>
-                    );
-                })}
+                            shadow={hero}
+                        />
+                    </View>
+                ))}
             </XStack>
             {names.length > 4 ? (
                 <Text

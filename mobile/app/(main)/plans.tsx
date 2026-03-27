@@ -30,6 +30,8 @@ import type {
     PlanQuickActionKind,
 } from "../../src/lib/planListDerivations";
 import { useReducedMotionPreference } from "../../src/lib/planHelpers";
+import { useMeProfile } from "../../src/hooks/useMeProfile";
+import { Avatar } from "../../src/components/Avatar";
 import {
     getPlanQuickActionLabel,
     getPlanQuickActionTone,
@@ -56,6 +58,7 @@ const DESKTOP_SPLITTER_WIDTH = 16;
 
 export default function PlansScreen() {
     const { signOut } = useAuth();
+    const { me } = useMeProfile();
     const router = useRouter();
     const confirm = useConfirm();
     const media = useMedia();
@@ -414,21 +417,19 @@ export default function PlansScreen() {
                     </View>
                     {!hasDesktopSidebar && (
                         <View
-                            width={36}
-                            height={36}
-                            borderRadius={18}
-                            backgroundColor="$colorTertiary"
-                            justifyContent="center"
-                            alignItems="center"
                             onPress={() => router.push("/settings" as any)}
                             pressStyle={{ opacity: 0.7, scale: 0.95 }}
+                            // @ts-ignore
+                            animation="fast"
                             accessibilityRole="button"
                             accessibilityLabel="Settings"
                             cursor="pointer"
                         >
-                            <Text fontFamily="$body" fontSize={14} fontWeight="600" color="white">
-                                Y
-                            </Text>
+                            <Avatar
+                                name={me?.displayName ?? "?"}
+                                imageUrl={me?.profileImageUrl}
+                                size={36}
+                            />
                         </View>
                     )}
                 </XStack>

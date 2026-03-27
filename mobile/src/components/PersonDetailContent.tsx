@@ -44,10 +44,8 @@ import {
     invalidatePeopleQueries,
     invalidatePlanQueries,
 } from "../lib/queryInvalidation";
-import {
-    getInitialColor,
-    useReducedMotionPreference,
-} from "../lib/planHelpers";
+import { useReducedMotionPreference } from "../lib/planHelpers";
+import { Avatar } from "./Avatar";
 
 function buildMergeCandidateSubtitle(person: Person) {
     const parts = [
@@ -446,26 +444,8 @@ export function PersonDetailContent({
                         }}
                     >
                         {/* Avatar */}
-                        <View
-                            alignSelf="flex-start"
-                            width={56}
-                            height={56}
-                            borderRadius={28}
-                            backgroundColor={getInitialColor(
-                                person.displayName
-                            )}
-                            justifyContent="center"
-                            alignItems="center"
-                            marginBottom="$3"
-                        >
-                            <Text
-                                fontFamily="$body"
-                                fontSize={24}
-                                fontWeight="600"
-                                color="white"
-                            >
-                                {person.displayName.charAt(0).toUpperCase()}
-                            </Text>
+                        <View alignSelf="flex-start" marginBottom="$3">
+                            <Avatar name={person.displayName} size={56} />
                         </View>
 
                         {/* Archived badge */}

@@ -71,6 +71,8 @@ export * from './postPlanActivityBody';
 export * from './preconditionFailedResponse';
 export * from './problemDetails';
 export * from './problemDetailsErrorsItem';
+export * from './profileImageUploadResponse';
+export * from './profileImageUploadResponseData';
 export * from './sharedPlanPerson';
 export * from './sharedPlanPersonKind';
 export * from './sharedPlanResponse';

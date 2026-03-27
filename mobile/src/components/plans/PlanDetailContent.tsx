@@ -54,7 +54,8 @@ import type { SocialPlanPatchRequest } from "../../api/generated/model/socialPla
 import type { SocialPlanTimePrecision } from "../../api/generated/model/socialPlanTimePrecision";
 import type { Person } from "../../api/generated/model/person";
 import { PlanMemberResponse } from "../../api/generated/model/planMemberResponse";
-import { getInitialColor, useReducedMotionPreference } from "../../lib/planHelpers";
+import { useReducedMotionPreference } from "../../lib/planHelpers";
+import { Avatar } from "../Avatar";
 import { getSharedPeopleForDisplay } from "../../lib/sharedPeople";
 import {
     fromPlan,
@@ -1068,23 +1069,7 @@ function AddPersonSheet({
                                         paddingVertical="$1"
                                         borderRadius="$10"
                                     >
-                                        <View
-                                            width={20}
-                                            height={20}
-                                            borderRadius={10}
-                                            backgroundColor={getInitialColor(name)}
-                                            justifyContent="center"
-                                            alignItems="center"
-                                        >
-                                            <Text
-                                                fontFamily="$body"
-                                                fontSize={9}
-                                                fontWeight="600"
-                                                color="white"
-                                            >
-                                                {name.charAt(0).toUpperCase()}
-                                            </Text>
-                                        </View>
+                                        <Avatar name={name} size={20} />
                                         <Text
                                             fontFamily="$body"
                                             fontSize="$2"
@@ -1137,27 +1122,7 @@ function AddPersonSheet({
                                             : `Add ${person.displayName} to this plan`
                                     }
                                     leading={
-                                        <View
-                                            width={32}
-                                            height={32}
-                                            borderRadius={16}
-                                            backgroundColor={getInitialColor(
-                                                person.displayName
-                                            )}
-                                            justifyContent="center"
-                                            alignItems="center"
-                                        >
-                                            <Text
-                                                fontFamily="$body"
-                                                fontSize={13}
-                                                fontWeight="600"
-                                                color="white"
-                                            >
-                                                {person.displayName
-                                                    .charAt(0)
-                                                    .toUpperCase()}
-                                            </Text>
-                                        </View>
+                                        <Avatar name={person.displayName} size={32} />
                                     }
                                     title={person.displayName}
                                     subtitle={
@@ -2267,27 +2232,7 @@ export function PlanDetailContent({
                                                         borderRadius="$10"
                                                         opacity={canEdit && isMutating ? 0.5 : 1}
                                                     >
-                                                        <View
-                                                            width={24}
-                                                            height={24}
-                                                            borderRadius={12}
-                                                            backgroundColor={getInitialColor(
-                                                                name
-                                                            )}
-                                                            justifyContent="center"
-                                                            alignItems="center"
-                                                        >
-                                                            <Text
-                                                                fontFamily="$body"
-                                                                fontSize={11}
-                                                                fontWeight="600"
-                                                                color="white"
-                                                            >
-                                                                {name
-                                                                    .charAt(0)
-                                                                    .toUpperCase()}
-                                                            </Text>
-                                                        </View>
+                                                        <Avatar name={name} size={24} />
                                                         <Text
                                                             fontFamily="$body"
                                                             fontSize="$3"

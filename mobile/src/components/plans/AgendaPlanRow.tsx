@@ -12,7 +12,7 @@ import {
     participantNames,
     planLifecycleText,
 } from "../../lib/planFormatters";
-import { getInitialColor } from "../../lib/planHelpers";
+import { Avatar } from "../Avatar";
 import { getSharedPeopleForDisplay } from "../../lib/sharedPeople";
 import {
     PlanQuickActionRow,
@@ -49,20 +49,15 @@ function AvatarDots({ plan }: { plan: SocialPlan }) {
             {displayed.map((name, i) => (
                 <View
                     key={name + i}
-                    width={22}
-                    height={22}
-                    borderRadius={11}
-                    backgroundColor={getInitialColor(name)}
-                    justifyContent="center"
-                    alignItems="center"
-                    borderWidth={2}
-                    borderColor="$surface"
                     marginLeft={i === 0 ? 0 : -5}
                     zIndex={displayed.length - i}
                 >
-                    <Text fontFamily="$body" fontSize={9} fontWeight="700" color="white">
-                        {name.charAt(0).toUpperCase()}
-                    </Text>
+                    <Avatar
+                        name={name}
+                        size={22}
+                        borderWidth={2}
+                        borderColor="$surface"
+                    />
                 </View>
             ))}
         </XStack>

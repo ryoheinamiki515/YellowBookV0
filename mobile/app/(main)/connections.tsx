@@ -15,7 +15,7 @@ import {
     getListConnectionsQueryKey,
 } from "../../src/api/generated/connections/connections";
 import type { Connection } from "../../src/api/generated/model/connection";
-import { getInitialColor } from "../../src/lib/planHelpers";
+import { Avatar } from "../../src/components/Avatar";
 import { getProblemDetail } from "../../src/lib/problemDetails";
 
 function ConnectionRow({
@@ -26,7 +26,6 @@ function ConnectionRow({
     onDelete: (id: string) => void;
 }) {
     const name = connection.targetDisplayName ?? "Connected User";
-    const bgColor = getInitialColor(name);
 
     return (
         <XStack
@@ -39,23 +38,7 @@ function ConnectionRow({
             borderWidth={1}
             borderColor="$borderColorSubtle"
         >
-            <View
-                width={40}
-                height={40}
-                borderRadius={20}
-                backgroundColor={bgColor}
-                justifyContent="center"
-                alignItems="center"
-            >
-                <Text
-                    fontFamily="$body"
-                    fontSize={16}
-                    fontWeight="600"
-                    color="white"
-                >
-                    {name.charAt(0).toUpperCase()}
-                </Text>
-            </View>
+            <Avatar name={name} size={40} />
 
             <YStack flex={1}>
                 <Text

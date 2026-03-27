@@ -4,7 +4,7 @@ import { Text, View, XStack, YStack } from "tamagui";
 import type { SharedPlanPerson } from "../../api/generated/model/sharedPlanPerson";
 import type { SocialPlanState } from "../../api/generated/model/socialPlanState";
 import type { SocialPlanTimePrecision } from "../../api/generated/model/socialPlanTimePrecision";
-import { getInitialColor } from "../../lib/planHelpers";
+import { Avatar } from "../Avatar";
 import { fromStorageFields, formatDisplay } from "../../lib/planWhen";
 import { getSharedPeopleForDisplay } from "../../lib/sharedPeople";
 
@@ -200,23 +200,7 @@ export function PlanReadOnlyDetails({
                                     paddingVertical="$1.5"
                                     borderRadius="$10"
                                 >
-                                    <View
-                                        width={24}
-                                        height={24}
-                                        borderRadius={12}
-                                        backgroundColor={getInitialColor(name)}
-                                        justifyContent="center"
-                                        alignItems="center"
-                                    >
-                                        <Text
-                                            fontFamily="$body"
-                                            fontSize={11}
-                                            fontWeight="600"
-                                            color="white"
-                                        >
-                                            {name.charAt(0).toUpperCase()}
-                                        </Text>
-                                    </View>
+                                    <Avatar name={name} size={24} />
                                     <Text
                                         fontFamily="$body"
                                         fontSize="$3"

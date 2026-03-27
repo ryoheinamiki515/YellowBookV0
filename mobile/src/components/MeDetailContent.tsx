@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+    ActivityIndicator,
+    Alert,
     Animated,
     Easing,
     Platform,
@@ -7,15 +9,23 @@ import {
     ScrollView,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { Settings } from "lucide-react-native";
+import * as ImagePicker from "expo-image-picker";
+import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
+import { Settings, Camera } from "lucide-react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import { YStack, XStack, Text, View, useMedia } from "tamagui";
 import type { PersonBirthday } from "../api/generated/model/personBirthday";
-import { getGetMeQueryKey, usePatchMe } from "../api/generated/system/system";
+import {
+    getGetMeQueryKey,
+    usePatchMe,
+    useCreateProfileImageUpload,
+    useDeleteProfileImage,
+} from "../api/generated/system/system";
 import { useMeProfile } from "../hooks/useMeProfile";
 import { useAuth } from "../context/AuthContext";
 import { useConfirm } from "./ConfirmDialog";
 import { ProfileFields } from "./ProfileFields";
+import { Avatar } from "./Avatar";
 import {
     BottomSheetHeader,
     BottomSheetModal,
@@ -40,9 +50,12 @@ export function MeDetailContent({ onClose }: MeDetailContentProps) {
 
     const { me, isLoading } = useMeProfile();
     const patchMe = usePatchMe();
+    const createUpload = useCreateProfileImageUpload();
+    const deleteImage = useDeleteProfileImage();
     const { signOut } = useAuth();
 
     const [accountSheetOpen, setAccountSheetOpen] = useState(false);
+    const [isUploadingImage, setIsUploadingImage] = useState(false);
 
     // Entrance animation
     const fadeAnim = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
@@ -73,10 +86,9 @@ export function MeDetailContent({ onClose }: MeDetailContentProps) {
             patchMe.mutate(
                 { data },
                 {
-                    onSettled: () =>
-                        queryClient.invalidateQueries({
-                            queryKey: getGetMeQueryKey(),
-                        }),
+                    onSuccess: (response) => {
+                        queryClient.setQueryData(getGetMeQueryKey(), response);
+                    },
                 }
             );
         },
@@ -94,6 +106,62 @@ export function MeDetailContent({ onClose }: MeDetailContentProps) {
         },
         [handlePatchField]
     );
+
+    const handlePickAndUploadImage = useCallback(async () => {
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ["images"],
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.8,
+        });
+
+        if (result.canceled || !result.assets?.[0]) return;
+
+        setIsUploadingImage(true);
+        try {
+            const manipulated = await manipulateAsync(
+                result.assets[0].uri,
+                [{ resize: { width: 512 } }],
+                { compress: 0.85, format: SaveFormat.JPEG }
+            );
+
+            const uploadResponse = await createUpload.mutateAsync(undefined);
+            const { uploadUrl, publicUrl } = (uploadResponse as any).data.data;
+
+            const imageBlob = await fetch(manipulated.uri).then((r) => r.blob());
+            const putResponse = await fetch(uploadUrl, {
+                method: "PUT",
+                headers: { "Content-Type": "image/jpeg" },
+                body: imageBlob,
+            });
+
+            if (!putResponse.ok) {
+                throw new Error(`R2 upload failed: ${putResponse.status}`);
+            }
+
+            handlePatchField({ profileImageUrl: publicUrl });
+        } catch {
+            Alert.alert("Upload failed", "Could not upload your photo. Please try again.");
+        } finally {
+            setIsUploadingImage(false);
+        }
+    }, [createUpload, handlePatchField]);
+
+    const handleRemoveImage = useCallback(async () => {
+        const confirmed = await confirm({
+            title: "Remove photo?",
+            message: "Your profile will show your initials instead.",
+            confirmLabel: "Remove",
+            destructive: true,
+        });
+        if (!confirmed) return;
+
+        handlePatchField({ profileImageUrl: null });
+        deleteImage.mutate(undefined, {
+            onSettled: () =>
+                queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() }),
+        });
+    }, [confirm, handlePatchField, deleteImage, queryClient]);
 
     const handleSignOut = useCallback(async () => {
         const confirmed = await confirm({
@@ -192,6 +260,68 @@ export function MeDetailContent({ onClose }: MeDetailContentProps) {
                         transform: [{ translateY: slideAnim }],
                     }}
                 >
+                    {/* Profile avatar */}
+                    <YStack alignItems="center" marginBottom="$5">
+                        <Pressable
+                            onPress={handlePickAndUploadImage}
+                            disabled={isUploadingImage}
+                            accessibilityRole="button"
+                            accessibilityLabel="Change profile photo"
+                        >
+                            <View position="relative">
+                                <Avatar
+                                    name={me.displayName ?? "?"}
+                                    imageUrl={me.profileImageUrl}
+                                    size={80}
+                                />
+                                {isUploadingImage ? (
+                                    <View
+                                        position="absolute"
+                                        top={0}
+                                        left={0}
+                                        right={0}
+                                        bottom={0}
+                                        borderRadius={40}
+                                        backgroundColor="rgba(0,0,0,0.3)"
+                                        justifyContent="center"
+                                        alignItems="center"
+                                    >
+                                        <ActivityIndicator color="white" />
+                                    </View>
+                                ) : (
+                                    <View
+                                        position="absolute"
+                                        bottom={0}
+                                        right={0}
+                                        width={24}
+                                        height={24}
+                                        borderRadius={12}
+                                        backgroundColor="$accentColor"
+                                        justifyContent="center"
+                                        alignItems="center"
+                                        borderWidth={2}
+                                        borderColor="$background"
+                                    >
+                                        <Camera size={12} color="white" />
+                                    </View>
+                                )}
+                            </View>
+                        </Pressable>
+                        {me.profileImageUrl && !isUploadingImage && (
+                            <Text
+                                fontFamily="$body"
+                                fontSize="$2"
+                                color="$destructiveColor"
+                                marginTop="$2"
+                                onPress={handleRemoveImage}
+                                pressStyle={{ opacity: 0.7 }}
+                                cursor="pointer"
+                            >
+                                Remove photo
+                            </Text>
+                        )}
+                    </YStack>
+
                     <ProfileFields
                         displayName={me.displayName ?? ""}
                         birthday={me.birthday as PersonBirthday | undefined}

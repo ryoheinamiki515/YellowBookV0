@@ -19,10 +19,12 @@ import { makeRequireUser } from "./middleware/requireUser.js";
 import { planEtag, representationEtag, ifMatchFailed } from "./api/etag.js";
 import { makeWithIdempotency } from "./api/idempotency.js";
 import { decodeCursor, encodeCursor } from "./api/pagination/planCursor.js";
+import { decodeDisplayNameCursor, encodeDisplayNameCursor } from "./api/pagination/planCursor.js";
 import { PlanPatchSchema, toPrismaUpdate, validateTimeSemantics } from "./api/patch/planPatch.js";
 import { generateToken } from "./api/tokens.js";
 import { mergePeople } from "./personMerge.js";
 import { linkOrCreateLinkedPerson } from "./personLinking.js";
+import { createProfileImageUploadUrl, deleteProfileImage } from "./r2.js";
 import {
     getPlanView,
     assertPlanPermission,
@@ -123,6 +125,10 @@ v1.patch("/me", ...requireUser([]), async (req, res, next) => {
             }
         }
 
+        if (parsed.profileImageUrl !== undefined) {
+            updateData.profileImageUrl = parsed.profileImageUrl;
+        }
+
         const user = await prisma.user.update({
             where: { id },
             data: updateData,
@@ -131,6 +137,36 @@ v1.patch("/me", ...requireUser([]), async (req, res, next) => {
         res.json({
             data: serializeMe(user, authSubject),
         });
+    } catch (e) {
+        next(e);
+    }
+});
+
+// ---------------------------------------------------------------------------
+// POST /v1/me/profile-image-upload — Get a presigned URL to upload a profile image
+// ---------------------------------------------------------------------------
+v1.post("/me/profile-image-upload", ...requireUser([]), async (req, res, next) => {
+    try {
+        const userId = (req as any).userId as string;
+        const { uploadUrl, publicUrl } = await createProfileImageUploadUrl(userId);
+        res.json({ data: { uploadUrl, publicUrl } });
+    } catch (e) {
+        next(e);
+    }
+});
+
+// ---------------------------------------------------------------------------
+// DELETE /v1/me/profile-image — Remove the current user's profile image
+// ---------------------------------------------------------------------------
+v1.delete("/me/profile-image", ...requireUser([]), async (req, res, next) => {
+    try {
+        const userId = (req as any).userId as string;
+        await deleteProfileImage(userId);
+        await prisma.user.update({
+            where: { id: userId },
+            data: { profileImageUrl: null },
+        });
+        res.status(204).end();
     } catch (e) {
         next(e);
     }
@@ -224,8 +260,9 @@ const MergePersonSchema = z.object({
 const PatchMeSchema = z.object({
     displayName: z.string().trim().min(1).max(120).optional(),
     birthday: PersonBirthdaySchema.nullable().optional(),
+    profileImageUrl: z.string().url().max(2048).nullable().optional(),
 }).refine(
-    (data) => data.displayName !== undefined || data.birthday !== undefined,
+    (data) => data.displayName !== undefined || data.birthday !== undefined || data.profileImageUrl !== undefined,
     { message: "at_least_one_field_required" }
 );
 
@@ -789,11 +826,10 @@ v1.get("/people", ...requireUser([]), async (req, res, next) => {
             return next({ status: 400, expose: true, message: "q must not be blank" });
         }
 
-        let cursor: { updatedAt: Date; id: string } | null = null;
+        let cursor: { displayName: string; id: string } | null = null;
         if (cursorStr) {
             try {
-                const c = decodeCursor(cursorStr);
-                cursor = { updatedAt: new Date(c.updatedAt), id: c.id };
+                cursor = decodeDisplayNameCursor(cursorStr);
             } catch (_e) {
                 return next({ status: 400, expose: true, message: "invalid_cursor" });
             }
@@ -802,21 +838,13 @@ v1.get("/people", ...requireUser([]), async (req, res, next) => {
         const where: Prisma.PersonWhereInput = {
             ownerId,
             ...(q
-                ? {
-                    displayName: {
-                        contains: q,
-                        mode: "insensitive",
-                    },
-                }
+                ? { displayName: { contains: q, mode: "insensitive" } }
                 : {}),
             ...(cursor
                 ? {
                     OR: [
-                        { updatedAt: { lt: cursor.updatedAt } },
-                        {
-                            updatedAt: cursor.updatedAt,
-                            id: { lt: cursor.id },
-                        },
+                        { displayName: { gt: cursor.displayName } },
+                        { displayName: cursor.displayName, id: { gt: cursor.id } },
                     ],
                 }
                 : {}),
@@ -825,7 +853,7 @@ v1.get("/people", ...requireUser([]), async (req, res, next) => {
         const rows = await prisma.person.findMany({
             where,
             include: { linkedUser: { select: linkedUserProfileSelect } },
-            orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+            orderBy: [{ displayName: "asc" }, { id: "asc" }],
             take: limit + 1,
         });
 
@@ -836,8 +864,8 @@ v1.get("/people", ...requireUser([]), async (req, res, next) => {
         if (hasNext) {
             const lastRow = pageRows[pageRows.length - 1];
             if (lastRow) {
-                nextCursor = encodeCursor({
-                    updatedAt: lastRow.updatedAt.toISOString(),
+                nextCursor = encodeDisplayNameCursor({
+                    displayName: lastRow.displayName,
                     id: lastRow.id,
                 });
             }

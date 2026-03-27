@@ -105,6 +105,32 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /v1/me/profile-image-upload:
+    post:
+      tags: [System]
+      summary: Get a presigned URL to upload a profile image
+      operationId: createProfileImageUpload
+      responses:
+        "200":
+          description: Presigned upload URL and resulting public URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileImageUploadResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /v1/me/profile-image:
+    delete:
+      tags: [System]
+      summary: Remove the current user's profile image
+      operationId: deleteProfileImage
+      responses:
+        "204":
+          description: Profile image deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   /v1/plans:
     get:
       tags: [Plans]
@@ -1041,6 +1067,7 @@ components:
         type: string
         default: "-updatedAt"
 
+
     IdempotencyKey:
       name: Idempotency-Key
       in: header
@@ -1440,6 +1467,26 @@ components:
               minimum: 1900
               maximum: 2100
           required: [month, day]
+        profileImageUrl:
+          type: [string, "null"]
+          maxLength: 2048
+
+    ProfileImageUploadResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        data:
+          type: object
+          additionalProperties: false
+          properties:
+            uploadUrl:
+              type: string
+              description: Presigned PUT URL — upload the image directly to this URL
+            publicUrl:
+              type: string
+              description: Public URL of the image after upload
+          required: [uploadUrl, publicUrl]
+      required: [data]
 
     SocialPlanParticipantCreateRequest:
       type: object

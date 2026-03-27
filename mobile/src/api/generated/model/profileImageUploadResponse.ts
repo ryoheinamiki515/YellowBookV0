@@ -16,19 +16,8 @@ Non-goals for this surface (intentionally excluded):
 
  * OpenAPI spec version: 1.0.0
  */
-import type { PatchMeRequestBirthday } from './patchMeRequestBirthday';
+import type { ProfileImageUploadResponseData } from './profileImageUploadResponseData';
 
-export interface PatchMeRequest {
-  /**
-   * @minLength 1
-   * @maxLength 120
-   */
-  displayName?: string;
-  /** @nullable */
-  birthday?: PatchMeRequestBirthday;
-  /**
-   * @maxLength 2048
-   * @nullable
-   */
-  profileImageUrl?: string | null;
+export interface ProfileImageUploadResponse {
+  data: ProfileImageUploadResponseData;
 }

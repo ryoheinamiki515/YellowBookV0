@@ -40,6 +40,7 @@ import type {
   HealthCheck200,
   MeResponse,
   PatchMeRequest,
+  ProfileImageUploadResponse,
   UnauthorizedResponse
 } from '.././model';
 
@@ -370,5 +371,181 @@ export const usePatchMe = <TError = BadRequestResponse | UnauthorizedResponse,
         TContext
       > => {
       return useMutation(getPatchMeMutationOptions(options), queryClient);
+    }
+    /**
+ * @summary Get a presigned URL to upload a profile image
+ */
+export type createProfileImageUploadResponse200 = {
+  data: ProfileImageUploadResponse
+  status: 200
+}
+
+export type createProfileImageUploadResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type createProfileImageUploadResponseSuccess = (createProfileImageUploadResponse200) & {
+  headers: Headers;
+};
+export type createProfileImageUploadResponseError = (createProfileImageUploadResponse401) & {
+  headers: Headers;
+};
+
+export type createProfileImageUploadResponse = (createProfileImageUploadResponseSuccess | createProfileImageUploadResponseError)
+
+export const getCreateProfileImageUploadUrl = () => {
+
+
+  
+
+  return `/v1/me/profile-image-upload`
+}
+
+export const createProfileImageUpload = async ( options?: RequestInit): Promise<createProfileImageUploadResponse> => {
+  
+  return customFetch<createProfileImageUploadResponse>(getCreateProfileImageUploadUrl(),
+  {      
+    ...options,
+    method: 'POST'
+    
+    
+  }
+);}
+
+
+
+
+export const getCreateProfileImageUploadMutationOptions = <TError = UnauthorizedResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createProfileImageUpload>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createProfileImageUpload>>, TError,void, TContext> => {
+
+const mutationKey = ['createProfileImageUpload'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createProfileImageUpload>>, void> = () => {
+          
+
+          return  createProfileImageUpload(requestOptions)
+        }
+
+
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateProfileImageUploadMutationResult = NonNullable<Awaited<ReturnType<typeof createProfileImageUpload>>>
+    
+    export type CreateProfileImageUploadMutationError = UnauthorizedResponse
+
+    /**
+ * @summary Get a presigned URL to upload a profile image
+ */
+export const useCreateProfileImageUpload = <TError = UnauthorizedResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createProfileImageUpload>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof createProfileImageUpload>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getCreateProfileImageUploadMutationOptions(options), queryClient);
+    }
+    /**
+ * @summary Remove the current user's profile image
+ */
+export type deleteProfileImageResponse204 = {
+  data: void
+  status: 204
+}
+
+export type deleteProfileImageResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type deleteProfileImageResponseSuccess = (deleteProfileImageResponse204) & {
+  headers: Headers;
+};
+export type deleteProfileImageResponseError = (deleteProfileImageResponse401) & {
+  headers: Headers;
+};
+
+export type deleteProfileImageResponse = (deleteProfileImageResponseSuccess | deleteProfileImageResponseError)
+
+export const getDeleteProfileImageUrl = () => {
+
+
+  
+
+  return `/v1/me/profile-image`
+}
+
+export const deleteProfileImage = async ( options?: RequestInit): Promise<deleteProfileImageResponse> => {
+  
+  return customFetch<deleteProfileImageResponse>(getDeleteProfileImageUrl(),
+  {      
+    ...options,
+    method: 'DELETE'
+    
+    
+  }
+);}
+
+
+
+
+export const getDeleteProfileImageMutationOptions = <TError = UnauthorizedResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteProfileImage>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteProfileImage>>, TError,void, TContext> => {
+
+const mutationKey = ['deleteProfileImage'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+      
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteProfileImage>>, void> = () => {
+          
+
+          return  deleteProfileImage(requestOptions)
+        }
+
+
+
+        
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteProfileImageMutationResult = NonNullable<Awaited<ReturnType<typeof deleteProfileImage>>>
+    
+    export type DeleteProfileImageMutationError = UnauthorizedResponse
+
+    /**
+ * @summary Remove the current user's profile image
+ */
+export const useDeleteProfileImage = <TError = UnauthorizedResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteProfileImage>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteProfileImage>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getDeleteProfileImageMutationOptions(options), queryClient);
     }
     
