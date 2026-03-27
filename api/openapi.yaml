@@ -1423,7 +1423,23 @@ components:
           type: string
           minLength: 1
           maxLength: 120
-      required: [displayName]
+        birthday:
+          type: [object, "null"]
+          additionalProperties: false
+          properties:
+            month:
+              type: integer
+              minimum: 1
+              maximum: 12
+            day:
+              type: integer
+              minimum: 1
+              maximum: 31
+            year:
+              type: [integer, "null"]
+              minimum: 1900
+              maximum: 2100
+          required: [month, day]
 
     SocialPlanParticipantCreateRequest:
       type: object
@@ -1763,6 +1779,26 @@ components:
             displayName:
               type: [string, "null"]
               maxLength: 120
+            birthday:
+              type: [object, "null"]
+              additionalProperties: false
+              properties:
+                month:
+                  type: integer
+                  minimum: 1
+                  maximum: 12
+                day:
+                  type: integer
+                  minimum: 1
+                  maximum: 31
+                year:
+                  type: [integer, "null"]
+                  minimum: 1900
+                  maximum: 2100
+              required: [month, day]
+            profileImageUrl:
+              type: [string, "null"]
+              maxLength: 2048
           required: [id, authSubject]
       required: [data]
 

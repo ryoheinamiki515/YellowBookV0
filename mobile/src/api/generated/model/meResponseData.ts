@@ -16,6 +16,7 @@ Non-goals for this surface (intentionally excluded):
 
  * OpenAPI spec version: 1.0.0
  */
+import type { MeResponseDataBirthday } from './meResponseDataBirthday';
 import type { Uuid } from './uuid';
 
 export type MeResponseData = {
@@ -27,4 +28,11 @@ export type MeResponseData = {
    * @nullable
    */
   displayName?: string | null;
+  /** @nullable */
+  birthday?: MeResponseDataBirthday;
+  /**
+   * @maxLength 2048
+   * @nullable
+   */
+  profileImageUrl?: string | null;
 };

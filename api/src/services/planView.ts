@@ -1,5 +1,6 @@
 import type { PrismaClient, PlanMemberRole, PlanMemberResponse } from "@prisma/client";
 import { buildSharedPeople, type SharedPerson } from "../api/serializers/socialPlan.js";
+import { SYSTEM_LINKED_PERSON_PLACEHOLDER } from "../personLinking.js";
 
 export type PlanPermissions = {
     canEdit: boolean;
@@ -48,14 +49,26 @@ export async function loadConnectionMapForUser(
 ) {
     const linkedPeople = await prisma.person.findMany({
         where: { ownerId: userId, linkedUserId: { not: null } },
-        select: { linkedUserId: true, displayName: true, id: true },
+        select: {
+            linkedUserId: true,
+            displayName: true,
+            id: true,
+            linkedUser: { select: { displayName: true } },
+        },
     });
 
     return new Map(
-        linkedPeople.map((person) => [
-            person.linkedUserId!,
-            { personId: person.id, displayName: person.displayName },
-        ])
+        linkedPeople.map((person) => {
+            const displayName =
+                person.displayName === SYSTEM_LINKED_PERSON_PLACEHOLDER &&
+                person.linkedUser?.displayName
+                    ? person.linkedUser.displayName
+                    : person.displayName;
+            return [
+                person.linkedUserId!,
+                { personId: person.id, displayName },
+            ];
+        })
     );
 }
 

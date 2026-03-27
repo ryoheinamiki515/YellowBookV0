@@ -3,6 +3,7 @@ import { Platform } from "react-native";
 import { Slot, Tabs, useRouter, useSegments } from "expo-router";
 import { Text, View, XStack, YStack, useMedia } from "tamagui";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { CalendarDays, Users, Newspaper } from "lucide-react-native";
 import { useAuth } from "../../src/context/AuthContext";
 import { ConfirmProvider } from "../../src/components/ConfirmDialog";
 import { palette } from "../../tamagui.config";
@@ -133,7 +134,7 @@ function Sidebar() {
                     pressStyle={{ opacity: 0.7 }}
                     cursor="pointer"
                     accessibilityRole="button"
-                    accessibilityLabel="Settings"
+                    accessibilityLabel="Me"
                 >
                     <Text
                         fontFamily="$body"
@@ -141,7 +142,7 @@ function Sidebar() {
                         fontWeight="500"
                         color="$colorTertiary"
                     >
-                        Settings
+                        Me
                     </Text>
                 </YStack>
                 <YStack
@@ -199,6 +200,9 @@ function MobileTabs() {
                 options={{
                     title: "Plans",
                     tabBarLabel: "Plans",
+                    tabBarIcon: ({ color, size }) => (
+                        <CalendarDays size={size} color={color} strokeWidth={1.8} />
+                    ),
                 }}
             />
             <Tabs.Screen
@@ -206,6 +210,9 @@ function MobileTabs() {
                 options={{
                     title: "People",
                     tabBarLabel: "People",
+                    tabBarIcon: ({ color, size }) => (
+                        <Users size={size} color={color} strokeWidth={1.8} />
+                    ),
                 }}
             />
             <Tabs.Screen
@@ -213,6 +220,9 @@ function MobileTabs() {
                 options={{
                     title: "Feed",
                     tabBarLabel: "Feed",
+                    tabBarIcon: ({ color, size }) => (
+                        <Newspaper size={size} color={color} strokeWidth={1.8} />
+                    ),
                 }}
             />
             <Tabs.Screen

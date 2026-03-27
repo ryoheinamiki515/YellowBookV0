@@ -21,8 +21,6 @@ import {
     BottomSheetHeader,
     BottomSheetListRow,
     BottomSheetModal,
-    BottomSheetPrimaryButton,
-    BottomSheetSecondaryButton,
     BottomSheetSectionLabel,
     BottomSheetTextField,
 } from "./BottomSheetPrimitives";
@@ -39,6 +37,7 @@ import {
 } from "../api/generated/people/people";
 import type { Person } from "../api/generated/model/person";
 import type { PersonBirthday } from "../api/generated/model/personBirthday";
+import { ProfileFields } from "./ProfileFields";
 import { useMergePerson } from "../api/peopleMerge";
 import { getProblemDetail } from "../lib/problemDetails";
 import {
@@ -49,254 +48,6 @@ import {
     getInitialColor,
     useReducedMotionPreference,
 } from "../lib/planHelpers";
-
-// ---------------------------------------------------------------------------
-// FieldRow
-// ---------------------------------------------------------------------------
-
-function FieldRow({
-    label,
-    value,
-    placeholder,
-    onPress,
-}: {
-    label: string;
-    value: string | null;
-    placeholder: string;
-    onPress: () => void;
-}) {
-    return (
-        <Pressable onPress={onPress} accessibilityRole="button">
-            <YStack gap="$1">
-                <Text
-                    fontFamily="$body"
-                    fontSize={11}
-                    fontWeight="600"
-                    color="$colorTertiary"
-                    letterSpacing={1}
-                    textTransform="uppercase"
-                >
-                    {label}
-                </Text>
-                <Text
-                    fontFamily="$body"
-                    fontSize="$4"
-                    color={value ? "$color" : "$colorTertiary"}
-                    fontStyle={value ? "normal" : "italic"}
-                >
-                    {value || placeholder}
-                </Text>
-            </YStack>
-        </Pressable>
-    );
-}
-
-// ---------------------------------------------------------------------------
-// BirthdaySheet
-// ---------------------------------------------------------------------------
-
-const MONTHS = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December",
-];
-
-function BirthdaySheet({
-    open,
-    onOpenChange,
-    currentBirthday,
-    onSave,
-}: {
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-    currentBirthday: PersonBirthday | undefined;
-    onSave: (birthday: PersonBirthday) => void;
-}) {
-    const [month, setMonth] = useState(currentBirthday?.month ?? 1);
-    const [day, setDay] = useState(currentBirthday?.day ?? 1);
-    const [year, setYear] = useState<string>(
-        currentBirthday?.year ? String(currentBirthday.year) : ""
-    );
-
-    useEffect(() => {
-        if (open) {
-            setMonth(currentBirthday?.month ?? 1);
-            setDay(currentBirthday?.day ?? 1);
-            setYear(currentBirthday?.year ? String(currentBirthday.year) : "");
-        }
-    }, [open, currentBirthday]);
-
-    const handleConfirm = useCallback(() => {
-        const parsedYear = year.trim() ? parseInt(year.trim(), 10) : null;
-        const validYear =
-            parsedYear && parsedYear >= 1900 && parsedYear <= 2100
-                ? parsedYear
-                : null;
-        onSave({
-            month,
-            day,
-            year: validYear,
-        });
-        onOpenChange(false);
-    }, [month, day, year, onSave, onOpenChange]);
-
-    const handleClear = useCallback(() => {
-        onSave(null);
-        onOpenChange(false);
-    }, [onSave, onOpenChange]);
-
-    const daysInMonth = new Date(2000, month, 0).getDate();
-    const clampedDay = Math.min(day, daysInMonth);
-
-    return (
-        <BottomSheetModal open={open} onOpenChange={onOpenChange}>
-            <BottomSheetHeader title="Birthday" />
-
-                {/* Month picker */}
-                <YStack gap="$3">
-                    <YStack gap="$1">
-                        <BottomSheetSectionLabel marginBottom={0}>
-                            Month
-                        </BottomSheetSectionLabel>
-                        <ScrollView
-                            horizontal
-                            showsHorizontalScrollIndicator={false}
-                        >
-                            <XStack gap="$1.5" paddingVertical="$1">
-                                {MONTHS.map((m, i) => {
-                                    const isSelected = i + 1 === month;
-                                    return (
-                                        <Pressable
-                                            key={m}
-                                            onPress={() => setMonth(i + 1)}
-                                        >
-                                            <View
-                                                paddingHorizontal="$3"
-                                                paddingVertical="$2"
-                                                borderRadius="$4"
-                                                backgroundColor={
-                                                    isSelected
-                                                        ? "$accentBackground"
-                                                        : "$backgroundStrong"
-                                                }
-                                            >
-                                                <Text
-                                                    fontFamily="$body"
-                                                    fontSize="$3"
-                                                    fontWeight={
-                                                        isSelected
-                                                            ? "600"
-                                                            : "400"
-                                                    }
-                                                    color={
-                                                        isSelected
-                                                            ? "$accentColor"
-                                                            : "$color"
-                                                    }
-                                                >
-                                                    {m.slice(0, 3)}
-                                                </Text>
-                                            </View>
-                                        </Pressable>
-                                    );
-                                })}
-                            </XStack>
-                        </ScrollView>
-                    </YStack>
-
-                    {/* Day picker */}
-                    <YStack gap="$1">
-                        <BottomSheetSectionLabel marginBottom={0}>
-                            Day
-                        </BottomSheetSectionLabel>
-                        <ScrollView
-                            horizontal
-                            showsHorizontalScrollIndicator={false}
-                        >
-                            <XStack gap="$1" paddingVertical="$1">
-                                {Array.from(
-                                    { length: daysInMonth },
-                                    (_, i) => i + 1
-                                ).map((d) => {
-                                    const isSelected = d === clampedDay;
-                                    return (
-                                        <Pressable
-                                            key={d}
-                                            onPress={() => setDay(d)}
-                                        >
-                                            <View
-                                                width={36}
-                                                height={36}
-                                                borderRadius={18}
-                                                justifyContent="center"
-                                                alignItems="center"
-                                                backgroundColor={
-                                                    isSelected
-                                                        ? "$accentBackground"
-                                                        : "transparent"
-                                                }
-                                            >
-                                                <Text
-                                                    fontFamily="$body"
-                                                    fontSize="$3"
-                                                    fontWeight={
-                                                        isSelected
-                                                            ? "600"
-                                                            : "400"
-                                                    }
-                                                    color={
-                                                        isSelected
-                                                            ? "$accentColor"
-                                                            : "$color"
-                                                    }
-                                                >
-                                                    {d}
-                                                </Text>
-                                            </View>
-                                        </Pressable>
-                                    );
-                                })}
-                            </XStack>
-                        </ScrollView>
-                    </YStack>
-
-                    {/* Year (optional) */}
-                    <YStack gap="$1">
-                        <BottomSheetSectionLabel marginBottom={0}>
-                            Year (optional)
-                        </BottomSheetSectionLabel>
-                        <BottomSheetTextField
-                            value={year}
-                            onChangeText={setYear}
-                            placeholder="e.g. 1990"
-                            placeholderTextColor="$placeholderColor"
-                            keyboardType="number-pad"
-                            maxLength={4}
-                        />
-                    </YStack>
-                </YStack>
-
-                {/* Buttons */}
-                <XStack gap="$3" marginTop="$5">
-                    {currentBirthday && (
-                        <BottomSheetSecondaryButton
-                            flex={1}
-                            label="Clear"
-                            onPress={handleClear}
-                            accessibilityLabel="Clear birthday"
-                        />
-                    )}
-                    <BottomSheetPrimaryButton
-                        flex={2}
-                        height="$11"
-                        marginTop={0}
-                        label="Confirm"
-                        onPress={handleConfirm}
-                        accessibilityLabel="Confirm birthday"
-                    />
-                </XStack>
-        </BottomSheetModal>
-    );
-}
 
 function buildMergeCandidateSubtitle(person: Person) {
     const parts = [
@@ -399,24 +150,6 @@ function MergePersonSheet({
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function formatBirthdayDisplay(
-    birthday: PersonBirthday | undefined
-): string | null {
-    if (!birthday) return null;
-    const { month, day, year } = birthday;
-    const monthNames = [
-        "January", "February", "March", "April", "May", "June",
-        "July", "August", "September", "October", "November", "December",
-    ];
-    const monthStr = monthNames[month - 1] || `${month}`;
-    if (year) return `${monthStr} ${day}, ${year}`;
-    return `${monthStr} ${day}`;
-}
-
-// ---------------------------------------------------------------------------
 // Detail screen
 // ---------------------------------------------------------------------------
 
@@ -453,7 +186,6 @@ export function PersonDetailContent({
             ? (personResponse.data as { data: Person }).data
             : undefined;
 
-    const [birthdaySheetOpen, setBirthdaySheetOpen] = useState(false);
     const [mergeSheetOpen, setMergeSheetOpen] = useState(false);
 
     // Entrance animation
@@ -670,7 +402,6 @@ export function PersonDetailContent({
     const isArchived = !!person.archivedAt;
     const isMutating =
         patchPerson.isPending || deletePerson.isPending || mergePerson.isPending;
-    const birthdayDisplay = formatBirthdayDisplay(person.birthday);
 
     return (
             <YStack flex={1} backgroundColor="$background" position="relative">
@@ -758,19 +489,13 @@ export function PersonDetailContent({
                             </View>
                         )}
 
-                        {/* 1. Display Name */}
-                        <YStack marginBottom="$4">
-                            <EditableText
-                                value={person.displayName}
-                                onSave={handleSaveDisplayName}
-                                placeholder="Name"
-                                textStyle={{
-                                    fontFamily: "$heading",
-                                    fontSize: 32,
-                                    color: "$color",
-                                }}
-                            />
-                        </YStack>
+                        {/* 1. Display Name + Birthday */}
+                        <ProfileFields
+                            displayName={person.displayName}
+                            birthday={person.birthday}
+                            onSaveDisplayName={handleSaveDisplayName}
+                            onSaveBirthday={handleSaveBirthday}
+                        />
 
                         {/* 2. Pronouns */}
                         <YStack marginBottom="$5">
@@ -820,17 +545,7 @@ export function PersonDetailContent({
                             />
                         </YStack>
 
-                        {/* 4. Birthday */}
-                        <YStack marginBottom="$5">
-                            <FieldRow
-                                label="Birthday"
-                                value={birthdayDisplay}
-                                placeholder="Add birthday"
-                                onPress={() => setBirthdaySheetOpen(true)}
-                            />
-                        </YStack>
-
-                        {/* 5. Events */}
+                        {/* 4. Events */}
                         <PersonEventsSection
                             personId={id}
                             onOpenPlan={handleOpenPlan}
@@ -974,13 +689,6 @@ export function PersonDetailContent({
                     </XStack>
                 </YStack>
 
-                {/* Birthday sheet */}
-                <BirthdaySheet
-                    open={birthdaySheetOpen}
-                    onOpenChange={setBirthdaySheetOpen}
-                    currentBirthday={person.birthday}
-                    onSave={handleSaveBirthday}
-                />
                 <MergePersonSheet
                     open={mergeSheetOpen}
                     onOpenChange={setMergeSheetOpen}

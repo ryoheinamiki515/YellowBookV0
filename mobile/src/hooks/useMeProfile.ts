@@ -7,6 +7,8 @@ type MeProfile = {
     id: string;
     authSubject: string;
     displayName?: string | null;
+    birthday?: { month: number; day: number; year?: number | null } | null;
+    profileImageUrl?: string | null;
 };
 
 export function useMeProfile() {

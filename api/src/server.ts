@@ -13,7 +13,7 @@ import {
     serializeSubscribedPlan,
 } from "./api/serializers/socialPlan.js";
 import { serializePlanActivity } from "./api/serializers/planActivity.js";
-import { serializePerson } from "./api/serializers/person.js";
+import { serializeBirthday, serializePerson, linkedUserProfileSelect } from "./api/serializers/person.js";
 import { serializeConnection } from "./api/serializers/connection.js";
 import { makeRequireUser } from "./middleware/requireUser.js";
 import { planEtag, representationEtag, ifMatchFailed } from "./api/etag.js";
@@ -22,10 +22,7 @@ import { decodeCursor, encodeCursor } from "./api/pagination/planCursor.js";
 import { PlanPatchSchema, toPrismaUpdate, validateTimeSemantics } from "./api/patch/planPatch.js";
 import { generateToken } from "./api/tokens.js";
 import { mergePeople } from "./personMerge.js";
-import {
-    linkOrCreateLinkedPerson,
-    SYSTEM_LINKED_PERSON_PLACEHOLDER,
-} from "./personLinking.js";
+import { linkOrCreateLinkedPerson } from "./personLinking.js";
 import {
     getPlanView,
     assertPlanPermission,
@@ -71,6 +68,19 @@ app.use("/v1", v1);
 v1.get("/health", (_req, res) => res.json({ status: "ok", time: new Date().toISOString() }));
 
 // ---------------------------------------------------------------------------
+// Me helpers
+// ---------------------------------------------------------------------------
+function serializeMe(user: { id: string; displayName: string | null; birthdayMonth: number | null; birthdayDay: number | null; birthdayYear: number | null; profileImageUrl: string | null }, authSubject: string) {
+    return {
+        id: user.id,
+        authSubject,
+        displayName: user.displayName,
+        birthday: serializeBirthday(user),
+        profileImageUrl: user.profileImageUrl ?? null,
+    };
+}
+
+// ---------------------------------------------------------------------------
 // GET /v1/me — Get the current authenticated user (MeResponse)
 // ---------------------------------------------------------------------------
 v1.get("/me", ...requireUser([]), async (req, res, next) => {
@@ -80,9 +90,7 @@ v1.get("/me", ...requireUser([]), async (req, res, next) => {
 
         const user = await prisma.user.findUniqueOrThrow({ where: { id } });
 
-        res.json({
-            data: { id, authSubject, displayName: user.displayName },
-        });
+        res.json({ data: serializeMe(user, authSubject) });
     } catch (e) {
         next(e);
     }
@@ -91,36 +99,37 @@ v1.get("/me", ...requireUser([]), async (req, res, next) => {
 // ---------------------------------------------------------------------------
 // PATCH /v1/me — Update the current user's profile
 // ---------------------------------------------------------------------------
-const PatchMeSchema = z.object({
-    displayName: z.string().trim().min(1).max(120),
-});
-
 v1.patch("/me", ...requireUser([]), async (req, res, next) => {
     try {
         const id = (req as any).userId as string;
         const authSubject = (req as any).authSubject as string;
-        const data = PatchMeSchema.parse(req.body);
-        const displayName = requireDisplayName(data.displayName);
+        const parsed = PatchMeSchema.parse(req.body);
 
-        const user = await prisma.$transaction(async (tx) => {
-            const updatedUser = await tx.user.update({
-                where: { id },
-                data: { displayName },
-            });
+        const updateData: Record<string, unknown> = {};
 
-            await tx.person.updateMany({
-                where: {
-                    linkedUserId: id,
-                    displayName: SYSTEM_LINKED_PERSON_PLACEHOLDER,
-                },
-                data: { displayName },
-            });
+        if (parsed.displayName !== undefined) {
+            updateData.displayName = requireDisplayName(parsed.displayName);
+        }
 
-            return updatedUser;
+        if (parsed.birthday !== undefined) {
+            if (parsed.birthday) {
+                updateData.birthdayMonth = parsed.birthday.month;
+                updateData.birthdayDay = parsed.birthday.day;
+                updateData.birthdayYear = parsed.birthday.year ?? null;
+            } else {
+                updateData.birthdayMonth = null;
+                updateData.birthdayDay = null;
+                updateData.birthdayYear = null;
+            }
+        }
+
+        const user = await prisma.user.update({
+            where: { id },
+            data: updateData,
         });
 
         res.json({
-            data: { id: user.id, authSubject, displayName: user.displayName },
+            data: serializeMe(user, authSubject),
         });
     } catch (e) {
         next(e);
@@ -211,6 +220,14 @@ const PatchPersonSchema = z.object({
 const MergePersonSchema = z.object({
     sourcePersonId: z.string().uuid(),
 });
+
+const PatchMeSchema = z.object({
+    displayName: z.string().trim().min(1).max(120).optional(),
+    birthday: PersonBirthdaySchema.nullable().optional(),
+}).refine(
+    (data) => data.displayName !== undefined || data.birthday !== undefined,
+    { message: "at_least_one_field_required" }
+);
 
 function nullIfBlank(value: string | null | undefined) {
     if (value == null) return null;
@@ -807,6 +824,7 @@ v1.get("/people", ...requireUser([]), async (req, res, next) => {
 
         const rows = await prisma.person.findMany({
             where,
+            include: { linkedUser: { select: linkedUserProfileSelect } },
             orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
             take: limit + 1,
         });
@@ -847,6 +865,7 @@ v1.post(
 
             const person = await prisma.person.create({
                 data: toPersonCreateData(ownerId, input),
+                include: { linkedUser: { select: linkedUserProfileSelect } },
             });
 
             res.setHeader("Location", `/v1/people/${person.id}`);
@@ -865,7 +884,10 @@ v1.get("/people/:personId", ...requireUser([]), async (req, res, next) => {
         const ownerId = (req as any).userId as string;
         const personId = req.params.personId;
 
-        const person = await prisma.person.findFirst({ where: { id: personId, ownerId } });
+        const person = await prisma.person.findFirst({
+            where: { id: personId, ownerId },
+            include: { linkedUser: { select: linkedUserProfileSelect } },
+        });
         if (!person) return next({ status: 404, expose: true, message: "not_found" });
 
         res.json({ data: serializePerson(person) });
@@ -882,7 +904,10 @@ v1.patch("/people/:personId", ...requireUser([]), async (req, res, next) => {
         const ownerId = (req as any).userId as string;
         const personId = req.params.personId;
 
-        const current = await prisma.person.findFirst({ where: { id: personId, ownerId } });
+        const current = await prisma.person.findFirst({
+            where: { id: personId, ownerId },
+            include: { linkedUser: { select: linkedUserProfileSelect } },
+        });
         if (!current) return next({ status: 404, expose: true, message: "not_found" });
 
         const patch = PatchPersonSchema.parse(req.body);
@@ -895,6 +920,7 @@ v1.patch("/people/:personId", ...requireUser([]), async (req, res, next) => {
         const updated = await prisma.person.update({
             where: { id: current.id },
             data,
+            include: { linkedUser: { select: linkedUserProfileSelect } },
         });
 
         res.json({ data: serializePerson(updated) });
@@ -912,7 +938,7 @@ v1.post("/people/:personId/merge", ...requireUser([]), async (req, res, next) =>
         const personToKeepId = req.params.personId;
         const { sourcePersonId } = MergePersonSchema.parse(req.body);
 
-        const mergedPerson = await prisma.$transaction((tx) =>
+        const merged = await prisma.$transaction((tx) =>
             mergePeople({
                 tx,
                 ownerId,
@@ -920,6 +946,11 @@ v1.post("/people/:personId/merge", ...requireUser([]), async (req, res, next) =>
                 personToMergeId: sourcePersonId,
             })
         );
+
+        const mergedPerson = await prisma.person.findUniqueOrThrow({
+            where: { id: merged.id },
+            include: { linkedUser: { select: linkedUserProfileSelect } },
+        });
 
         res.json({ data: serializePerson(mergedPerson) });
     } catch (e) {

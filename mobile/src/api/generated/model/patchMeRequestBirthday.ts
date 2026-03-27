@@ -16,14 +16,25 @@ Non-goals for this surface (intentionally excluded):
 
  * OpenAPI spec version: 1.0.0
  */
-import type { PatchMeRequestBirthday } from './patchMeRequestBirthday';
 
-export interface PatchMeRequest {
+/**
+ * @nullable
+ */
+export type PatchMeRequestBirthday = {
   /**
-   * @minLength 1
-   * @maxLength 120
+   * @minimum 1
+   * @maximum 12
    */
-  displayName?: string;
-  /** @nullable */
-  birthday?: PatchMeRequestBirthday;
-}
+  month: number;
+  /**
+   * @minimum 1
+   * @maximum 31
+   */
+  day: number;
+  /**
+   * @minimum 1900
+   * @maximum 2100
+   * @nullable
+   */
+  year?: number | null;
+} | null;

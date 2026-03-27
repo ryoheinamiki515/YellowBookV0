@@ -11,6 +11,13 @@ model User {
   id          String       @id @default(uuid()) @db.Uuid
   auth0Sub    String       @unique
   displayName String?      @db.VarChar(120)
+
+  /// Partial birthday support (year optional), same semantics as Person.
+  birthdayMonth   Int?
+  birthdayDay     Int?
+  birthdayYear    Int?
+  profileImageUrl String?  @db.VarChar(2048)
+
   plans       SocialPlan[]
   people      Person[]
 
