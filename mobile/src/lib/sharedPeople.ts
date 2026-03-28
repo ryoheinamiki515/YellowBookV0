@@ -25,6 +25,7 @@ function buildFallbackSharedPeople(
             {
                 key: participant.id ?? `participant:${index}`,
                 displayName,
+                profileImageUrl: null,
                 kind: "participant",
                 isViewer: false,
             } satisfies SharedPlanPerson,

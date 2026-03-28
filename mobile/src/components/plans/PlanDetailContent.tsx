@@ -56,6 +56,7 @@ import type { Person } from "../../api/generated/model/person";
 import { PlanMemberResponse } from "../../api/generated/model/planMemberResponse";
 import { useReducedMotionPreference } from "../../lib/planHelpers";
 import { Avatar } from "../Avatar";
+import { avatarProps } from "../../lib/avatarPerson";
 import { getSharedPeopleForDisplay } from "../../lib/sharedPeople";
 import {
     fromPlan,
@@ -72,6 +73,7 @@ import {
 type PlanPersonIdentity = {
     personId?: string | null;
     displayName?: string | null;
+    profileImageUrl?: string | null;
 };
 
 type StagedParticipantAdd =
@@ -80,6 +82,7 @@ type StagedParticipantAdd =
           draftId: string;
           personId: string;
           displayName: string;
+          profileImageUrl: string | null;
       }
     | {
           kind: "new-person";
@@ -93,6 +96,7 @@ type DisplayPlanParticipantChip = {
     participantId?: string;
     personId?: string | null;
     displayName: string;
+    profileImageUrl?: string | null;
 };
 
 function normalizePersonDisplayName(
@@ -133,6 +137,7 @@ function mergeUniquePlanPeople(
             merged.push({
                 personId,
                 displayName,
+                profileImageUrl: person.profileImageUrl ?? null,
             });
         }
     }
@@ -1069,7 +1074,7 @@ function AddPersonSheet({
                                         paddingVertical="$1"
                                         borderRadius="$10"
                                     >
-                                        <Avatar name={name} size={20} />
+                                        <Avatar {...avatarProps(person, name)} size={20} />
                                         <Text
                                             fontFamily="$body"
                                             fontSize="$2"
@@ -1122,7 +1127,7 @@ function AddPersonSheet({
                                             : `Add ${person.displayName} to this plan`
                                     }
                                     leading={
-                                        <Avatar name={person.displayName} size={32} />
+                                        <Avatar {...avatarProps(person)} size={32} />
                                     }
                                     title={person.displayName}
                                     subtitle={
@@ -1746,6 +1751,7 @@ export function PlanDetailContent({
                         draftId: nextParticipantDraftId(),
                         personId: person.id,
                         displayName: person.displayName,
+                        profileImageUrl: person.profileImageUrl ?? null,
                     },
                 ];
             });
@@ -2001,15 +2007,23 @@ export function PlanDetailContent({
     const visibleServerParticipants = plan.participants.filter(
         (p) => (p.displayName || p.personId) && !removedParticipantIdSet.has(p.id)
     );
+    const sharedPeopleDisplay = getSharedPeopleForDisplay(plan, { localizeViewer: !canEdit });
+    const sharedImageByName = new Map(
+        sharedPeopleDisplay.map((p) => [p.displayName.toLowerCase(), p.profileImageUrl])
+    );
     const participants: DisplayPlanParticipantChip[] = canEdit
         ? [
-            ...visibleServerParticipants.map((participant) => ({
-                key: participant.id,
-                source: "server" as const,
-                participantId: participant.id,
-                personId: participant.personId ?? null,
-                displayName: participant.displayName || "Unknown",
-            })),
+            ...visibleServerParticipants.map((participant) => {
+                const name = participant.displayName || "Unknown";
+                return {
+                    key: participant.id,
+                    source: "server" as const,
+                    participantId: participant.id,
+                    personId: participant.personId ?? null,
+                    displayName: name,
+                    profileImageUrl: sharedImageByName.get(name.toLowerCase()) ?? null,
+                };
+            }),
             ...stagedParticipantAdds.map((participant) => ({
                 key: participant.draftId,
                 source:
@@ -2021,14 +2035,19 @@ export function PlanDetailContent({
                         ? participant.personId
                         : null,
                 displayName: participant.displayName,
+                profileImageUrl:
+                    participant.kind === "existing-person"
+                        ? participant.profileImageUrl
+                        : null,
             })),
         ]
-        : getSharedPeopleForDisplay(plan, { localizeViewer: true }).map((person) => ({
+        : sharedPeopleDisplay.map((person) => ({
             key: person.key,
             source: "server" as const,
             participantId: undefined,
             personId: null,
             displayName: person.label,
+            profileImageUrl: person.profileImageUrl,
         }));
 
     return (
@@ -2232,7 +2251,7 @@ export function PlanDetailContent({
                                                         borderRadius="$10"
                                                         opacity={canEdit && isMutating ? 0.5 : 1}
                                                     >
-                                                        <Avatar name={name} size={24} />
+                                                        <Avatar {...avatarProps(p, name)} size={24} />
                                                         <Text
                                                             fontFamily="$body"
                                                             fontSize="$3"
@@ -2604,6 +2623,7 @@ export function PlanDetailContent({
                         ...visibleServerParticipants.map((participant) => ({
                             personId: participant.personId,
                             displayName: participant.displayName,
+                            profileImageUrl: sharedImageByName.get((participant.displayName || "").toLowerCase()) ?? null,
                         })),
                         ...stagedParticipantAdds.map((participant) => ({
                             personId:
@@ -2611,6 +2631,10 @@ export function PlanDetailContent({
                                     ? participant.personId
                                     : null,
                             displayName: participant.displayName,
+                            profileImageUrl:
+                                participant.kind === "existing-person"
+                                    ? participant.profileImageUrl
+                                    : null,
                         })),
                     ]}
                     onStageExistingPerson={handleStageExistingPersonParticipant}

@@ -13,6 +13,7 @@ import {
     planLifecycleText,
 } from "../../lib/planFormatters";
 import { Avatar } from "../Avatar";
+import { avatarProps } from "../../lib/avatarPerson";
 import { getSharedPeopleForDisplay } from "../../lib/sharedPeople";
 import {
     PlanQuickActionRow,
@@ -40,20 +41,20 @@ function getTimeLabel(plan: SocialPlan): string | null {
 }
 
 function AvatarDots({ plan }: { plan: SocialPlan }) {
-    const names = getSharedPeopleForDisplay(plan).map((p) => p.displayName);
-    if (names.length === 0) return null;
+    const people = getSharedPeopleForDisplay(plan);
+    if (people.length === 0) return null;
 
-    const displayed = names.slice(0, 3);
+    const displayed = people.slice(0, 3);
     return (
         <XStack alignItems="center">
-            {displayed.map((name, i) => (
+            {displayed.map((person, i) => (
                 <View
-                    key={name + i}
+                    key={person.key}
                     marginLeft={i === 0 ? 0 : -5}
                     zIndex={displayed.length - i}
                 >
                     <Avatar
-                        name={name}
+                        {...avatarProps(person)}
                         size={22}
                         borderWidth={2}
                         borderColor="$surface"

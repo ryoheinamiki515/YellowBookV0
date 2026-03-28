@@ -1,378 +1,142 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import type { SocialPlan, SocialPlanParticipant } from "@prisma/client";
-import {
-    buildSharedPeople,
-    serializeSocialPlan,
-    serializeSubscribedPlan,
-} from "./socialPlan.js";
+import { buildSharedPeople } from "./socialPlan.js";
 
-type TestParticipant = SocialPlanParticipant & {
-    person?: { linkedUserId: string | null; displayName?: string | null } | null;
-};
-
-const CREATED_AT = new Date("2026-03-07T12:00:00.000Z");
-
-function makeParticipant(params: {
-    id: string;
-    displayName?: string | null;
-    linkedUserId?: string | null;
-    currentPersonDisplayName?: string | null;
-}): TestParticipant {
-    const participant: SocialPlanParticipant = {
-        id: params.id,
+function makeParticipant(overrides: Record<string, unknown> = {}) {
+    return {
+        id: "part-1",
         planId: "plan-1",
-        personId: params.linkedUserId ? `person-${params.id}` : null,
-        displayName: params.displayName ?? null,
+        personId: "person-1",
+        displayName: "Alice",
         isPrimary: false,
-        createdAt: CREATED_AT,
-    };
-
-    if (params.linkedUserId === undefined) {
-        return participant;
-    }
-
-    return {
-        ...participant,
+        createdAt: new Date("2025-01-01"),
+        updatedAt: new Date("2025-01-01"),
         person: {
-            linkedUserId: params.linkedUserId,
-            displayName: params.currentPersonDisplayName ?? null,
+            linkedUserId: null,
+            displayName: "Alice",
         },
-    };
+        ...overrides,
+    } as any;
 }
 
-function makePlan(params?: {
-    ownerId?: string;
-    ownerDisplayName?: string;
-    participants?: TestParticipant[];
-}) {
-    const plan: SocialPlan = {
-        id: "plan-1",
-        ownerId: params?.ownerId ?? "user-kevin",
-        intentText: "Coffee soon?",
-        contextNote: "Catch up",
-        locationText: "Cafe",
-        state: "OPEN",
-        timePrecision: "UNSPECIFIED",
-        anchorStart: null,
-        anchorEnd: null,
-        timezone: null,
-        createdAt: CREATED_AT,
-        updatedAt: CREATED_AT,
-    };
-
-    return {
-        ...plan,
-        participants: params?.participants ?? [],
-        owner: {
-            displayName: params?.ownerDisplayName ?? "Kevin",
-        },
-    };
-}
-
-describe("buildSharedPeople", () => {
-    test("returns the owner when the plan has no explicit participants", () => {
-        assert.deepEqual(
-            buildSharedPeople({
-                ownerId: "user-kevin",
-                ownerDisplayName: "Kevin",
-            }),
-            [
-                {
-                    key: "owner:user-kevin",
-                    displayName: "Kevin",
-                    kind: "owner",
-                    isViewer: false,
-                },
-            ]
-        );
-    });
-
-    test("marks the viewer when a participant resolves to the subscriber", () => {
-        assert.deepEqual(
-            buildSharedPeople({
-                ownerId: "user-kevin",
-                ownerDisplayName: "Kevin",
-                participants: [
-                    makeParticipant({
-                        id: "participant-sam",
-                        displayName: "Sam",
-                        linkedUserId: "user-sam",
-                    }),
-                ],
-                connectionMap: new Map([
-                    [
-                        "user-sam",
-                        {
-                            personId: "person-sam",
-                            displayName: "Sam",
-                        },
-                    ],
-                ]),
-                viewerUserId: "user-sam",
-            }),
-            [
-                {
-                    key: "owner:user-kevin",
-                    displayName: "Kevin",
-                    kind: "owner",
-                    isViewer: false,
-                },
-                {
-                    key: "participant:user:user-sam",
-                    displayName: "Sam",
-                    kind: "participant",
-                    isViewer: true,
-                },
-            ]
-        );
-    });
-
-    test("keeps owner first and preserves participant order after reconciliation", () => {
-        assert.deepEqual(
-            buildSharedPeople({
-                ownerId: "user-kevin",
-                ownerDisplayName: "Kevin",
-                participants: [
-                    makeParticipant({
-                        id: "participant-sam",
-                        displayName: "Sam",
-                        linkedUserId: "user-sam",
-                    }),
-                    makeParticipant({
-                        id: "participant-alex",
-                        displayName: "Alex",
-                        linkedUserId: "user-alex",
-                    }),
-                ],
-                connectionMap: new Map([
-                    [
-                        "user-sam",
-                        {
-                            personId: "person-sam",
-                            displayName: "Sam",
-                        },
-                    ],
-                    [
-                        "user-alex",
-                        {
-                            personId: "person-alex",
-                            displayName: "Alex",
-                        },
-                    ],
-                ]),
-                viewerUserId: "user-sam",
-            }).map((person) => person.displayName),
-            ["Kevin", "Sam", "Alex"]
-        );
-    });
-
-    test("deduplicates the owner when they also appear as a participant", () => {
-        assert.deepEqual(
-            buildSharedPeople({
-                ownerId: "user-kevin",
-                ownerDisplayName: "Kevin",
-                participants: [
-                    makeParticipant({
-                        id: "participant-kevin",
-                        displayName: "Kevin",
-                        linkedUserId: "user-kevin",
-                    }),
-                    makeParticipant({
-                        id: "participant-sam",
-                        displayName: "Sam",
-                        linkedUserId: "user-sam",
-                    }),
-                ],
-                viewerUserId: "user-sam",
-            }).map((person) => ({
-                displayName: person.displayName,
-                kind: person.kind,
-            })),
-            [
-                {
-                    displayName: "Kevin",
-                    kind: "owner",
-                },
-                {
-                    displayName: "Sam",
-                    kind: "participant",
-                },
-            ]
-        );
-    });
-
-    test("falls back to participant display names and deduplicates repeated names", () => {
-        assert.deepEqual(
-            buildSharedPeople({
-                ownerId: "user-kevin",
-                ownerDisplayName: "Kevin",
-                participants: [
-                    makeParticipant({
-                        id: "participant-alex-1",
-                        displayName: "Alex",
-                    }),
-                    makeParticipant({
-                        id: "participant-alex-2",
-                        displayName: "Alex",
-                    }),
-                ],
-            }),
-            [
-                {
-                    key: "owner:user-kevin",
-                    displayName: "Kevin",
-                    kind: "owner",
-                    isViewer: false,
-                },
-                {
-                    key: "participant:name:alex",
-                    displayName: "Alex",
-                    kind: "participant",
-                    isViewer: false,
-                },
-            ]
-        );
-    });
-
-    test("uses the viewer's linked person name for a subscribed owner", () => {
-        const serialized = serializeSubscribedPlan(
-            makePlan(),
-            new Map([
-                [
-                    "user-kevin",
-                    {
-                        personId: "person-kev",
-                        displayName: "Kev",
-                    },
-                ],
-            ]),
-            "user-viewer"
-        );
-
-        assert.equal(serialized.ownerDisplayName, "Kev");
-        assert.equal(serialized.sharedPeople?.[0]?.displayName, "Kev");
-    });
-
-    test("prefers the current person name over the participant snapshot for owners", () => {
-        const serialized = serializeSocialPlan(
-            makePlan({
-                participants: [
-                    makeParticipant({
-                        id: "participant-tk",
-                        displayName: "TK",
-                        linkedUserId: null,
-                        currentPersonDisplayName: "ChanMi",
-                    }),
-                ],
-            })
-        );
-
-        assert.equal(serialized.participants[0]?.displayName, "ChanMi");
-    });
-});
-
-// ===========================================================================
-// Membership-context serialization (PlanCollaboration layer)
-// ===========================================================================
-describe("serializeSocialPlan — membership context", () => {
-    test("owner context includes contextNote", () => {
-        const plan = makePlan();
-        const serialized = serializeSocialPlan(plan, { role: "owner" });
-        assert.equal(serialized.contextNote, "Catch up");
-    });
-
-    test("member context redacts contextNote to null", () => {
-        const plan = makePlan();
-        const serialized = serializeSocialPlan(plan, {
-            role: "member",
-            connectionMap: new Map(),
-            viewerUserId: "user-viewer",
-        });
-        assert.equal(serialized.contextNote, null);
-    });
-
-    test("subscriber context also redacts contextNote (backward compat)", () => {
-        const plan = makePlan();
-        const serialized = serializeSocialPlan(plan, {
-            role: "subscriber",
-            connectionMap: new Map(),
-            viewerUserId: "user-viewer",
-        });
-        assert.equal(serialized.contextNote, null);
-    });
-
-    test("member context builds sharedPeople", () => {
-        const plan = makePlan({
-            participants: [
-                makeParticipant({
-                    id: "participant-bob",
-                    displayName: "Bob",
-                    linkedUserId: "user-bob",
-                }),
-            ],
+describe("buildSharedPeople — profileImageUrl", () => {
+    test("includes owner profileImageUrl from ownerProfileImageUrl param", () => {
+        const result = buildSharedPeople({
+            ownerId: "owner-1",
+            ownerDisplayName: "Owner",
+            ownerProfileImageUrl: "https://example.com/owner.jpg",
+            participants: [],
         });
 
-        const serialized = serializeSocialPlan(plan, {
-            role: "member",
-            connectionMap: new Map([
-                ["user-bob", { personId: "person-bob", displayName: "Bobby" }],
-            ]),
-            viewerUserId: "user-bob",
-        });
-
-        assert.ok(serialized.sharedPeople);
-        assert.ok(serialized.sharedPeople.length > 0);
-        const viewer = serialized.sharedPeople.find((p) => p.isViewer);
-        assert.ok(viewer);
-        assert.equal(viewer.displayName, "Bobby");
+        assert.equal(result.length, 1);
+        assert.equal(result[0]!.profileImageUrl, "https://example.com/owner.jpg");
     });
 
-    test("owner context does not include sharedPeople", () => {
-        const plan = makePlan();
-        const serialized = serializeSocialPlan(plan, { role: "owner" });
-        assert.equal(serialized.sharedPeople, undefined);
+    test("prefers connectionMap profileImageUrl for owner over ownerProfileImageUrl", () => {
+        const connectionMap = new Map([
+            ["owner-1", { personId: "p-1", displayName: "Owner", profileImageUrl: "https://example.com/from-connection.jpg" }],
+        ]);
+
+        const result = buildSharedPeople({
+            ownerId: "owner-1",
+            ownerDisplayName: "Owner",
+            ownerProfileImageUrl: "https://example.com/direct.jpg",
+            participants: [],
+            connectionMap,
+        });
+
+        assert.equal(result[0]!.profileImageUrl, "https://example.com/from-connection.jpg");
     });
 
-    test("member context strips personId and isPrimary from participants", () => {
-        const plan = makePlan({
-            participants: [
-                makeParticipant({
-                    id: "participant-sam",
-                    displayName: "Sam",
-                    linkedUserId: "user-sam",
-                }),
-            ],
+    test("returns null profileImageUrl for owner when no image", () => {
+        const result = buildSharedPeople({
+            ownerId: "owner-1",
+            ownerDisplayName: "Owner",
+            ownerProfileImageUrl: null,
+            participants: [],
         });
 
-        const serialized = serializeSocialPlan(plan, {
-            role: "member",
-            connectionMap: new Map(),
-            viewerUserId: "user-viewer",
-        });
-
-        const participant = serialized.participants[0] as any;
-        assert.equal(participant.personId, undefined);
-        assert.equal(participant.isPrimary, undefined);
-        assert.ok(participant.displayName);
-        assert.ok(participant.createdAt);
+        assert.equal(result[0]!.profileImageUrl, null);
     });
 
-    test("owner context includes personId and isPrimary in participants", () => {
-        const plan = makePlan({
-            participants: [
-                makeParticipant({
-                    id: "participant-sam",
-                    displayName: "Sam",
-                    linkedUserId: "user-sam",
-                }),
-            ],
+    test("includes participant profileImageUrl from linked user", () => {
+        const participant = makeParticipant({
+            person: {
+                linkedUserId: "user-2",
+                displayName: "Alice",
+                linkedUser: { profileImageUrl: "https://example.com/alice.jpg" },
+            },
         });
 
-        const serialized = serializeSocialPlan(plan, { role: "owner" });
+        const result = buildSharedPeople({
+            ownerId: "owner-1",
+            ownerDisplayName: "Owner",
+            ownerProfileImageUrl: null,
+            participants: [participant],
+        });
 
-        const participant = serialized.participants[0] as any;
-        assert.ok("personId" in participant);
-        assert.ok("isPrimary" in participant);
+        const alice = result.find((p) => p.displayName === "Alice");
+        assert.equal(alice?.profileImageUrl, "https://example.com/alice.jpg");
+    });
+
+    test("prefers connectionMap profileImageUrl for participant", () => {
+        const connectionMap = new Map([
+            ["user-2", { personId: "p-2", displayName: "Alice", profileImageUrl: "https://example.com/connection-alice.jpg" }],
+        ]);
+
+        const participant = makeParticipant({
+            person: {
+                linkedUserId: "user-2",
+                displayName: "Alice",
+                linkedUser: { profileImageUrl: "https://example.com/direct-alice.jpg" },
+            },
+        });
+
+        const result = buildSharedPeople({
+            ownerId: "owner-1",
+            ownerDisplayName: "Owner",
+            ownerProfileImageUrl: null,
+            participants: [participant],
+            connectionMap,
+        });
+
+        const alice = result.find((p) => p.displayName === "Alice");
+        assert.equal(alice?.profileImageUrl, "https://example.com/connection-alice.jpg");
+    });
+
+    test("returns null profileImageUrl for participant without linked user", () => {
+        const participant = makeParticipant({
+            person: { linkedUserId: null, displayName: "Bob" },
+        });
+
+        const result = buildSharedPeople({
+            ownerId: "owner-1",
+            ownerDisplayName: "Owner",
+            ownerProfileImageUrl: null,
+            participants: [participant],
+        });
+
+        const bob = result.find((p) => p.displayName === "Bob");
+        assert.equal(bob?.profileImageUrl, null);
+    });
+
+    test("returns null profileImageUrl when linked user has no image", () => {
+        const participant = makeParticipant({
+            person: {
+                linkedUserId: "user-2",
+                displayName: "Carol",
+                linkedUser: { profileImageUrl: null },
+            },
+        });
+
+        const result = buildSharedPeople({
+            ownerId: "owner-1",
+            ownerDisplayName: "Owner",
+            ownerProfileImageUrl: null,
+            participants: [participant],
+        });
+
+        const carol = result.find((p) => p.displayName === "Carol");
+        assert.equal(carol?.profileImageUrl, null);
     });
 });

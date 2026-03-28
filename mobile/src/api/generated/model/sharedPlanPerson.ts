@@ -29,6 +29,7 @@ export interface SharedPlanPerson {
    * @maxLength 120
    */
   displayName: string;
+  profileImageUrl: string | null;
   kind: SharedPlanPersonKind;
   isViewer: boolean;
 }

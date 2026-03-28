@@ -12,6 +12,7 @@ import {
 } from "../../lib/planListDerivations";
 
 import { Avatar } from "../Avatar";
+import { avatarProps } from "../../lib/avatarPerson";
 import {
     fromPlan,
     formatBadge,
@@ -291,10 +292,10 @@ function AvatarStack({
     inline?: boolean;
     hero?: boolean;
 }) {
-    const names = getSharedPeopleForDisplay(plan).map((person) => person.displayName);
-    if (names.length === 0) return null;
+    const people = getSharedPeopleForDisplay(plan);
+    if (people.length === 0) return null;
 
-    const displayed = names.slice(0, 4);
+    const displayed = people.slice(0, 4);
     const avatarSize = compact ? 24 : 28;
     const radius = avatarSize / 2;
     const overlap = compact ? -6 : -8;
@@ -302,14 +303,14 @@ function AvatarStack({
     return (
         <XStack alignItems="center" marginTop={inline ? 0 : "$1"}>
             <XStack>
-                {displayed.map((name, i) => (
+                {displayed.map((person, i) => (
                     <View
-                        key={name + i}
+                        key={person.key}
                         marginLeft={i === 0 ? 0 : overlap}
                         zIndex={displayed.length - i}
                     >
                         <Avatar
-                            name={name}
+                            {...avatarProps(person)}
                             size={avatarSize}
                             borderWidth={hero ? 2.5 : 2}
                             borderColor="$surface"
@@ -318,14 +319,14 @@ function AvatarStack({
                     </View>
                 ))}
             </XStack>
-            {names.length > 4 ? (
+            {people.length > 4 ? (
                 <Text
                     fontFamily="$body"
                     fontSize={compact ? 10 : "$1"}
                     color="$colorSecondary"
                     marginLeft="$1.5"
                 >
-                    +{names.length - 4}
+                    +{people.length - 4}
                 </Text>
             ) : null}
         </XStack>

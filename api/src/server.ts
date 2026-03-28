@@ -492,14 +492,20 @@ v1.get(
                 orderBy,
                 take: limit + 1,
                 include: {
-                    owner: { select: { displayName: true } },
+                    owner: { select: { displayName: true, profileImageUrl: true } },
                     memberships: {
                         where: { userId },
                         take: 1,
                     },
                     participants: {
                         include: {
-                            person: { select: { linkedUserId: true, displayName: true } },
+                            person: {
+                                select: {
+                                    linkedUserId: true,
+                                    displayName: true,
+                                    linkedUser: { select: { profileImageUrl: true } },
+                                },
+                            },
                         },
                     },
                 },
@@ -1326,11 +1332,15 @@ v1.get("/shared/:token", async (req, res, next) => {
                         participants: {
                             include: {
                                 person: {
-                                    select: { linkedUserId: true, displayName: true },
+                                    select: {
+                                        linkedUserId: true,
+                                        displayName: true,
+                                        linkedUser: { select: { profileImageUrl: true } },
+                                    },
                                 },
                             },
                         },
-                        owner: { select: { displayName: true } },
+                        owner: { select: { displayName: true, profileImageUrl: true } },
                     },
                 },
             },
@@ -1361,6 +1371,7 @@ v1.get("/shared/:token", async (req, res, next) => {
                 sharedPeople: buildSharedPeople({
                     ownerId: plan.ownerId,
                     ownerDisplayName: plan.owner.displayName,
+                    ownerProfileImageUrl: plan.owner.profileImageUrl,
                     participants: plan.participants,
                 }),
                 createdAt: plan.createdAt.toISOString(),

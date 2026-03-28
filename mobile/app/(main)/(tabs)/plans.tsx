@@ -32,6 +32,7 @@ import type {
 import { useReducedMotionPreference } from "../../../src/lib/planHelpers";
 import { useMeProfile } from "../../../src/hooks/useMeProfile";
 import { Avatar } from "../../../src/components/Avatar";
+import { avatarProps, meToAvatarPerson } from "../../../src/lib/avatarPerson";
 import {
     getPlanQuickActionLabel,
     getPlanQuickActionTone,
@@ -426,8 +427,7 @@ export default function PlansScreen() {
                             cursor="pointer"
                         >
                             <Avatar
-                                name={me?.displayName ?? "?"}
-                                imageUrl={me?.profileImageUrl}
+                                {...avatarProps(meToAvatarPerson(me ?? {}))}
                                 size={36}
                             />
                         </View>

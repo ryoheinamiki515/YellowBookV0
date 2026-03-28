@@ -5,6 +5,7 @@ import type { SharedPlanPerson } from "../../api/generated/model/sharedPlanPerso
 import type { SocialPlanState } from "../../api/generated/model/socialPlanState";
 import type { SocialPlanTimePrecision } from "../../api/generated/model/socialPlanTimePrecision";
 import { Avatar } from "../Avatar";
+import { avatarProps } from "../../lib/avatarPerson";
 import { fromStorageFields, formatDisplay } from "../../lib/planWhen";
 import { getSharedPeopleForDisplay } from "../../lib/sharedPeople";
 
@@ -200,7 +201,7 @@ export function PlanReadOnlyDetails({
                                     paddingVertical="$1.5"
                                     borderRadius="$10"
                                 >
-                                    <Avatar name={name} size={24} />
+                                    <Avatar {...avatarProps(person, person.label)} size={24} />
                                     <Text
                                         fontFamily="$body"
                                         fontSize="$3"

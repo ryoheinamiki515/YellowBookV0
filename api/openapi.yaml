@@ -1288,12 +1288,16 @@ components:
           type: string
           minLength: 1
           maxLength: 120
+        profileImageUrl:
+          type: string
+          format: uri
+          nullable: true
         kind:
           type: string
           enum: [owner, participant]
         isViewer:
           type: boolean
-      required: [key, displayName, kind, isViewer]
+      required: [key, displayName, profileImageUrl, kind, isViewer]
       additionalProperties: false
 
     SocialPlan:

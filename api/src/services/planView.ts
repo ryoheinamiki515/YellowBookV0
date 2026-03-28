@@ -53,7 +53,7 @@ export async function loadConnectionMapForUser(
             linkedUserId: true,
             displayName: true,
             id: true,
-            linkedUser: { select: { displayName: true } },
+            linkedUser: { select: { displayName: true, profileImageUrl: true } },
         },
     });
 
@@ -66,7 +66,11 @@ export async function loadConnectionMapForUser(
                     : person.displayName;
             return [
                 person.linkedUserId!,
-                { personId: person.id, displayName },
+                {
+                    personId: person.id,
+                    displayName,
+                    profileImageUrl: person.linkedUser?.profileImageUrl ?? null,
+                },
             ];
         })
     );
@@ -85,10 +89,16 @@ export async function getPlanView(
     const plan = await prisma.socialPlan.findUnique({
         where: { id: planId },
         include: {
-            owner: { select: { displayName: true } },
+            owner: { select: { displayName: true, profileImageUrl: true } },
             participants: {
                 include: {
-                    person: { select: { linkedUserId: true, displayName: true } },
+                    person: {
+                        select: {
+                            linkedUserId: true,
+                            displayName: true,
+                            linkedUser: { select: { profileImageUrl: true } },
+                        },
+                    },
                 },
             },
         },
@@ -105,6 +115,7 @@ export async function getPlanView(
     const sharedPeople = buildSharedPeople({
         ownerId: plan.ownerId,
         ownerDisplayName,
+        ownerProfileImageUrl: plan.owner?.profileImageUrl ?? null,
         participants: plan.participants,
         connectionMap,
         viewerUserId: viewerId,

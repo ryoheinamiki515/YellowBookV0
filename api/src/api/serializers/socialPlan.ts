@@ -8,39 +8,45 @@ import type {
 import type { PlanPermissions, MembershipView } from "../../services/planView.js";
 
 type ParticipantWithLinkedUser = DbParticipant & {
-    person?: { linkedUserId: string | null; displayName?: string | null } | null;
+    person?: {
+        linkedUserId: string | null;
+        displayName?: string | null;
+        linkedUser?: { profileImageUrl: string | null } | null;
+    } | null;
 };
 
 export type SharedPerson = {
     key: string;
     displayName: string;
+    profileImageUrl: string | null;
     kind: "owner" | "participant";
     isViewer: boolean;
 };
 
 type SerializablePlan = DbPlan & {
     participants?: (DbParticipant | ParticipantWithLinkedUser)[];
-    owner?: Pick<DbUser, "displayName"> | null;
+    owner?: Pick<DbUser, "displayName" | "profileImageUrl"> | null;
 };
 
 export type SerializationContext =
     | { role: "owner" }
     | {
           role: "subscriber";
-          connectionMap: Map<string, { personId: string; displayName: string }>;
+          connectionMap: Map<string, { personId: string; displayName: string; profileImageUrl: string | null }>;
           viewerUserId: string;
       }
     | {
           role: "member";
-          connectionMap: Map<string, { personId: string; displayName: string }>;
+          connectionMap: Map<string, { personId: string; displayName: string; profileImageUrl: string | null }>;
           viewerUserId: string;
       };
 
 type BuildSharedPeopleParams = {
     ownerId: string;
     ownerDisplayName: string | null | undefined;
+    ownerProfileImageUrl: string | null | undefined;
     participants?: (DbParticipant | ParticipantWithLinkedUser)[];
-    connectionMap?: Map<string, { personId: string; displayName: string }>;
+    connectionMap?: Map<string, { personId: string; displayName: string; profileImageUrl: string | null }>;
     viewerUserId?: string | null;
 };
 
@@ -53,6 +59,7 @@ export function buildSharedPeople(params: BuildSharedPeopleParams): SharedPerson
     const {
         ownerId,
         ownerDisplayName,
+        ownerProfileImageUrl,
         participants = [],
         connectionMap,
         viewerUserId,
@@ -65,6 +72,7 @@ export function buildSharedPeople(params: BuildSharedPeopleParams): SharedPerson
     const pushSharedPerson = (person: {
         key: string;
         displayName: string | null;
+        profileImageUrl: string | null;
         kind: "owner" | "participant";
         linkedUserId?: string | null;
         isViewer: boolean;
@@ -85,6 +93,7 @@ export function buildSharedPeople(params: BuildSharedPeopleParams): SharedPerson
         sharedPeople.push({
             key: person.key,
             displayName,
+            profileImageUrl: person.profileImageUrl,
             kind: person.kind,
             isViewer: person.isViewer,
         });
@@ -93,6 +102,7 @@ export function buildSharedPeople(params: BuildSharedPeopleParams): SharedPerson
     pushSharedPerson({
         key: `owner:${ownerId}`,
         displayName: ownerDisplayName ?? "Plan owner",
+        profileImageUrl: connectionMap?.get(ownerId)?.profileImageUrl ?? ownerProfileImageUrl ?? null,
         kind: "owner",
         linkedUserId: ownerId,
         isViewer: viewerUserId === ownerId,
@@ -101,6 +111,10 @@ export function buildSharedPeople(params: BuildSharedPeopleParams): SharedPerson
     for (const participant of participants) {
         const linkedUserId =
             "person" in participant ? participant.person?.linkedUserId ?? null : null;
+        const linkedUserProfileImageUrl =
+            "person" in participant && participant.person && "linkedUser" in participant.person
+                ? (participant.person as { linkedUser?: { profileImageUrl: string | null } | null }).linkedUser?.profileImageUrl ?? null
+                : null;
         const currentPersonDisplayName =
             "person" in participant ? participant.person?.displayName ?? null : null;
         const reconciledDisplayName =
@@ -112,6 +126,10 @@ export function buildSharedPeople(params: BuildSharedPeopleParams): SharedPerson
             currentPersonDisplayName ??
             participant.displayName ??
             null;
+        const profileImageUrl =
+            linkedUserId && connectionMap
+                ? connectionMap.get(linkedUserId)?.profileImageUrl ?? linkedUserProfileImageUrl
+                : linkedUserProfileImageUrl;
         const fallbackName = normalizeName(displayName);
         const fallbackKey = fallbackName?.toLocaleLowerCase().replace(/\s+/g, "-");
 
@@ -120,6 +138,7 @@ export function buildSharedPeople(params: BuildSharedPeopleParams): SharedPerson
                 ? `participant:user:${linkedUserId}`
                 : `participant:name:${fallbackKey ?? participant.id}`,
             displayName,
+            profileImageUrl,
             kind: "participant",
             linkedUserId,
             isViewer: Boolean(viewerUserId && linkedUserId === viewerUserId),
@@ -137,16 +156,18 @@ export function serializeSocialPlan(
         context.role !== "owner"
             ? context.connectionMap.get(p.ownerId)?.displayName ?? p.owner?.displayName ?? null
             : p.owner?.displayName ?? null;
-    const sharedPeople =
-        context.role !== "owner"
-            ? buildSharedPeople({
-                  ownerId: p.ownerId,
-                  ownerDisplayName,
-                  participants: p.participants ?? [],
-                  connectionMap: context.connectionMap,
-                  viewerUserId: context.viewerUserId,
-              })
-            : undefined;
+    const ownerProfileImageUrl = p.owner?.profileImageUrl ?? null;
+    const sharedPeopleParams: BuildSharedPeopleParams = {
+        ownerId: p.ownerId,
+        ownerDisplayName,
+        ownerProfileImageUrl,
+        participants: p.participants ?? [],
+        viewerUserId: context.role !== "owner" ? context.viewerUserId : p.ownerId,
+    };
+    if (context.role !== "owner") {
+        sharedPeopleParams.connectionMap = context.connectionMap;
+    }
+    const sharedPeople = buildSharedPeople(sharedPeopleParams);
 
     return {
         id: p.id,
@@ -200,9 +221,9 @@ export function serializeSocialPlan(
 export function serializeSubscribedPlan(
     p: DbPlan & {
         participants?: ParticipantWithLinkedUser[];
-        owner?: Pick<DbUser, "displayName"> | null;
+        owner?: Pick<DbUser, "displayName" | "profileImageUrl"> | null;
     },
-    connectionMap: Map<string, { personId: string; displayName: string }>,
+    connectionMap: Map<string, { personId: string; displayName: string; profileImageUrl: string | null }>,
     viewerUserId: string
 ) {
     return serializeSocialPlan(p, {

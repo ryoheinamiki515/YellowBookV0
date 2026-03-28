@@ -16,6 +16,7 @@ import {
 } from "../../src/api/generated/connections/connections";
 import type { Connection } from "../../src/api/generated/model/connection";
 import { Avatar } from "../../src/components/Avatar";
+import { avatarProps, connectionToAvatarPerson } from "../../src/lib/avatarPerson";
 import { getProblemDetail } from "../../src/lib/problemDetails";
 
 function ConnectionRow({
@@ -38,7 +39,7 @@ function ConnectionRow({
             borderWidth={1}
             borderColor="$borderColorSubtle"
         >
-            <Avatar name={name} imageUrl={connection.targetProfileImageUrl} size={40} />
+            <Avatar {...avatarProps(connectionToAvatarPerson(connection))} size={40} />
 
             <YStack flex={1}>
                 <Text

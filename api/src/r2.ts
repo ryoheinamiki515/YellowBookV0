@@ -59,7 +59,7 @@ export async function createProfileImageUploadUrl(userId: string): Promise<{
 
     return {
         uploadUrl,
-        publicUrl: `${publicUrl}/${key}`,
+        publicUrl: `${publicUrl}/${key}?v=${Date.now()}`,
     };
 }
 

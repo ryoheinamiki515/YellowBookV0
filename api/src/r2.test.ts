@@ -58,9 +58,12 @@ describe("r2", () => {
     });
 
     describe("createProfileImageUploadUrl", () => {
-        test("returns a publicUrl based on the configured public URL and user ID", async () => {
+        test("returns a publicUrl with cache-busting version param", async () => {
             const result = await createProfileImageUploadUrl(TEST_USER_ID);
-            assert.equal(result.publicUrl, `${TEST_PUBLIC_URL}/profiles/${TEST_USER_ID}`);
+            const url = new URL(result.publicUrl);
+            assert.equal(url.origin, TEST_PUBLIC_URL);
+            assert.equal(url.pathname, `/profiles/${TEST_USER_ID}`);
+            assert.ok(url.searchParams.has("v"), "publicUrl should include ?v= cache-buster");
         });
 
         test("returns a presigned uploadUrl containing the key path", async () => {
@@ -77,8 +80,8 @@ describe("r2", () => {
             await deleteProfileImage(TEST_USER_ID);
 
             assert.equal(sent.length, 1);
-            assert.equal(sent[0].Bucket, TEST_BUCKET);
-            assert.equal(sent[0].Key, `profiles/${TEST_USER_ID}`);
+            assert.equal(sent[0]!.Bucket, TEST_BUCKET);
+            assert.equal(sent[0]!.Key, `profiles/${TEST_USER_ID}`);
         });
     });
 });

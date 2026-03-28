@@ -46,6 +46,7 @@ import {
 } from "../lib/queryInvalidation";
 import { useReducedMotionPreference } from "../lib/planHelpers";
 import { Avatar } from "./Avatar";
+import { avatarProps } from "../lib/avatarPerson";
 
 function buildMergeCandidateSubtitle(person: Person) {
     const parts = [
@@ -445,7 +446,7 @@ export function PersonDetailContent({
                     >
                         {/* Avatar */}
                         <View alignSelf="flex-start" marginBottom="$3">
-                            <Avatar name={person.displayName} imageUrl={person.profileImageUrl} size={56} />
+                            <Avatar {...avatarProps(person)} size={56} />
                         </View>
 
                         {/* Archived badge */}

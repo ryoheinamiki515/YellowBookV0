@@ -26,6 +26,7 @@ import { useAuth } from "../context/AuthContext";
 import { useConfirm } from "./ConfirmDialog";
 import { ProfileFields } from "./ProfileFields";
 import { Avatar } from "./Avatar";
+import { avatarProps, meToAvatarPerson } from "../lib/avatarPerson";
 import {
     BottomSheetHeader,
     BottomSheetModal,
@@ -270,8 +271,7 @@ export function MeDetailContent({ onClose }: MeDetailContentProps) {
                         >
                             <View position="relative">
                                 <Avatar
-                                    name={me.displayName ?? "?"}
-                                    imageUrl={me.profileImageUrl}
+                                    {...avatarProps(meToAvatarPerson(me))}
                                     size={80}
                                 />
                                 {isUploadingImage ? (
