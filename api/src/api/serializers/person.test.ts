@@ -114,10 +114,37 @@ describe("serializePerson — normalization overlay", () => {
             birthdayDay: 20,
             birthdayYear: 1985,
             linkedUserId: "user-2",
-            linkedUser: { displayName: "Kevin", birthdayMonth: 3, birthdayDay: 15, birthdayYear: null },
+            linkedUser: { displayName: "Kevin", birthdayMonth: 3, birthdayDay: 15, birthdayYear: null, profileImageUrl: null },
         });
 
         const result = serializePerson(person);
         assert.deepEqual(result.birthday, { month: 3, day: 15, year: null });
+    });
+
+    test("overlays linked User profileImageUrl", () => {
+        const person = basePerson({
+            linkedUserId: "user-2",
+            linkedUser: { displayName: "Kevin", birthdayMonth: null, birthdayDay: null, birthdayYear: null, profileImageUrl: "https://example.com/photo.jpg" },
+        });
+
+        const result = serializePerson(person);
+        assert.equal(result.profileImageUrl, "https://example.com/photo.jpg");
+    });
+
+    test("returns null profileImageUrl when linked User has none", () => {
+        const person = basePerson({
+            linkedUserId: "user-2",
+            linkedUser: { displayName: "Kevin", birthdayMonth: null, birthdayDay: null, birthdayYear: null, profileImageUrl: null },
+        });
+
+        const result = serializePerson(person);
+        assert.equal(result.profileImageUrl, null);
+    });
+
+    test("returns null profileImageUrl when there is no linked User", () => {
+        const person = basePerson();
+
+        const result = serializePerson(person);
+        assert.equal(result.profileImageUrl, null);
     });
 });

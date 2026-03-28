@@ -51,6 +51,11 @@ export interface Person {
   notes?: string | null;
   /** @nullable */
   birthday?: PersonBirthday;
+  /**
+   * @maxLength 2048
+   * @nullable
+   */
+  profileImageUrl?: string | null;
   /** @nullable */
   archivedAt?: string | null;
   createdAt: string;

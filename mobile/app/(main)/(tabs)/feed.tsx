@@ -5,21 +5,21 @@ import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Text, View, XStack, YStack } from "tamagui";
 
-import { PageContainer } from "../../src/components/PageContainer";
-import { TodayDateChip } from "../../src/components/DateChip";
+import { PageContainer } from "../../../src/components/PageContainer";
+import { TodayDateChip } from "../../../src/components/DateChip";
 import {
     useListPlans,
-} from "../../src/api/generated/plans/plans";
-import { useListPeople } from "../../src/api/generated/people/people";
-import type { Person } from "../../src/api/generated/model/person";
-import type { SocialPlan } from "../../src/api/generated/model/socialPlan";
+} from "../../../src/api/generated/plans/plans";
+import { useListPeople } from "../../../src/api/generated/people/people";
+import type { Person } from "../../../src/api/generated/model/person";
+import type { SocialPlan } from "../../../src/api/generated/model/socialPlan";
 import {
     CreatePlanSheet,
     type CreatePlanParticipantPrefill,
-} from "../../src/components/plans/CreatePlanSheet";
-import { useAuth } from "../../src/context/AuthContext";
-import { getInitialColor } from "../../src/lib/planHelpers";
-import { invalidatePlanQueries } from "../../src/lib/queryInvalidation";
+} from "../../../src/components/plans/CreatePlanSheet";
+import { useAuth } from "../../../src/context/AuthContext";
+import { getInitialColor } from "../../../src/lib/planHelpers";
+import { invalidatePlanQueries } from "../../../src/lib/queryInvalidation";
 
 type CreatePlanSeed = {
     intentText?: string;

@@ -1409,6 +1409,9 @@ components:
               minimum: 1900
               maximum: 2100
           required: [month, day]
+        profileImageUrl:
+          type: [string, "null"]
+          maxLength: 2048
         archivedAt:
           type: [string, "null"]
           format: date-time
@@ -1430,6 +1433,9 @@ components:
           $ref: "#/components/schemas/Uuid"
         targetDisplayName:
           type: [string, "null"]
+        targetProfileImageUrl:
+          type: [string, "null"]
+          maxLength: 2048
         personId:
           type: [string, "null"]
           format: uuid

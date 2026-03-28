@@ -3,51 +3,51 @@ import { Platform, SectionList, type SectionListData } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { YStack, XStack, Text, View, useMedia } from "tamagui";
-import { PageContainer } from "../../src/components/PageContainer";
-import { AppSafeAreaView } from "../../src/components/AppSafeAreaView";
-import { PlanDetailContent } from "../../src/components/plans/PlanDetailContent";
-import { useConfirm } from "../../src/components/ConfirmDialog";
+import { PageContainer } from "../../../src/components/PageContainer";
+import { AppSafeAreaView } from "../../../src/components/AppSafeAreaView";
+import { PlanDetailContent } from "../../../src/components/plans/PlanDetailContent";
+import { useConfirm } from "../../../src/components/ConfirmDialog";
 
 import {
     useListPlans,
     usePatchPlan,
-} from "../../src/api/generated/plans/plans";
-import { usePatchPlanMembership } from "../../src/api/generated/sharing/sharing";
-import type { SocialPlan } from "../../src/api/generated/model/socialPlan";
-import type { PlanQuickActionRowAction } from "../../src/components/plans/PlanQuickActionRow";
-import { CreatePlanSheet } from "../../src/components/plans/CreatePlanSheet";
-import { PlanDetailSheet } from "../../src/components/plans/PlanDetailSheet";
-import { PlanCard } from "../../src/components/plans/PlanCard";
-import { AgendaDayHeader } from "../../src/components/plans/AgendaDayHeader";
-import { SwipeableRow } from "../../src/components/plans/SwipeableRow";
-import { AgendaAttentionBanner } from "../../src/components/plans/AgendaAttentionBanner";
-import { AgendaEmptyState } from "../../src/components/plans/AgendaEmptyState";
-import { AgendaSkeletonRows } from "../../src/components/plans/AgendaSkeletonRows";
-import { FloatingActionButton } from "../../src/components/plans/FloatingActionButton";
-import { useAuth } from "../../src/context/AuthContext";
+} from "../../../src/api/generated/plans/plans";
+import { usePatchPlanMembership } from "../../../src/api/generated/sharing/sharing";
+import type { SocialPlan } from "../../../src/api/generated/model/socialPlan";
+import type { PlanQuickActionRowAction } from "../../../src/components/plans/PlanQuickActionRow";
+import { CreatePlanSheet } from "../../../src/components/plans/CreatePlanSheet";
+import { PlanDetailSheet } from "../../../src/components/plans/PlanDetailSheet";
+import { PlanCard } from "../../../src/components/plans/PlanCard";
+import { AgendaDayHeader } from "../../../src/components/plans/AgendaDayHeader";
+import { SwipeableRow } from "../../../src/components/plans/SwipeableRow";
+import { AgendaAttentionBanner } from "../../../src/components/plans/AgendaAttentionBanner";
+import { AgendaEmptyState } from "../../../src/components/plans/AgendaEmptyState";
+import { AgendaSkeletonRows } from "../../../src/components/plans/AgendaSkeletonRows";
+import { FloatingActionButton } from "../../../src/components/plans/FloatingActionButton";
+import { useAuth } from "../../../src/context/AuthContext";
 import type {
     DerivedPlanListItem,
     PlanQuickActionKind,
-} from "../../src/lib/planListDerivations";
-import { useReducedMotionPreference } from "../../src/lib/planHelpers";
-import { useMeProfile } from "../../src/hooks/useMeProfile";
-import { Avatar } from "../../src/components/Avatar";
+} from "../../../src/lib/planListDerivations";
+import { useReducedMotionPreference } from "../../../src/lib/planHelpers";
+import { useMeProfile } from "../../../src/hooks/useMeProfile";
+import { Avatar } from "../../../src/components/Avatar";
 import {
     getPlanQuickActionLabel,
     getPlanQuickActionTone,
-} from "../../src/lib/planQuickActions";
-import { planLifecycleText } from "../../src/lib/planFormatters";
-import { invalidatePlanQueries } from "../../src/lib/queryInvalidation";
+} from "../../../src/lib/planQuickActions";
+import { planLifecycleText } from "../../../src/lib/planFormatters";
+import { invalidatePlanQueries } from "../../../src/lib/queryInvalidation";
 import {
     buildAgendaSections,
     getAttentionCount,
     findFirstAttentionIndex,
     type AgendaSection,
     type AgendaPlanRowData,
-} from "../../src/lib/agendaGrouping";
-import { useKeyboardShortcut } from "../../src/hooks/useKeyboardShortcut";
-import { useDesktopResizableSplitView } from "../../src/hooks/useDesktopResizableSplitView";
-import { useRefreshOnVisible } from "../../src/hooks/useRefreshOnVisible";
+} from "../../../src/lib/agendaGrouping";
+import { useKeyboardShortcut } from "../../../src/hooks/useKeyboardShortcut";
+import { useDesktopResizableSplitView } from "../../../src/hooks/useDesktopResizableSplitView";
+import { useRefreshOnVisible } from "../../../src/hooks/useRefreshOnVisible";
 
 type PlanDetailFocusTarget = "when" | "people";
 

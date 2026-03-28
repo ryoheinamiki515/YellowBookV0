@@ -4,6 +4,7 @@ import {
     Dimensions,
     Easing,
     Keyboard,
+    KeyboardAvoidingView,
     Modal,
     Platform,
     Pressable,
@@ -408,7 +409,9 @@ export function BottomSheetModal({
                             transform: [
                                 { translateY: sheetTranslateY },
                                 { translateY: dragOffset },
-                                { translateY: keyboardFillTranslateY },
+                                ...(isFull
+                                    ? []
+                                    : [{ translateY: keyboardFillTranslateY }]),
                             ],
                         }}
                     >
@@ -421,33 +424,45 @@ export function BottomSheetModal({
                             left: 0,
                             right: 0,
                             bottom: 0,
+                            ...(isFull
+                                ? { top: safeTopInset + SHEET_TOP_SAFE_GAP_PX }
+                                : {}),
                             transform: [
                                 { translateY: sheetTranslateY },
                                 { translateY: dragOffset },
-                                { translateY: Animated.multiply(keyboardLift, -1) },
+                                ...(isFull
+                                    ? []
+                                    : [{ translateY: Animated.multiply(keyboardLift, -1) }]),
                             ],
                         }}
                     >
-                        <YStack
-                            backgroundColor="$surface"
-                            borderTopLeftRadius="$8"
-                            borderTopRightRadius="$8"
-                            padding="$6"
-                            paddingBottom={Math.max(insets.bottom, 0) + SHEET_BOTTOM_PADDING_PX}
-                            minHeight={resolvedMinHeight}
-                            maxHeight={maxSheetHeight}
-                            flexShrink={1}
-                            style={SHEET_SHADOW_STYLE}
+                        <KeyboardAvoidingView
+                            behavior={isFull ? "padding" : undefined}
+                            enabled={isFull}
+                            style={isFull ? { flex: 1, maxHeight: maxSheetHeight } : undefined}
                         >
-                            {isFull ? (
-                                <DragHandleIndicator
-                                    interactive
-                                    dragOffset={dragOffset}
-                                    onDismiss={handleClose}
-                                />
-                            ) : null}
-                            {children}
-                        </YStack>
+                            <YStack
+                                backgroundColor="$surface"
+                                borderTopLeftRadius="$8"
+                                borderTopRightRadius="$8"
+                                padding="$6"
+                                paddingBottom={Math.max(insets.bottom, 0) + SHEET_BOTTOM_PADDING_PX}
+                                minHeight={isFull ? undefined : resolvedMinHeight}
+                                maxHeight={isFull ? undefined : maxSheetHeight}
+                                flexShrink={1}
+                                flex={isFull ? 1 : undefined}
+                                style={SHEET_SHADOW_STYLE}
+                            >
+                                {isFull ? (
+                                    <DragHandleIndicator
+                                        interactive
+                                        dragOffset={dragOffset}
+                                        onDismiss={handleClose}
+                                    />
+                                ) : null}
+                                {children}
+                            </YStack>
+                        </KeyboardAvoidingView>
                     </Animated.View>
             </GestureHandlerRootView>
         </Modal>

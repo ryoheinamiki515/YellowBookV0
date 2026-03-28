@@ -38,7 +38,7 @@ function ConnectionRow({
             borderWidth={1}
             borderColor="$borderColorSubtle"
         >
-            <Avatar name={name} size={40} />
+            <Avatar name={name} imageUrl={connection.targetProfileImageUrl} size={40} />
 
             <YStack flex={1}>
                 <Text

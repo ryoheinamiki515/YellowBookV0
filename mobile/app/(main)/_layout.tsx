@@ -1,9 +1,7 @@
 import React from "react";
 import { Platform } from "react-native";
-import { Slot, Tabs, useRouter, useSegments } from "expo-router";
-import { Text, View, XStack, YStack, useMedia } from "tamagui";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { CalendarDays, Users, Newspaper } from "lucide-react-native";
+import { Slot, Stack, useRouter, useSegments } from "expo-router";
+import { Text, XStack, YStack, useMedia } from "tamagui";
 import { useAuth } from "../../src/context/AuthContext";
 import { ConfirmProvider } from "../../src/components/ConfirmDialog";
 import { palette } from "../../tamagui.config";
@@ -20,11 +18,6 @@ const NAV_ITEMS: NavItem[] = [
     { label: "Feed", segment: "feed", href: "/feed" },
     { label: "Connections", segment: "connections", href: "/connections" },
 ];
-
-const MOBILE_TAB_LABEL_STYLE = {
-    fontSize: 12,
-    fontWeight: "600" as const,
-};
 
 function SidebarNavItem({
     item,
@@ -82,14 +75,13 @@ function Sidebar() {
             justifyContent="space-between"
         >
             <YStack gap="$1">
-                {/* Logo + title */}
                 <XStack
                     alignItems="center"
                     gap="$2.5"
                     paddingHorizontal="$4"
                     paddingBottom="$5"
                 >
-                    <View
+                    <YStack
                         width={32}
                         height={32}
                         borderRadius="$4"
@@ -104,7 +96,7 @@ function Sidebar() {
                         >
                             Y
                         </Text>
-                    </View>
+                    </YStack>
                     <Text
                         fontFamily="$heading"
                         fontSize="$7"
@@ -114,7 +106,6 @@ function Sidebar() {
                     </Text>
                 </XStack>
 
-                {/* Nav items */}
                 {NAV_ITEMS.map((item) => (
                     <SidebarNavItem
                         key={item.segment}
@@ -170,97 +161,6 @@ function Sidebar() {
     );
 }
 
-function MobileTabs() {
-    const insets = useSafeAreaInsets();
-    const baseHeight = Platform.OS === "ios" ? 52 : 56;
-    const tabBarHeight = baseHeight + insets.bottom;
-
-    return (
-        <Tabs
-            initialRouteName="plans"
-            screenOptions={{
-                headerShown: false,
-                tabBarStyle: {
-                    backgroundColor: palette.cream,
-                    borderTopColor: palette.stone,
-                    borderTopWidth: 1,
-                    height: tabBarHeight,
-                    paddingTop: 6,
-                    paddingBottom: Math.max(insets.bottom, 8),
-                },
-                tabBarLabelStyle: MOBILE_TAB_LABEL_STYLE,
-                tabBarActiveTintColor: palette.espresso,
-                tabBarInactiveTintColor: palette.walnut,
-                tabBarHideOnKeyboard: true,
-                sceneStyle: { backgroundColor: palette.cream },
-            }}
-        >
-            <Tabs.Screen
-                name="plans"
-                options={{
-                    title: "Plans",
-                    tabBarLabel: "Plans",
-                    tabBarIcon: ({ color, size }) => (
-                        <CalendarDays size={size} color={color} strokeWidth={1.8} />
-                    ),
-                }}
-            />
-            <Tabs.Screen
-                name="people"
-                options={{
-                    title: "People",
-                    tabBarLabel: "People",
-                    tabBarIcon: ({ color, size }) => (
-                        <Users size={size} color={color} strokeWidth={1.8} />
-                    ),
-                }}
-            />
-            <Tabs.Screen
-                name="feed"
-                options={{
-                    title: "Feed",
-                    tabBarLabel: "Feed",
-                    tabBarIcon: ({ color, size }) => (
-                        <Newspaper size={size} color={color} strokeWidth={1.8} />
-                    ),
-                }}
-            />
-            <Tabs.Screen
-                name="plan/[id]"
-                options={{
-                    href: null,
-                    title: "Plan",
-                    tabBarStyle: { display: "none" },
-                }}
-            />
-            <Tabs.Screen
-                name="person/[id]"
-                options={{
-                    href: null,
-                    title: "Person",
-                    tabBarStyle: { display: "none" },
-                }}
-            />
-            <Tabs.Screen
-                name="settings"
-                options={{
-                    href: null,
-                    title: "Settings",
-                    tabBarStyle: { display: "none" },
-                }}
-            />
-            <Tabs.Screen
-                name="connections"
-                options={{
-                    href: null,
-                    title: "Connections",
-                    tabBarStyle: { display: "none" },
-                }}
-            />
-        </Tabs>
-    );
-}
-
 export default function MainLayout() {
     const media = useMedia();
     const isDesktop = media.lg && Platform.OS === "web";
@@ -268,7 +168,12 @@ export default function MainLayout() {
     if (!isDesktop) {
         return (
             <ConfirmProvider>
-                <MobileTabs />
+                <Stack
+                    screenOptions={{
+                        headerShown: false,
+                        contentStyle: { backgroundColor: palette.cream },
+                    }}
+                />
             </ConfirmProvider>
         );
     }

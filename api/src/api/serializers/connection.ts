@@ -1,7 +1,7 @@
 import type { Connection, User, Person } from "@prisma/client";
 
 type ConnectionWithRelations = Connection & {
-    target: Pick<User, "id" | "displayName">;
+    target: Pick<User, "id" | "displayName" | "profileImageUrl">;
 };
 
 export function serializeConnection(
@@ -12,6 +12,7 @@ export function serializeConnection(
         id: conn.id,
         targetUserId: conn.target.id,
         targetDisplayName: conn.target.displayName,
+        targetProfileImageUrl: conn.target.profileImageUrl ?? null,
         personId: personForTarget?.id ?? null,
         createdAt: conn.createdAt.toISOString(),
     };

@@ -6,11 +6,12 @@ export const linkedUserProfileSelect = {
     birthdayMonth: true,
     birthdayDay: true,
     birthdayYear: true,
+    profileImageUrl: true,
 } as const;
 
 type LinkedUserProfile = Pick<
     DbUser,
-    "displayName" | "birthdayMonth" | "birthdayDay" | "birthdayYear"
+    "displayName" | "birthdayMonth" | "birthdayDay" | "birthdayYear" | "profileImageUrl"
 >;
 
 type PersonWithLinkedUser = DbPerson & {
@@ -49,6 +50,7 @@ export function serializePerson(p: PersonWithLinkedUser) {
         neighborhood: p.neighborhood,
         notes: p.notes,
         birthday: linkedUserBirthday ?? personBirthday,
+        profileImageUrl: p.linkedUser?.profileImageUrl ?? null,
         archivedAt: p.archivedAt?.toISOString() ?? null,
         createdAt: p.createdAt.toISOString(),
         updatedAt: p.updatedAt.toISOString(),

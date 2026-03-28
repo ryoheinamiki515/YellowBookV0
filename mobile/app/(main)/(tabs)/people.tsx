@@ -8,31 +8,31 @@ import {
 } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
-import { palette } from "../../tamagui.config";
+import { palette } from "../../../tamagui.config";
 import { YStack, XStack, Text, View, Input, useMedia } from "tamagui";
-import { PageContainer } from "../../src/components/PageContainer";
-import { PersonDetailContent } from "../../src/components/PersonDetailContent";
+import { PageContainer } from "../../../src/components/PageContainer";
+import { PersonDetailContent } from "../../../src/components/PersonDetailContent";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
     BottomSheetHeader,
     BottomSheetModal,
     BottomSheetPrimaryButton,
     BottomSheetTextField,
-} from "../../src/components/BottomSheetPrimitives";
-import { useNativeKeyboardAppearance } from "../../src/components/AppTextInput";
+} from "../../../src/components/BottomSheetPrimitives";
+import { useNativeKeyboardAppearance } from "../../../src/components/AppTextInput";
 
 import {
     useListPeople,
     useCreatePerson,
     getListPeopleQueryKey,
-} from "../../src/api/generated/people/people";
-import type { Person } from "../../src/api/generated/model/person";
+} from "../../../src/api/generated/people/people";
+import type { Person } from "../../../src/api/generated/model/person";
 import {
     getInitialColor,
     useReducedMotionPreference,
-} from "../../src/lib/planHelpers";
-import { useDesktopResizableSplitView } from "../../src/hooks/useDesktopResizableSplitView";
-import { useSheetSessionState } from "../../src/hooks/useSheetSessionState";
+} from "../../../src/lib/planHelpers";
+import { useDesktopResizableSplitView } from "../../../src/hooks/useDesktopResizableSplitView";
+import { useSheetSessionState } from "../../../src/hooks/useSheetSessionState";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -625,9 +625,7 @@ export default function PeopleScreen() {
             if (hasDesktopSidebar) {
                 setSelectedPersonId(person.id);
             } else {
-                router.push(
-                    `/person/${person.id}?returnTo=${encodeURIComponent("/people")}`
-                );
+                router.push(`/person/${person.id}`);
             }
         },
         [router, hasDesktopSidebar]

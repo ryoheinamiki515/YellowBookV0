@@ -1125,7 +1125,7 @@ v1.get("/connections", ...requireUser([]), async (req, res, next) => {
 
         const connections = await prisma.connection.findMany({
             where: { userId },
-            include: { target: { select: { id: true, displayName: true } } },
+            include: { target: { select: { id: true, displayName: true, profileImageUrl: true } } },
             orderBy: { createdAt: "desc" },
         });
 

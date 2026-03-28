@@ -23,6 +23,11 @@ export interface Connection {
   targetUserId: Uuid;
   /** @nullable */
   targetDisplayName?: string | null;
+  /**
+   * @maxLength 2048
+   * @nullable
+   */
+  targetProfileImageUrl?: string | null;
   /** @nullable */
   personId?: string | null;
   createdAt: string;

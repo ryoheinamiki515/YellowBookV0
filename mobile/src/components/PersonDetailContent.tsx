@@ -445,7 +445,7 @@ export function PersonDetailContent({
                     >
                         {/* Avatar */}
                         <View alignSelf="flex-start" marginBottom="$3">
-                            <Avatar name={person.displayName} size={56} />
+                            <Avatar name={person.displayName} imageUrl={person.profileImageUrl} size={56} />
                         </View>
 
                         {/* Archived badge */}
