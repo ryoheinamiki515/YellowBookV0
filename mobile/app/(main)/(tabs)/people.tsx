@@ -27,10 +27,9 @@ import {
     getListPeopleQueryKey,
 } from "../../../src/api/generated/people/people";
 import type { Person } from "../../../src/api/generated/model/person";
-import {
-    getInitialColor,
-    useReducedMotionPreference,
-} from "../../../src/lib/planHelpers";
+import { useReducedMotionPreference } from "../../../src/lib/planHelpers";
+import { Avatar } from "../../../src/components/Avatar";
+import { avatarProps } from "../../../src/lib/avatarPerson";
 import { useDesktopResizableSplitView } from "../../../src/hooks/useDesktopResizableSplitView";
 import { useSheetSessionState } from "../../../src/hooks/useSheetSessionState";
 
@@ -150,25 +149,7 @@ function PersonCard({
                 accessibilityRole="button"
                 accessibilityLabel={`Person: ${person.displayName}`}
             >
-                {/* Avatar circle */}
-                <View
-                    width={40}
-                    height={40}
-                    borderRadius={20}
-                    backgroundColor={getInitialColor(person.displayName)}
-                    justifyContent="center"
-                    alignItems="center"
-                    flexShrink={0}
-                >
-                    <Text
-                        fontFamily="$body"
-                        fontSize={16}
-                        fontWeight="600"
-                        color="white"
-                    >
-                        {person.displayName.charAt(0).toUpperCase()}
-                    </Text>
-                </View>
+                <Avatar {...avatarProps(person)} size={40} />
 
                 {/* Info */}
                 <YStack flex={1} gap="$0.5">
