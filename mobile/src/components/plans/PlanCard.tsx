@@ -8,6 +8,7 @@ import type { SocialPlan } from "../../api/generated/model/socialPlan";
 import { DisclosureChevron } from "../DisclosureChevron";
 import {
     getAttentionReason,
+    getAttentionReasonLabel,
     type PlanAttentionReason,
 } from "../../lib/planListDerivations";
 
@@ -121,20 +122,10 @@ function getPlanSignal(
 
     const reason = attentionReason ?? getAttentionReason(plan);
     if (reason) {
-        switch (reason) {
-            case "missing-people-and-date":
-                return { label: "Needs people + date", tone: "warning" };
-            case "missing-people":
-                return { label: "Needs people", tone: "warning" };
-            case "missing-date":
-                return { label: "Needs date", tone: "warning" };
-            case "past-due":
-                return { label: "Past due", tone: "warning" };
-            case "stale-open":
-                return { label: "Drifting", tone: "muted" };
-            default:
-                break;
-        }
+        return {
+            label: getAttentionReasonLabel(reason),
+            tone: reason === "stale-open" ? ("muted" as PillTone) : ("warning" as PillTone),
+        };
     }
     return null;
 }

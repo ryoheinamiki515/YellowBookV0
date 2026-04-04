@@ -7,6 +7,7 @@ import { PageContainer } from "../../../src/components/PageContainer";
 import { AppSafeAreaView } from "../../../src/components/AppSafeAreaView";
 import { PlanDetailContent } from "../../../src/components/plans/PlanDetailContent";
 import { useConfirm } from "../../../src/components/ConfirmDialog";
+import { ScreenHeader } from "../../../src/components/ScreenHeader";
 
 import {
     useListPlans,
@@ -16,11 +17,9 @@ import { usePatchPlanMembership } from "../../../src/api/generated/sharing/shari
 import type { SocialPlan } from "../../../src/api/generated/model/socialPlan";
 import type { PlanQuickActionRowAction } from "../../../src/components/plans/PlanQuickActionRow";
 import { CreatePlanSheet } from "../../../src/components/plans/CreatePlanSheet";
-import { PlanDetailSheet } from "../../../src/components/plans/PlanDetailSheet";
 import { PlanCard } from "../../../src/components/plans/PlanCard";
 import { AgendaDayHeader } from "../../../src/components/plans/AgendaDayHeader";
 import { SwipeableRow } from "../../../src/components/plans/SwipeableRow";
-import { AgendaAttentionBanner } from "../../../src/components/plans/AgendaAttentionBanner";
 import { AgendaEmptyState } from "../../../src/components/plans/AgendaEmptyState";
 import { AgendaSkeletonRows } from "../../../src/components/plans/AgendaSkeletonRows";
 import { FloatingActionButton } from "../../../src/components/plans/FloatingActionButton";
@@ -30,9 +29,6 @@ import type {
     PlanQuickActionKind,
 } from "../../../src/lib/planListDerivations";
 import { useReducedMotionPreference } from "../../../src/lib/planHelpers";
-import { useMeProfile } from "../../../src/hooks/useMeProfile";
-import { Avatar } from "../../../src/components/Avatar";
-import { avatarProps, meToAvatarPerson } from "../../../src/lib/avatarPerson";
 import {
     getPlanQuickActionLabel,
     getPlanQuickActionTone,
@@ -41,8 +37,6 @@ import { planLifecycleText } from "../../../src/lib/planFormatters";
 import { invalidatePlanQueries } from "../../../src/lib/queryInvalidation";
 import {
     buildAgendaSections,
-    getAttentionCount,
-    findFirstAttentionIndex,
     type AgendaSection,
     type AgendaPlanRowData,
 } from "../../../src/lib/agendaGrouping";
@@ -59,7 +53,6 @@ const DESKTOP_SPLITTER_WIDTH = 16;
 
 export default function PlansScreen() {
     const { signOut } = useAuth();
-    const { me } = useMeProfile();
     const router = useRouter();
     const confirm = useConfirm();
     const media = useMedia();
@@ -73,8 +66,6 @@ export default function PlansScreen() {
     const [sheetOpen, setSheetOpen] = useState(false);
     const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
     const [selectedPlanFocus, setSelectedPlanFocus] = useState<PlanDetailFocusTarget | undefined>(undefined);
-    const [detailSheetPlanId, setDetailSheetPlanId] = useState<string | null>(null);
-    const [detailSheetFocus, setDetailSheetFocus] = useState<PlanDetailFocusTarget | undefined>(undefined);
     const [pendingListMutation, setPendingListMutation] = useState<{
         planId: string;
         kind: PlanQuickActionKind;
@@ -154,8 +145,6 @@ export default function PlansScreen() {
         return buildAgendaSections(plans, subscribedPlans);
     }, [plans, subscribedPlans, viewMode]);
 
-    const attentionCount = useMemo(() => getAttentionCount(agendaSections), [agendaSections]);
-
     const handleRefresh = useCallback(() => {
         void refreshPlans();
     }, [refreshPlans]);
@@ -187,11 +176,13 @@ export default function PlansScreen() {
                 setSelectedPlanId(planId);
                 setSelectedPlanFocus(focus);
             } else {
-                setDetailSheetPlanId(planId);
-                setDetailSheetFocus(focus);
+                const path = focus
+                    ? `/plan/${planId}?focus=${focus}`
+                    : `/plan/${planId}`;
+                router.push(path as any);
             }
         },
-        [hasDesktopSidebar]
+        [hasDesktopSidebar, router]
     );
 
     const mutatePlanStateFromList = useCallback(
@@ -298,17 +289,6 @@ export default function PlansScreen() {
         [handleQuickAction, patchPlan.isPending, pendingListMutation]
     );
 
-    const handleAttentionBannerPress = useCallback(() => {
-        const target = findFirstAttentionIndex(agendaSections);
-        if (target && sectionListRef.current) {
-            sectionListRef.current.scrollToLocation({
-                sectionIndex: target.sectionIndex,
-                itemIndex: target.itemIndex,
-                animated: true,
-            });
-        }
-    }, [agendaSections]);
-
     useKeyboardShortcut({ key: "n" }, () => setSheetOpen(true));
 
     const toggleViewMode = useCallback(() => {
@@ -381,77 +361,41 @@ export default function PlansScreen() {
     const keyExtractor = useCallback((item: AgendaPlanRowData) => item.plan.id, []);
     const doneKeyExtractor = useCallback((item: SocialPlan) => item.id, []);
 
-    const header = (
-        <YStack backgroundColor="$background">
-            <XStack
-                paddingHorizontal="$5"
-                paddingTop="$4"
-                paddingBottom="$3"
-                alignItems="center"
-                justifyContent="space-between"
+    const toolbar = (
+        <XStack
+            paddingHorizontal="$5"
+            paddingVertical="$2"
+            alignItems="center"
+        >
+            <View
+                backgroundColor="$backgroundStrong"
+                paddingHorizontal={10}
+                paddingVertical={5}
+                borderRadius={10}
+                onPress={toggleViewMode}
+                pressStyle={{ scale: 0.96, opacity: 0.7 }}
+                // @ts-ignore
+                animation="fast"
+                accessibilityRole="button"
+                accessibilityLabel={viewMode === "open" ? "Show completed plans" : "Show upcoming plans"}
+                cursor="pointer"
             >
-                <Text fontFamily="$heading" fontSize="$9" color="$color">
-                    Plans
+                <Text
+                    fontFamily="$body"
+                    fontSize={12}
+                    fontWeight="500"
+                    color="$colorSecondary"
+                >
+                    {viewMode === "open" ? "Show completed" : "Show upcoming"}
                 </Text>
-                <XStack alignItems="center" gap="$3">
-                    <View
-                        backgroundColor="$backgroundStrong"
-                        paddingHorizontal={10}
-                        paddingVertical={5}
-                        borderRadius={10}
-                        onPress={toggleViewMode}
-                        pressStyle={{ scale: 0.96, opacity: 0.7 }}
-                        // @ts-ignore
-                        animation="fast"
-                        accessibilityRole="button"
-                        accessibilityLabel={viewMode === "open" ? "Show completed plans" : "Show upcoming plans"}
-                        cursor="pointer"
-                    >
-                        <Text
-                            fontFamily="$body"
-                            fontSize={12}
-                            fontWeight="500"
-                            color="$colorSecondary"
-                        >
-                            {viewMode === "open" ? "Show completed" : "Show upcoming"}
-                        </Text>
-                    </View>
-                    {!hasDesktopSidebar && (
-                        <View
-                            onPress={() => router.push("/settings" as any)}
-                            pressStyle={{ opacity: 0.7, scale: 0.95 }}
-                            // @ts-ignore
-                            animation="fast"
-                            accessibilityRole="button"
-                            accessibilityLabel="Settings"
-                            cursor="pointer"
-                        >
-                            <Avatar
-                                {...avatarProps(meToAvatarPerson(me ?? {}))}
-                                size={36}
-                            />
-                        </View>
-                    )}
-                </XStack>
-            </XStack>
-            <View height={1} backgroundColor="$borderColorSubtle" marginHorizontal="$5" opacity={0.6} />
-        </YStack>
+            </View>
+        </XStack>
     );
-
-    const listHeaderComponent = useMemo(() => {
-        if (viewMode !== "open" || attentionCount === 0) return null;
-        return (
-            <AgendaAttentionBanner
-                count={attentionCount}
-                onPress={handleAttentionBannerPress}
-                reducedMotion={reducedMotion}
-            />
-        );
-    }, [viewMode, attentionCount, handleAttentionBannerPress, reducedMotion]);
 
     const listContent = (
         <>
-            {header}
+            {hasDesktopSidebar && <ScreenHeader title="Plans" />}
+            {toolbar}
 
             {isLoading ? (
                 <AgendaSkeletonRows />
@@ -513,7 +457,6 @@ export default function PlansScreen() {
                         style={{ flex: 1 }}
                         contentContainerStyle={{ paddingBottom: 100 }}
                         showsVerticalScrollIndicator={false}
-                        ListHeaderComponent={listHeaderComponent}
                         onRefresh={Platform.OS !== "web" ? handleRefresh : undefined}
                         refreshing={
                             Platform.OS !== "web"
@@ -531,27 +474,14 @@ export default function PlansScreen() {
                 onCreated={handleCreated}
             />
 
-            <PlanDetailSheet
-                planId={detailSheetPlanId}
-                open={detailSheetPlanId !== null}
-                onOpenChange={(open) => {
-                    if (!open) {
-                        setDetailSheetPlanId(null);
-                        setDetailSheetFocus(undefined);
-                    }
-                }}
-                focusTarget={detailSheetFocus}
-            />
         </>
     );
 
     if (!hasDesktopSidebar) {
         return (
-            <AppSafeAreaView>
-                <PageContainer backgroundColor="$background">
-                    {listContent}
-                </PageContainer>
-            </AppSafeAreaView>
+            <PageContainer backgroundColor="$background">
+                {listContent}
+            </PageContainer>
         );
     }
 

@@ -1,9 +1,8 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { Alert, RefreshControl, ScrollView } from "react-native";
+import { Platform, RefreshControl, ScrollView } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { Text, View, XStack, YStack } from "tamagui";
+import { Text, View, XStack, YStack, useMedia } from "tamagui";
 
 import { PageContainer } from "../../../src/components/PageContainer";
 import { TodayDateChip } from "../../../src/components/DateChip";
@@ -17,9 +16,9 @@ import {
     CreatePlanSheet,
     type CreatePlanParticipantPrefill,
 } from "../../../src/components/plans/CreatePlanSheet";
-import { useAuth } from "../../../src/context/AuthContext";
 import { getInitialColor } from "../../../src/lib/planHelpers";
 import { invalidatePlanQueries } from "../../../src/lib/queryInvalidation";
+import { ScreenHeader } from "../../../src/components/ScreenHeader";
 
 type CreatePlanSeed = {
     intentText?: string;
@@ -85,9 +84,10 @@ function PersonStarterChip({
 }
 
 export default function FeedScreen() {
-    const { signOut } = useAuth();
     const router = useRouter();
     const queryClient = useQueryClient();
+    const media = useMedia();
+    const hasDesktopSidebar = media.lg && Platform.OS === "web";
 
     const [planSheetOpen, setPlanSheetOpen] = useState(false);
     const [planSeed, setPlanSeed] = useState<CreatePlanSeed | null>(null);
@@ -168,12 +168,7 @@ export default function FeedScreen() {
         void invalidatePlanQueries(queryClient);
     }, [queryClient]);
 
-    const handleSignOut = useCallback(() => {
-        Alert.alert("Sign out?", "You can always sign back in.", [
-            { text: "Cancel", style: "cancel" },
-            { text: "Sign Out", style: "destructive", onPress: signOut },
-        ]);
-    }, [signOut]);
+
 
     const handleStartWithPerson = useCallback(
         (person: Person) => {
@@ -201,54 +196,18 @@ export default function FeedScreen() {
         void refetchPlans();
     }, [refetchPeople, refetchPlans]);
 
-    return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF8F3" }}>
-            <PageContainer backgroundColor="$background">
-                <YStack paddingHorizontal="$6" paddingTop="$4" paddingBottom="$3">
-                    <XStack justifyContent="space-between" alignItems="flex-start">
-                        <YStack flex={1}>
-                            <Text
-                                fontFamily="$heading"
-                                fontSize="$9"
-                                color="$color"
-                            >
-                                Feed
-                            </Text>
-                            <Text
-                                fontFamily="$body"
-                                fontSize="$3"
-                                color="$colorSecondary"
-                                marginTop="$1"
-                            >
-                                Keep this simple. Start one plan.
-                            </Text>
-                        </YStack>
+    const pageContent = (
+        <>
+            {hasDesktopSidebar && <ScreenHeader title="Feed" />}
 
-                        <XStack alignItems="center" gap="$2">
-                            <View
-                                width={36}
-                                height={36}
-                                borderRadius={18}
-                                backgroundColor="$colorTertiary"
-                                justifyContent="center"
-                                alignItems="center"
-                                onPress={handleSignOut}
-                                pressStyle={{ opacity: 0.7, scale: 0.95 }}
-                                accessibilityRole="button"
-                                accessibilityLabel="Account menu"
-                                cursor="pointer"
-                            >
-                                <Text
-                                    fontFamily="$body"
-                                    fontSize={14}
-                                    fontWeight="600"
-                                    color="white"
-                                >
-                                    Y
-                                </Text>
-                            </View>
-                        </XStack>
-                    </XStack>
+            <YStack paddingHorizontal="$6" paddingTop="$3" paddingBottom="$3">
+                    <Text
+                        fontFamily="$body"
+                        fontSize="$3"
+                        color="$colorSecondary"
+                    >
+                        Keep this simple. Start one plan.
+                    </Text>
 
                     <XStack alignItems="center" gap="$2" marginTop="$1" flexWrap="wrap">
                         <TodayDateChip />
@@ -261,12 +220,6 @@ export default function FeedScreen() {
                         </Text>
                     </XStack>
                 </YStack>
-
-                <View
-                    height={1}
-                    backgroundColor="$borderColorSubtle"
-                    marginHorizontal="$6"
-                />
 
                 <ScrollView
                     showsVerticalScrollIndicator={false}
@@ -472,7 +425,13 @@ export default function FeedScreen() {
                     initialParticipants={planSeed?.participants}
                     subtitle="What would you like to do?"
                 />
-            </PageContainer>
-        </SafeAreaView>
+
+        </>
+    );
+
+    return (
+        <PageContainer backgroundColor="$background">
+            {pageContent}
+        </PageContainer>
     );
 }

@@ -2,6 +2,7 @@ import type { Person } from "../api/generated/model/person";
 import type { SocialPlan } from "../api/generated/model/socialPlan";
 import {
     buildOpenPlanSections,
+    getAttentionReasonLabel,
     type DerivedPlanListItem,
     type PlanAttentionReason,
 } from "./planListDerivations";
@@ -138,20 +139,8 @@ function compareByUpdatedDesc<T extends { id: string; updatedAt: string; created
 }
 
 function attentionReasonLabel(reason: PlanAttentionReason | null): string {
-    switch (reason) {
-        case "missing-people-and-date":
-            return "Needs people + date";
-        case "missing-people":
-            return "Needs people";
-        case "missing-date":
-            return "Needs date";
-        case "past-due":
-            return "Past due";
-        case "stale-open":
-            return "Drifting";
-        default:
-            return "Coming up";
-    }
+    if (reason) return getAttentionReasonLabel(reason);
+    return "Coming up";
 }
 
 function mapHeroPrimaryAction(derived: DerivedPlanListItem): FeedPrimaryAction {

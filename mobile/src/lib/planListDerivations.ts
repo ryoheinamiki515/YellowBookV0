@@ -120,6 +120,21 @@ export function isStaleOpenPlan(plan: SocialPlan): boolean {
     return diff !== null && diff <= -STALE_OPEN_THRESHOLD_DAYS;
 }
 
+export function getAttentionReasonLabel(reason: PlanAttentionReason): string {
+    switch (reason) {
+        case "missing-people-and-date":
+            return "Needs people + date";
+        case "missing-people":
+            return "Needs people";
+        case "missing-date":
+            return "Needs date";
+        case "past-due":
+            return "Past due";
+        case "stale-open":
+            return "Drifting";
+    }
+}
+
 export function getAttentionReason(plan: SocialPlan): PlanAttentionReason | null {
     if (plan.state !== "OPEN") return null;
 
@@ -150,7 +165,7 @@ export function getQuickActionsForAttention(
         case "missing-people":
             return ["focus-people"];
         case "past-due":
-            return ["focus-when", "let-go"];
+            return ["mark-done", "focus-when", "let-go"];
         case "stale-open":
             return !isDefined(fromPlan(plan)) ? ["focus-when"] : ["open"];
         default:

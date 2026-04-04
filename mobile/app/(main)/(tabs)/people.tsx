@@ -32,6 +32,7 @@ import { Avatar } from "../../../src/components/Avatar";
 import { avatarProps } from "../../../src/lib/avatarPerson";
 import { useDesktopResizableSplitView } from "../../../src/hooks/useDesktopResizableSplitView";
 import { useSheetSessionState } from "../../../src/hooks/useSheetSessionState";
+import { ScreenHeader } from "../../../src/components/ScreenHeader";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -639,7 +640,8 @@ export default function PeopleScreen() {
 
     const listContent = (
             <>
-                {/* ---- Header ---- */}
+                {hasDesktopSidebar && <ScreenHeader title="People" />}
+
                 <Animated.View
                     style={{
                         opacity: headerFade,
@@ -647,40 +649,18 @@ export default function PeopleScreen() {
                         zIndex: 1,
                     }}
                 >
-                    <YStack
-                        paddingHorizontal="$6"
-                        paddingTop="$4"
-                        paddingBottom="$1"
-                    >
-                        <XStack
-                            justifyContent="space-between"
-                            alignItems="flex-start"
-                        >
-                            <YStack flex={1}>
-                                <Text
-                                    fontFamily="$heading"
-                                    fontSize="$9"
-                                    color="$color"
-                                >
-                                    Your People
-                                </Text>
-                            </YStack>
-
-                        </XStack>
-
-                        {countLabel ? (
+                    {countLabel ? (
+                        <YStack paddingHorizontal="$6" paddingTop="$2">
                             <Text
                                 fontFamily="$body"
                                 fontSize="$2"
                                 color="$colorTertiary"
-                                marginTop="$1"
                             >
                                 {countLabel}
                             </Text>
-                        ) : null}
-                    </YStack>
+                        </YStack>
+                    ) : null}
 
-                    {/* Search bar */}
                     <YStack paddingHorizontal="$6" paddingTop="$2" paddingBottom="$3">
                         <Input
                             fontFamily="$body"
@@ -705,12 +685,6 @@ export default function PeopleScreen() {
                         />
                     </YStack>
                 </Animated.View>
-
-                <View
-                    height={1}
-                    backgroundColor="$borderColorSubtle"
-                    marginHorizontal="$6"
-                />
 
                 {/* ---- Content ---- */}
                 {isLoading ? (
@@ -827,16 +801,15 @@ export default function PeopleScreen() {
                     onOpenChange={setSheetOpen}
                     onCreated={handleCreated}
                 />
+
             </>
     );
 
     if (!hasDesktopSidebar) {
         return (
-            <SafeAreaView style={{ flex: 1, backgroundColor: "#FBF8F3" }}>
-                <PageContainer backgroundColor="$background">
-                    {listContent}
-                </PageContainer>
-            </SafeAreaView>
+            <PageContainer backgroundColor="$background">
+                {listContent}
+            </PageContainer>
         );
     }
 

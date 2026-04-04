@@ -5,10 +5,17 @@ import { useMedia } from "tamagui";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CalendarDays, Users, Newspaper } from "lucide-react-native";
 import { palette } from "../../../tamagui.config";
+import { ScreenHeader } from "../../../src/components/ScreenHeader";
 
 const MOBILE_TAB_LABEL_STYLE = {
     fontSize: 12,
     fontWeight: "600" as const,
+};
+
+const SCREEN_TITLES: Record<string, string> = {
+    plans: "Plans",
+    people: "People",
+    feed: "Feed",
 };
 
 function MobileTabs() {
@@ -19,8 +26,13 @@ function MobileTabs() {
     return (
         <Tabs
             initialRouteName="plans"
-            screenOptions={{
-                headerShown: false,
+            screenOptions={({ route }) => ({
+                header: () => (
+                    <ScreenHeader
+                        title={SCREEN_TITLES[route.name] ?? route.name}
+                        safeArea
+                    />
+                ),
                 tabBarStyle: {
                     backgroundColor: palette.cream,
                     borderTopColor: palette.stone,
@@ -34,7 +46,7 @@ function MobileTabs() {
                 tabBarInactiveTintColor: palette.walnut,
                 tabBarHideOnKeyboard: true,
                 sceneStyle: { backgroundColor: palette.cream },
-            }}
+            })}
         >
             <Tabs.Screen
                 name="plans"

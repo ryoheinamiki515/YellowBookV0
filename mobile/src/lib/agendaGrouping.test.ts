@@ -43,7 +43,7 @@ describe("buildAgendaSections — shared plan quick actions", () => {
         assert.deepEqual(row.quickActions, ["mark-done"]);
     });
 
-    test("owned past-due plan keeps focus-when/let-go quick actions", () => {
+    test("owned past-due plan gets mark-done, focus-when, and let-go quick actions", () => {
         const ownedPastDuePlan = makePlan({
             id: "owned-1",
             anchorStart: yesterday(),
@@ -57,7 +57,7 @@ describe("buildAgendaSections — shared plan quick actions", () => {
         assert.ok(pastDueSection, "should have a Past Due section");
         const row = pastDueSection.data[0]!;
         assert.equal(row.isShared, false);
-        assert.deepEqual(row.quickActions, ["focus-when", "let-go"]);
+        assert.deepEqual(row.quickActions, ["mark-done", "focus-when", "let-go"]);
     });
 
     test("subscribed plan with markedDoneAt is excluded from agenda", () => {
