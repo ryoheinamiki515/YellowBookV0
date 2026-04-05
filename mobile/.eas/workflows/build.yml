@@ -1,0 +1,14 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build_ios:
+    name: Build iOS App
+    type: build
+    params:
+      platform: ios
+      profile: preview
