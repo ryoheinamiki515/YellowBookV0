@@ -444,7 +444,10 @@ export default function PlansScreen() {
                     />
                 )
             ) : agendaSections.length === 0 ? (
-                <AgendaEmptyState reducedMotion={reducedMotion} />
+                <View flex={1} position="relative">
+                    <AgendaEmptyState reducedMotion={reducedMotion} />
+                    <FloatingActionButton onPress={() => setSheetOpen(true)} />
+                </View>
             ) : (
                 <View flex={1} position="relative">
                     <SectionList

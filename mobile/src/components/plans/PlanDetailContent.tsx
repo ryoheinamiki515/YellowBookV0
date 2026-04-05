@@ -284,6 +284,7 @@ const RANGE_CALENDAR_MUTED_TEXT_COLOR = palette.driftwood;
 const RANGE_CALENDAR_DISABLED_TEXT_COLOR = palette.stone;
 
 const EXISTING_PLAN_DOT_COLOR = palette.amberLight;
+const EXISTING_PLAN_TEXT_COLOR = palette.amberDark;
 
 function buildExistingPlanMarkedDates(
     plans: SocialPlan[],
@@ -825,7 +826,7 @@ function WhenSheet({
                                         <Text
                                             fontFamily="$body"
                                             fontSize="$2"
-                                            color={EXISTING_PLAN_DOT_COLOR}
+                                            color={EXISTING_PLAN_TEXT_COLOR}
                                             fontWeight="500"
                                         >
                                             {plansOnDate.length === 1
