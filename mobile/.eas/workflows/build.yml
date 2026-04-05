@@ -1,4 +1,4 @@
-name: Build
+name: Update
 
 on:
   push:
@@ -6,9 +6,8 @@ on:
       - main
 
 jobs:
-  build_ios:
-    name: Build iOS App
-    type: build
+  update:
+    name: Publish OTA Update
+    type: update
     params:
-      platform: ios
-      profile: preview
+      branch: preview
