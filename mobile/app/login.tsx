@@ -182,6 +182,7 @@ export default function LoginScreen() {
             redirectUri,
             extraParams: {
                 audience: process.env.EXPO_PUBLIC_AUTH0_AUDIENCE!,
+                prompt: "login",
             },
         },
         discovery
