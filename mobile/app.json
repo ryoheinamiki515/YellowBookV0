@@ -2,7 +2,7 @@
   "expo": {
     "name": "YellowBook",
     "slug": "YellowBook",
-    "owner": "ryoheinamiki",
+    "owner": "ryoheinamiki515",
     "scheme": "yellowbook",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -69,14 +69,14 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "8ef60af0-c936-4369-88d8-97675601d74c"
+        "projectId": "6f4459d6-74e8-485c-b315-dea950e6eafe"
       }
     },
     "runtimeVersion": {
       "policy": "appVersion"
     },
     "updates": {
-      "url": "https://u.expo.dev/8ef60af0-c936-4369-88d8-97675601d74c"
+      "url": "https://u.expo.dev/6f4459d6-74e8-485c-b315-dea950e6eafe"
     }
   }
 }
