@@ -19,7 +19,10 @@
       "bundleIdentifier": "dev.yellowbook.mobile",
       "associatedDomains": [
         "applinks:yellowbook.example.com"
-      ]
+      ],
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "dev.yellowbook.mobile",
@@ -45,7 +48,10 @@
               "pathPrefix": "/invite"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
@@ -59,6 +65,18 @@
       "expo-secure-store",
       "expo-font",
       "@react-native-community/datetimepicker"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "822ce949-a60b-4b5f-ace2-bd250bd8cad9"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/822ce949-a60b-4b5f-ace2-bd250bd8cad9"
+    }
   }
 }
