@@ -240,8 +240,10 @@ export default function LoginScreen() {
         }
     };
 
+    const authSessionOptions = { preferEphemeralSession: true };
+
     const handleSignIn = () => {
-        promptAsync();
+        promptAsync(authSessionOptions);
     };
 
     const handleSignUp = () => {
@@ -250,13 +252,12 @@ export default function LoginScreen() {
 
         const signupUrl = new URL(authUrl);
         signupUrl.searchParams.set("screen_hint", "signup");
-        // Keep audience explicit in case the generated URL is reused across environments.
         signupUrl.searchParams.set(
             "audience",
             process.env.EXPO_PUBLIC_AUTH0_AUDIENCE!
         );
 
-        promptAsync({ url: signupUrl.toString() });
+        promptAsync({ ...authSessionOptions, url: signupUrl.toString() });
     };
 
     const isLoading = isExchanging || !request;
