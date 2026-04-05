@@ -1,13 +1,18 @@
-name: Update
+name: Native Build
 
 on:
   push:
     branches:
       - main
+    paths:
+      - mobile/app.json
+      - mobile/eas.json
+      - mobile/patches/**
 
 jobs:
-  update:
-    name: Publish OTA Update
-    type: update
+  build_ios:
+    name: Build iOS App
+    type: build
     params:
-      branch: preview
+      platform: ios
+      profile: preview
