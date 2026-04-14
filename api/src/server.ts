@@ -45,6 +45,52 @@ app.use((req, res, next) => {
     next();
 });
 
+// ---------------------------------------------------------------------------
+// Universal Links (iOS) & App Links (Android)
+// Served before the OpenAPI validator so they are not rejected.
+// ---------------------------------------------------------------------------
+const IOS_BUNDLE_ID = "dev.yellowbook.mobile";
+const ANDROID_PACKAGE = "dev.yellowbook.mobile";
+
+app.get("/.well-known/apple-app-site-association", (_req, res) => {
+    const teamId = process.env.APPLE_TEAM_ID;
+    if (!teamId) {
+        res.status(503).json({ error: "APPLE_TEAM_ID not configured" });
+        return;
+    }
+    res.setHeader("Content-Type", "application/json");
+    res.json({
+        applinks: {
+            apps: [],
+            details: [
+                {
+                    appID: `${teamId}.${IOS_BUNDLE_ID}`,
+                    paths: ["/share/*", "/invite/*"],
+                },
+            ],
+        },
+    });
+});
+
+app.get("/.well-known/assetlinks.json", (_req, res) => {
+    const sha256 = process.env.ANDROID_SHA256_CERT_FINGERPRINT;
+    if (!sha256) {
+        res.status(503).json({ error: "ANDROID_SHA256_CERT_FINGERPRINT not configured" });
+        return;
+    }
+    res.setHeader("Content-Type", "application/json");
+    res.json([
+        {
+            relation: ["delegate_permission/common.handle_all_urls"],
+            target: {
+                namespace: "android_app",
+                package_name: ANDROID_PACKAGE,
+                sha256_cert_fingerprints: [sha256],
+            },
+        },
+    ]);
+});
+
 app.use(
     openapiValidator({
         apiSpec: path.join(process.cwd(), "openapi.yaml"),
@@ -62,7 +108,7 @@ const requireUser = makeRequireUser({
 });
 
 const withIdempotency = makeWithIdempotency(prisma);
-const APP_BASE_URL = process.env.APP_BASE_URL || "https://yellowbook.example.com";
+const APP_BASE_URL = process.env.APP_BASE_URL || "https://yellowbookv0-production.up.railway.app";
 
 const v1 = express.Router();
 app.use("/v1", v1);

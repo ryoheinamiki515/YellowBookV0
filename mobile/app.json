@@ -18,7 +18,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "dev.yellowbook.mobile",
       "associatedDomains": [
-        "applinks:yellowbook.example.com"
+        "applinks:yellowbookv0-production.up.railway.app"
       ],
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
@@ -39,12 +39,12 @@
           "data": [
             {
               "scheme": "https",
-              "host": "yellowbook.example.com",
+              "host": "yellowbookv0-production.up.railway.app",
               "pathPrefix": "/share"
             },
             {
               "scheme": "https",
-              "host": "yellowbook.example.com",
+              "host": "yellowbookv0-production.up.railway.app",
               "pathPrefix": "/invite"
             }
           ],
