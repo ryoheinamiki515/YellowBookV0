@@ -279,9 +279,13 @@ type WindowRangeMarking = CalendarMarkedDates[string];
 const RANGE_ENDPOINT_COLOR = palette.terracottaDark;
 const RANGE_TEXT_COLOR = "#FFFFFF";
 const RANGE_CALENDAR_SURFACE_COLOR = palette.parchment;
+const RANGE_CALENDAR_BORDER_COLOR = palette.driftwood;
 const RANGE_CALENDAR_TEXT_COLOR = palette.espresso;
-const RANGE_CALENDAR_MUTED_TEXT_COLOR = palette.driftwood;
-const RANGE_CALENDAR_DISABLED_TEXT_COLOR = palette.stone;
+const RANGE_CALENDAR_MUTED_TEXT_COLOR = palette.bark;
+const RANGE_CALENDAR_DISABLED_TEXT_COLOR = palette.driftwood;
+const RANGE_CALENDAR_TODAY_BACKGROUND_COLOR = palette.honeyLight;
+const RANGE_CALENDAR_TODAY_TEXT_COLOR = palette.espresso;
+const RANGE_CALENDAR_ARROW_COLOR = palette.walnut;
 
 const EXISTING_PLAN_DOT_COLOR = palette.amberLight;
 const EXISTING_PLAN_TEXT_COLOR = palette.amberDark;
@@ -466,7 +470,7 @@ function WindowRangeCalendarSelector({
 
             <YStack
                 borderWidth={1}
-                borderColor="$borderColor"
+                borderColor={RANGE_CALENDAR_BORDER_COLOR}
                 borderRadius="$5"
                 overflow="hidden"
                 backgroundColor="$backgroundStrong"
@@ -491,8 +495,9 @@ function WindowRangeCalendarSelector({
                         textDisabledColor: RANGE_CALENDAR_DISABLED_TEXT_COLOR,
                         textInactiveColor: RANGE_CALENDAR_DISABLED_TEXT_COLOR,
                         textSectionTitleColor: RANGE_CALENDAR_MUTED_TEXT_COLOR,
-                        todayTextColor: "#F0B881",
-                        arrowColor: "#F0B881",
+                        todayBackgroundColor: RANGE_CALENDAR_TODAY_BACKGROUND_COLOR,
+                        todayTextColor: RANGE_CALENDAR_TODAY_TEXT_COLOR,
+                        arrowColor: RANGE_CALENDAR_ARROW_COLOR,
                         textDayFontSize: 16,
                         textMonthFontSize: 17,
                         textDayHeaderFontSize: 12,
@@ -754,7 +759,7 @@ function WhenSheet({
                     <YStack gap="$4">
                         <YStack
                             borderWidth={1}
-                            borderColor="$borderColor"
+                            borderColor={RANGE_CALENDAR_BORDER_COLOR}
                             borderRadius="$5"
                             overflow="hidden"
                             backgroundColor="$backgroundStrong"
@@ -789,8 +794,9 @@ function WhenSheet({
                                     textDisabledColor: RANGE_CALENDAR_DISABLED_TEXT_COLOR,
                                     textInactiveColor: RANGE_CALENDAR_DISABLED_TEXT_COLOR,
                                     textSectionTitleColor: RANGE_CALENDAR_MUTED_TEXT_COLOR,
-                                    todayTextColor: EXISTING_PLAN_DOT_COLOR,
-                                    arrowColor: EXISTING_PLAN_DOT_COLOR,
+                                    todayBackgroundColor: RANGE_CALENDAR_TODAY_BACKGROUND_COLOR,
+                                    todayTextColor: RANGE_CALENDAR_TODAY_TEXT_COLOR,
+                                    arrowColor: RANGE_CALENDAR_ARROW_COLOR,
                                     selectedDayBackgroundColor: RANGE_ENDPOINT_COLOR,
                                     selectedDayTextColor: RANGE_TEXT_COLOR,
                                     textDayFontSize: 16,
