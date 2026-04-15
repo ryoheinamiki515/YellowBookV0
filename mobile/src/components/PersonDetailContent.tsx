@@ -525,13 +525,6 @@ export function PersonDetailContent({
                             />
                         </YStack>
 
-                        {/* 4. Events */}
-                        <PersonEventsSection
-                            personId={id}
-                            onOpenPlan={handleOpenPlan}
-                        />
-
-                        {/* 6. Notes */}
                         <YStack marginBottom="$5">
                             <Text
                                 fontFamily="$body"
@@ -596,6 +589,11 @@ export function PersonDetailContent({
                                 )}
                             </Text>
                         </YStack>
+
+                        <PersonEventsSection
+                            personId={id}
+                            onOpenPlan={handleOpenPlan}
+                        />
                     </Animated.View>
                 </ScrollView>
 
