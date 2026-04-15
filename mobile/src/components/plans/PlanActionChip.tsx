@@ -1,7 +1,11 @@
 import React from "react";
 import { Spinner, Text, XStack, YStack } from "tamagui";
 
-export type PlanActionChipTone = "accent" | "neutral" | "success" | "danger";
+export type PlanActionChipTone =
+    | "neutral"
+    | "success"
+    | "danger"
+    | "caution";
 
 type PlanActionChipProps = {
     label: string;
@@ -30,10 +34,6 @@ export function PlanActionChip({
             borderColor?: string;
         }
     > = {
-        accent: {
-            backgroundColor: "$accentBackground",
-            textColor: "$accentColor",
-        },
         neutral: {
             backgroundColor: "$backgroundStrong",
             textColor: "$colorSecondary",
@@ -46,6 +46,10 @@ export function PlanActionChip({
         danger: {
             backgroundColor: "$destructiveBackground",
             textColor: "$destructiveColor",
+        },
+        caution: {
+            backgroundColor: "$cautionBackground",
+            textColor: "$cautionColor",
         },
     };
 

@@ -29,7 +29,7 @@ export function getPlanQuickActionTone(
     switch (kind) {
         case "focus-people":
         case "focus-when":
-            return "accent";
+            return "caution";
         case "mark-done":
             return "success";
         case "let-go":

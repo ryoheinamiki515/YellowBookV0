@@ -2470,7 +2470,7 @@ export function PlanDetailContent({
                                             label: "Going",
                                             onPress: () => handleRespond(PlanMemberResponse.ACCEPTED),
                                             accessibilityLabel: "Accept this plan",
-                                            tone: membership?.response === "ACCEPTED" ? "accent" : "neutral",
+                                            tone: membership?.response === "ACCEPTED" ? "success" : "neutral",
                                             loading: membershipMutation.isPending,
                                         },
                                         {
@@ -2478,7 +2478,7 @@ export function PlanDetailContent({
                                             label: "Maybe",
                                             onPress: () => handleRespond(PlanMemberResponse.MAYBE),
                                             accessibilityLabel: "Respond maybe to this plan",
-                                            tone: membership?.response === "MAYBE" ? "accent" : "neutral",
+                                            tone: membership?.response === "MAYBE" ? "caution" : "neutral",
                                             loading: membershipMutation.isPending,
                                         },
                                         {
@@ -2486,7 +2486,7 @@ export function PlanDetailContent({
                                             label: "Can\u2019t go",
                                             onPress: () => handleRespond(PlanMemberResponse.DECLINED),
                                             accessibilityLabel: "Decline this plan",
-                                            tone: membership?.response === "DECLINED" ? "accent" : "neutral",
+                                            tone: membership?.response === "DECLINED" ? "danger" : "neutral",
                                             loading: membershipMutation.isPending,
                                         },
                                     ]}
