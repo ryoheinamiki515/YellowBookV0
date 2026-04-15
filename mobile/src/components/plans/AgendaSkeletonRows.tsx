@@ -2,8 +2,6 @@ import React, { useEffect, useRef } from "react";
 import { Animated, Easing, Platform } from "react-native";
 import { View, XStack, YStack } from "tamagui";
 
-import { palette } from "../../../tamagui.config";
-
 export function AgendaSkeletonRows() {
     const pulseAnim = useRef(new Animated.Value(0.4)).current;
 
@@ -26,8 +24,6 @@ export function AgendaSkeletonRows() {
         ).start();
     }, []);
 
-    const barColor = palette.fog;
-
     const renderRow = (titleWidth: string, key: number) => (
         <Animated.View
             key={key}
@@ -49,13 +45,13 @@ export function AgendaSkeletonRows() {
                     width={titleWidth as any}
                     height={14}
                     borderRadius={7}
-                    backgroundColor={barColor}
+                    backgroundColor="$color5"
                 />
                 <View
                     width="35%"
                     height={10}
                     borderRadius={5}
-                    backgroundColor={palette.sand}
+                    backgroundColor="$color4"
                     marginTop={8}
                 />
             </View>
@@ -66,7 +62,7 @@ export function AgendaSkeletonRows() {
                         width={22}
                         height={22}
                         borderRadius={11}
-                        backgroundColor={palette.sand}
+                        backgroundColor="$color4"
                         borderWidth={2}
                         borderColor="#FFFFFF"
                     />
@@ -77,7 +73,7 @@ export function AgendaSkeletonRows() {
 
     const renderDateHeader = (width: number, key: string) => (
         <Animated.View key={key} style={{ opacity: pulseAnim, paddingHorizontal: 16, marginTop: 12, marginBottom: 4 }}>
-            <View width={width} height={12} borderRadius={6} backgroundColor={barColor} />
+            <View width={width} height={12} borderRadius={6} backgroundColor="$color5" />
         </Animated.View>
     );
 

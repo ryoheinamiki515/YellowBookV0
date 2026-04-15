@@ -16,7 +16,6 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { YStack, XStack, Text, View, useMedia } from "tamagui";
-import { palette } from "../../tamagui.config";
 import {
     BottomSheetHeader,
     BottomSheetListRow,
@@ -349,19 +348,19 @@ export function PersonDetailContent({
                         width="40%"
                         height={16}
                         borderRadius={8}
-                        backgroundColor={palette.sand}
+                        backgroundColor="$color4"
                     />
                     <View
                         width="80%"
                         height={24}
                         borderRadius={12}
-                        backgroundColor={palette.sand}
+                        backgroundColor="$color4"
                     />
                     <View
                         width="60%"
                         height={14}
                         borderRadius={7}
-                        backgroundColor={palette.sand}
+                        backgroundColor="$color4"
                     />
                 </Animated.View>
             </YStack>
