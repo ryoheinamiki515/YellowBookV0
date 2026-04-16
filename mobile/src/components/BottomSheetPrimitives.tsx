@@ -641,7 +641,7 @@ export function BottomSheetTextField({
     );
 }
 
-type BottomSheetListRowTone = "default" | "accent" | "muted";
+type BottomSheetListRowTone = "default" | "accent" | "muted" | "danger";
 
 type BottomSheetListRowProps = {
     title: string;
@@ -666,7 +666,24 @@ export function BottomSheetListRow({
 }: BottomSheetListRowProps) {
     const isMuted = tone === "muted";
     const isAccent = tone === "accent";
+    const isDanger = tone === "danger";
     const isInteractive = Boolean(onPress) && !disabled;
+
+    const titleColor = isDanger
+        ? "$destructiveColor"
+        : isMuted
+          ? "$colorTertiary"
+          : "$color";
+    const borderColor = isAccent
+        ? "$borderColor"
+        : isDanger
+          ? "$destructiveColor"
+          : "$borderColorSubtle";
+    const pressBackgroundColor = isDanger
+        ? "$destructiveBackground"
+        : isAccent
+          ? "$surfaceHover"
+          : "$backgroundStrong";
 
     return (
         <XStack
@@ -675,7 +692,7 @@ export function BottomSheetListRow({
             padding="$3"
             borderRadius="$4"
             borderWidth={1}
-            borderColor={isAccent ? "$borderColor" : "$borderColorSubtle"}
+            borderColor={borderColor}
             backgroundColor={isMuted ? "$backgroundStrong" : "$surface"}
             opacity={disabled ? 0.6 : 1}
             onPress={onPress}
@@ -688,9 +705,7 @@ export function BottomSheetListRow({
             pressStyle={
                 isInteractive
                     ? {
-                          backgroundColor: isAccent
-                              ? "$surfaceHover"
-                              : "$backgroundStrong",
+                          backgroundColor: pressBackgroundColor,
                           scale: 0.995,
                       }
                     : undefined
@@ -704,7 +719,7 @@ export function BottomSheetListRow({
                 <Text
                     fontFamily="$body"
                     fontSize="$4"
-                    color={isMuted ? "$colorTertiary" : "$color"}
+                    color={titleColor}
                     fontWeight="500"
                     numberOfLines={1}
                 >
