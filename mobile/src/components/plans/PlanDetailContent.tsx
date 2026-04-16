@@ -16,7 +16,9 @@ import { palette } from "../../../tamagui.config";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Calendar } from "react-native-calendars";
 import type { CalendarProps, DateData } from "react-native-calendars";
+import { MoreHorizontal } from "lucide-react-native";
 import {
+    ActionsBottomSheet,
     BottomSheetHeader,
     BottomSheetHeaderAction,
     BottomSheetListRow,
@@ -1366,6 +1368,7 @@ export function PlanDetailContent({
     // Bottom sheet states
     const [whenSheetOpen, setWhenSheetOpen] = useState(false);
     const [addPersonSheetOpen, setAddPersonSheetOpen] = useState(false);
+    const [actionsSheetOpen, setActionsSheetOpen] = useState(false);
     const [planDraft, setPlanDraft] = useState<PlanEditableDraft | null>(null);
     const [removedParticipantIds, setRemovedParticipantIds] = useState<string[]>(
         []
@@ -2002,6 +2005,15 @@ export function PlanDetailContent({
         createPerson.isPending;
     const isMutating = isEditSavePending || deletePlan.isPending;
     const stateActionsDisabled = isMutating || isDraftDirty;
+    const canLetGoFromSheet =
+        Boolean(permissions?.canChangeState) && isOpen && !isDraftDirty;
+    const canUnsubscribeFromSheet =
+        Boolean(permissions?.canLeave) && !isDraftDirty;
+    const canDeleteFromSheet =
+        Boolean(permissions?.canDelete) && !isDraftDirty;
+    const showOverflowButton =
+        !isDraftDirty &&
+        (canLetGoFromSheet || canUnsubscribeFromSheet || canDeleteFromSheet);
     const activePlanDraft = effectivePlanDraft ?? buildPlanEditableDraft(plan);
 
     const whenDisplay = formatPlanWhenDisplay(
@@ -2084,25 +2096,23 @@ export function PlanDetailContent({
                             </Text>
                         </Pressable>
 
-                        {!permissions?.canDelete ? (
-                            <View width={28} />
-                        ) : isDraftDirty ? (
-                            <View width={28} />
-                        ) : (
+                        {showOverflowButton ? (
                             <Pressable
-                                onPress={handleDelete}
+                                onPress={() => setActionsSheetOpen(true)}
                                 hitSlop={12}
+                                disabled={isMutating}
                                 accessibilityRole="button"
-                                accessibilityLabel="Delete plan"
+                                accessibilityLabel="More actions"
+                                style={{ opacity: isMutating ? 0.4 : 1 }}
                             >
-                                <Text
-                                    fontFamily="$body"
-                                    fontSize="$6"
-                                    color="$colorTertiary"
-                                >
-                                    ···
-                                </Text>
+                                <MoreHorizontal
+                                    size={24}
+                                    color={palette.espresso}
+                                    strokeWidth={1.8}
+                                />
                             </Pressable>
+                        ) : (
+                            <View width={28} />
                         )}
                     </XStack>
                 ) : null}
@@ -2503,14 +2513,6 @@ export function PlanDetailContent({
                                     accessibilityLabel="Mark plan as done"
                                 />
                             )}
-                            <DetailFooterAction
-                                label={unsubscribeMutation.isPending ? "Unsubscribing..." : "Unsubscribe"}
-                                onPress={handleUnsubscribe}
-                                disabled={unsubscribeMutation.isPending}
-                                tone="danger"
-                                variant="ghost"
-                                accessibilityLabel="Unsubscribe from this plan"
-                            />
                         </YStack>
                     ) : isDraftDirty ? (
                         <YStack gap="$2">
@@ -2556,31 +2558,20 @@ export function PlanDetailContent({
                             </Text>
                             <XStack gap="$3" alignItems="center">
                                 {isOpen ? (
-                                    <>
-                                        <DetailFooterAction
-                                            flex={2}
-                                            label={
-                                                patchPlan.isPending
-                                                    ? "Saving..."
-                                                    : "Mark Done"
-                                            }
-                                            onPress={handleMarkDone}
-                                            disabled={stateActionsDisabled}
-                                            tone="success"
-                                            variant="soft"
-                                            labelSize="$5"
-                                            accessibilityLabel="Mark plan as done"
-                                        />
-                                        <DetailFooterAction
-                                            flex={1}
-                                            label="Let Go"
-                                            onPress={handleDrop}
-                                            disabled={stateActionsDisabled}
-                                            tone="danger"
-                                            variant="soft"
-                                            accessibilityLabel="Let go of this plan"
-                                        />
-                                    </>
+                                    <DetailFooterAction
+                                        flex={1}
+                                        label={
+                                            patchPlan.isPending
+                                                ? "Saving..."
+                                                : "Mark Done"
+                                        }
+                                        onPress={handleMarkDone}
+                                        disabled={stateActionsDisabled}
+                                        tone="success"
+                                        variant="soft"
+                                        labelSize="$5"
+                                        accessibilityLabel="Mark plan as done"
+                                    />
                                 ) : (
                                     <DetailFooterAction
                                         flex={1}
@@ -2648,6 +2639,41 @@ export function PlanDetailContent({
                     onStageNewPerson={handleStageNewPersonParticipant}
                     onRemoveParticipant={handleRemoveParticipantByIdentity}
                     disabled={isMutating}
+                />
+
+                <ActionsBottomSheet
+                    open={actionsSheetOpen}
+                    onOpenChange={setActionsSheetOpen}
+                    title="Manage plan"
+                    isBusy={isMutating}
+                    actions={[
+                        {
+                            key: "let-go",
+                            title: "Let go",
+                            subtitle: "Mark this plan as not happening",
+                            tone: "danger",
+                            onPress: handleDrop,
+                            accessibilityLabel: "Let go of this plan",
+                            visible: canLetGoFromSheet,
+                        },
+                        {
+                            key: "unsubscribe",
+                            title: "Unsubscribe",
+                            subtitle: "Stop seeing updates for this plan",
+                            onPress: handleUnsubscribe,
+                            accessibilityLabel: "Unsubscribe from this plan",
+                            visible: canUnsubscribeFromSheet,
+                        },
+                        {
+                            key: "delete",
+                            title: "Delete",
+                            subtitle: "Permanently remove this plan",
+                            tone: "danger",
+                            onPress: handleDelete,
+                            accessibilityLabel: "Delete plan",
+                            visible: canDeleteFromSheet,
+                        },
+                    ]}
                 />
             </YStack>
     );

@@ -19,6 +19,7 @@ import { YStack, XStack, Text, View } from "tamagui";
 import { MoreHorizontal } from "lucide-react-native";
 import { palette } from "../../tamagui.config";
 import {
+    ActionsBottomSheet,
     BottomSheetHeader,
     BottomSheetListRow,
     BottomSheetModal,
@@ -165,46 +166,41 @@ function PersonActionsSheet({
     onToggleArchive: () => void;
     onDelete: () => void;
 }) {
-    const runAction = (action: () => void) => {
-        onOpenChange(false);
-        action();
-    };
-
     return (
-        <BottomSheetModal open={open} onOpenChange={onOpenChange}>
-            <BottomSheetHeader title="Manage person" />
-
-            <YStack gap="$2">
-                <BottomSheetListRow
-                    title="Merge with another person"
-                    subtitle="Fold a duplicate into this person"
-                    onPress={() => runAction(onMerge)}
-                    disabled={isMutating}
-                    accessibilityLabel="Merge another person into this one"
-                />
-                <BottomSheetListRow
-                    title={isArchived ? "Unarchive" : "Archive"}
-                    subtitle={
-                        isArchived
-                            ? "Restore this person to your library"
-                            : "Hide this person from your library"
-                    }
-                    onPress={() => runAction(onToggleArchive)}
-                    disabled={isMutating}
-                    accessibilityLabel={
-                        isArchived ? "Unarchive person" : "Archive person"
-                    }
-                />
-                <BottomSheetListRow
-                    title="Delete"
-                    subtitle="Permanently remove this person"
-                    tone="danger"
-                    onPress={() => runAction(onDelete)}
-                    disabled={isMutating}
-                    accessibilityLabel="Delete person"
-                />
-            </YStack>
-        </BottomSheetModal>
+        <ActionsBottomSheet
+            open={open}
+            onOpenChange={onOpenChange}
+            title="Manage person"
+            isBusy={isMutating}
+            actions={[
+                {
+                    key: "merge",
+                    title: "Merge with another person",
+                    subtitle: "Fold a duplicate into this person",
+                    onPress: onMerge,
+                    accessibilityLabel: "Merge another person into this one",
+                },
+                {
+                    key: "archive",
+                    title: isArchived ? "Unarchive" : "Archive",
+                    subtitle: isArchived
+                        ? "Restore this person to your library"
+                        : "Hide this person from your library",
+                    onPress: onToggleArchive,
+                    accessibilityLabel: isArchived
+                        ? "Unarchive person"
+                        : "Archive person",
+                },
+                {
+                    key: "delete",
+                    title: "Delete",
+                    subtitle: "Permanently remove this person",
+                    tone: "danger",
+                    onPress: onDelete,
+                    accessibilityLabel: "Delete person",
+                },
+            ]}
+        />
     );
 }
 
