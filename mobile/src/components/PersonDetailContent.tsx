@@ -15,7 +15,9 @@ import {
 } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
-import { YStack, XStack, Text, View, useMedia } from "tamagui";
+import { YStack, XStack, Text, View } from "tamagui";
+import { MoreHorizontal } from "lucide-react-native";
+import { palette } from "../../tamagui.config";
 import {
     BottomSheetHeader,
     BottomSheetListRow,
@@ -25,7 +27,6 @@ import {
 } from "./BottomSheetPrimitives";
 import { EditableText } from "./EditableText";
 import { useConfirm } from "./ConfirmDialog";
-import { DetailFooterAction } from "./DetailFooterAction";
 import { PersonEventsSection } from "./PersonEventsSection";
 
 import {
@@ -147,6 +148,66 @@ function MergePersonSheet({
     );
 }
 
+function PersonActionsSheet({
+    open,
+    onOpenChange,
+    isArchived,
+    isMutating,
+    onMerge,
+    onToggleArchive,
+    onDelete,
+}: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    isArchived: boolean;
+    isMutating: boolean;
+    onMerge: () => void;
+    onToggleArchive: () => void;
+    onDelete: () => void;
+}) {
+    const runAction = (action: () => void) => {
+        onOpenChange(false);
+        action();
+    };
+
+    return (
+        <BottomSheetModal open={open} onOpenChange={onOpenChange}>
+            <BottomSheetHeader title="Manage person" />
+
+            <YStack gap="$2">
+                <BottomSheetListRow
+                    title="Merge with another person"
+                    subtitle="Fold a duplicate into this person"
+                    onPress={() => runAction(onMerge)}
+                    disabled={isMutating}
+                    accessibilityLabel="Merge another person into this one"
+                />
+                <BottomSheetListRow
+                    title={isArchived ? "Unarchive" : "Archive"}
+                    subtitle={
+                        isArchived
+                            ? "Restore this person to your library"
+                            : "Hide this person from your library"
+                    }
+                    onPress={() => runAction(onToggleArchive)}
+                    disabled={isMutating}
+                    accessibilityLabel={
+                        isArchived ? "Unarchive person" : "Archive person"
+                    }
+                />
+                <BottomSheetListRow
+                    title="Delete"
+                    subtitle="Permanently remove this person"
+                    tone="danger"
+                    onPress={() => runAction(onDelete)}
+                    disabled={isMutating}
+                    accessibilityLabel="Delete person"
+                />
+            </YStack>
+        </BottomSheetModal>
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Detail screen
 // ---------------------------------------------------------------------------
@@ -164,8 +225,6 @@ export function PersonDetailContent({
 }: PersonDetailContentProps) {
     const confirm = useConfirm();
     const router = useRouter();
-    const media = useMedia();
-    const isDesktopWeb = media.lg && Platform.OS === "web";
     const queryClient = useQueryClient();
     const reducedMotion = useReducedMotionPreference();
     const useNativeDriver = Platform.OS !== "web";
@@ -185,6 +244,7 @@ export function PersonDetailContent({
             : undefined;
 
     const [mergeSheetOpen, setMergeSheetOpen] = useState(false);
+    const [actionsSheetOpen, setActionsSheetOpen] = useState(false);
 
     // Entrance animation
     const fadeAnim = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
@@ -426,13 +486,22 @@ export function PersonDetailContent({
                         </Text>
                     </Pressable>
 
-                    <View width={28} />
+                    <Pressable
+                        onPress={() => setActionsSheetOpen(true)}
+                        hitSlop={12}
+                        disabled={isMutating}
+                        accessibilityRole="button"
+                        accessibilityLabel="More actions"
+                        style={{ opacity: isMutating ? 0.4 : 1 }}
+                    >
+                        <MoreHorizontal size={24} color={palette.espresso} strokeWidth={1.8} />
+                    </Pressable>
                 </XStack>
 
                 <ScrollView
                     contentContainerStyle={{
                         paddingHorizontal: 24,
-                        paddingBottom: isDesktopWeb ? 24 : 140,
+                        paddingBottom: 24,
                     }}
                     showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
@@ -597,75 +666,15 @@ export function PersonDetailContent({
                     </Animated.View>
                 </ScrollView>
 
-                {/* Bottom action bar */}
-                <YStack
-                    {...(isDesktopWeb
-                        ? { paddingHorizontal: "$6", paddingVertical: "$4" }
-                        : {
-                              position: "absolute" as const,
-                              bottom: 0,
-                              left: 0,
-                              right: 0,
-                              paddingHorizontal: "$6",
-                              paddingBottom: "$8",
-                              paddingTop: "$4",
-                          })}
-                    backgroundColor="$background"
-                    gap="$2"
-                >
-                    <Text
-                        fontFamily="$body"
-                        fontSize="$2"
-                        color="$colorSecondary"
-                    >
-                        Merge folds a duplicate into this person. Archive hides them. Delete removes the record.
-                    </Text>
-                    <DetailFooterAction
-                        label={
-                            mergePerson.isPending
-                                ? "Merging..."
-                                : "Merge Another Into This"
-                        }
-                        onPress={() => setMergeSheetOpen(true)}
-                        disabled={isMutating}
-                        tone="accent"
-                        variant="outline"
-                        labelSize="$5"
-                        accessibilityLabel="Merge another person into this one"
-                    />
-                    <XStack gap="$3" alignItems="center">
-                        <DetailFooterAction
-                            flex={1}
-                            label={
-                                patchPerson.isPending
-                                    ? "Saving..."
-                                    : isArchived
-                                      ? "Unarchive"
-                                      : "Archive"
-                            }
-                            onPress={handleToggleArchive}
-                            disabled={isMutating}
-                            tone="neutral"
-                            variant="outline"
-                            labelSize="$5"
-                            accessibilityLabel={
-                                isArchived ? "Unarchive person" : "Archive person"
-                            }
-                        />
-                        <DetailFooterAction
-                            flex={1}
-                            label={
-                                deletePerson.isPending ? "Deleting..." : "Delete"
-                            }
-                            onPress={handleDelete}
-                            disabled={isMutating}
-                            tone="danger"
-                            variant="soft"
-                            labelSize="$5"
-                            accessibilityLabel="Delete person"
-                        />
-                    </XStack>
-                </YStack>
+                <PersonActionsSheet
+                    open={actionsSheetOpen}
+                    onOpenChange={setActionsSheetOpen}
+                    isArchived={isArchived}
+                    isMutating={isMutating}
+                    onMerge={() => setMergeSheetOpen(true)}
+                    onToggleArchive={handleToggleArchive}
+                    onDelete={handleDelete}
+                />
 
                 <MergePersonSheet
                     open={mergeSheetOpen}
