@@ -641,7 +641,7 @@ export function BottomSheetTextField({
     );
 }
 
-type BottomSheetListRowTone = "default" | "accent" | "muted" | "danger";
+export type BottomSheetListRowTone = "default" | "accent" | "muted" | "danger";
 
 type BottomSheetListRowProps = {
     title: string;
@@ -859,5 +859,53 @@ export function BottomSheetSecondaryButton({
                 {label}
             </Text>
         </YStack>
+    );
+}
+
+export type ActionsBottomSheetRow = {
+    key: string;
+    title: string;
+    subtitle?: string;
+    tone?: BottomSheetListRowTone;
+    onPress: () => void;
+    accessibilityLabel: string;
+    visible?: boolean;
+};
+
+export function ActionsBottomSheet({
+    open,
+    onOpenChange,
+    title,
+    actions,
+    isBusy = false,
+}: {
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    title: string;
+    actions: ActionsBottomSheetRow[];
+    isBusy?: boolean;
+}) {
+    const runAction = (fn: () => void) => {
+        onOpenChange(false);
+        fn();
+    };
+    const visibleActions = actions.filter((a) => a.visible !== false);
+    return (
+        <BottomSheetModal open={open} onOpenChange={onOpenChange}>
+            <BottomSheetHeader title={title} />
+            <YStack gap="$2">
+                {visibleActions.map((a) => (
+                    <BottomSheetListRow
+                        key={a.key}
+                        title={a.title}
+                        subtitle={a.subtitle}
+                        tone={a.tone}
+                        onPress={() => runAction(a.onPress)}
+                        disabled={isBusy}
+                        accessibilityLabel={a.accessibilityLabel}
+                    />
+                ))}
+            </YStack>
+        </BottomSheetModal>
     );
 }
