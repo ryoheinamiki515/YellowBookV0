@@ -182,7 +182,6 @@ export default function LoginScreen() {
             redirectUri,
             extraParams: {
                 audience: process.env.EXPO_PUBLIC_AUTH0_AUDIENCE!,
-                prompt: "login",
             },
         },
         discovery
@@ -222,6 +221,7 @@ export default function LoginScreen() {
             if (tokenResponse.ok && data.access_token) {
                 await signIn({
                     accessToken: data.access_token,
+                    refreshToken: data.refresh_token ?? null,
                     profileNameSuggestion: getProfileNameSuggestion(data.id_token),
                 });
             } else {
