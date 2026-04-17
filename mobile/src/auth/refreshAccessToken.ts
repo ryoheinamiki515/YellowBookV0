@@ -40,13 +40,14 @@ export async function refreshAccessToken(refreshToken: string): Promise<Refreshe
         };
     }
 
-    // 4xx (typically `invalid_grant`) means the refresh token is revoked or expired — terminal.
-    if (res.status >= 400 && res.status < 500) {
-        const message =
-            body?.error_description || body?.error || `HTTP ${res.status}`;
+    // Only `invalid_grant` means the refresh token itself is revoked / expired / mismatched —
+    // that is the single terminal case per Auth0. Other 4xx (invalid_request, invalid_client,
+    // 429 rate limit, etc.) are client/config/transient errors; the refresh token may still be
+    // valid, so we must not sign the user out.
+    if (body?.error === "invalid_grant") {
+        const message = body?.error_description || body?.error || `HTTP ${res.status}`;
         throw new RefreshTokenRevokedError(message, body);
     }
 
-    // 5xx or a 2xx without an access_token is transient; caller should not sign the user out.
     throw new Error(`Auth0 token refresh failed: HTTP ${res.status}`);
 }

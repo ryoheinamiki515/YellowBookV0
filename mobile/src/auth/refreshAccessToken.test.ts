@@ -42,7 +42,7 @@ describe("refreshAccessToken", () => {
         assert.equal(result.refreshToken, "old-refresh");
     });
 
-    test("4xx invalid_grant throws RefreshTokenRevokedError with description", async () => {
+    test("invalid_grant throws RefreshTokenRevokedError with description", async () => {
         stubFetch(403, { error: "invalid_grant", error_description: "Token revoked" });
         await assert.rejects(
             () => refreshAccessToken("bad"),
@@ -51,12 +51,52 @@ describe("refreshAccessToken", () => {
         );
     });
 
-    test("4xx without description falls back to error code", async () => {
+    test("invalid_grant without description falls back to error code", async () => {
         stubFetch(400, { error: "invalid_grant" });
         await assert.rejects(
             () => refreshAccessToken("bad"),
             (err: Error) =>
                 err instanceof RefreshTokenRevokedError && err.message === "invalid_grant"
+        );
+    });
+
+    test("429 rate limit is transient, not revoked (refresh token still valid)", async () => {
+        stubFetch(429, { error: "too_many_requests" });
+        await assert.rejects(
+            () => refreshAccessToken("rt"),
+            (err: Error) =>
+                !(err instanceof RefreshTokenRevokedError) && /HTTP 429/.test(err.message)
+        );
+    });
+
+    test("400 invalid_request is transient (our bug, not the token's fault)", async () => {
+        stubFetch(400, { error: "invalid_request", error_description: "missing param" });
+        await assert.rejects(
+            () => refreshAccessToken("rt"),
+            (err: Error) =>
+                !(err instanceof RefreshTokenRevokedError) && /HTTP 400/.test(err.message)
+        );
+    });
+
+    test("401 invalid_client is transient (app config issue, not refresh-token state)", async () => {
+        stubFetch(401, { error: "invalid_client" });
+        await assert.rejects(
+            () => refreshAccessToken("rt"),
+            (err: Error) =>
+                !(err instanceof RefreshTokenRevokedError) && /HTTP 401/.test(err.message)
+        );
+    });
+
+    test("4xx with no parseable body is transient", async () => {
+        globalThis.fetch = (async () =>
+            new Response("not json", {
+                status: 400,
+                headers: { "Content-Type": "text/plain" },
+            })) as typeof fetch;
+        await assert.rejects(
+            () => refreshAccessToken("rt"),
+            (err: Error) =>
+                !(err instanceof RefreshTokenRevokedError) && /HTTP 400/.test(err.message)
         );
     });
 
