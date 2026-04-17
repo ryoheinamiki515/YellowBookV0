@@ -1,7 +1,16 @@
 import { Platform } from "react-native";
 import Constants from "expo-constants";
-import { getToken } from "./../lib/tokenStorage";
+import {
+    getRefreshToken,
+    getToken,
+    removeRefreshToken,
+    removeToken,
+    saveRefreshToken,
+    saveToken,
+} from "./../lib/tokenStorage";
 import { emitAuthSessionInvalidation } from "../auth/authSessionEvents";
+import { refreshAccessToken } from "../auth/refreshAccessToken";
+import { createTokenRefresher } from "../auth/tokenRefresh";
 
 function getExpoMetroHostIp(): string | null {
     const c = Constants as any;
@@ -51,10 +60,6 @@ function getBaseUrl() {
     return normalized.endsWith("/") ? normalized.slice(0, -1) : normalized;
 }
 
-async function getAccessToken(): Promise<string | null> {
-    return await getToken();
-}
-
 async function parseBody(res: Response) {
     const ct = res.headers.get("content-type") ?? "";
     if (ct.includes("application/json") || ct.includes("application/problem+json")) {
@@ -63,29 +68,39 @@ async function parseBody(res: Response) {
     return res.text();
 }
 
-// Orval custom fetch wrapper returns { status, data, headers }
-export const customFetch = async <T>(
-    url: string,
-    options: RequestInit
-): Promise<T> => {
-    const baseUrl = getBaseUrl();
-    const fullUrl = url.startsWith("http") ? url : `${baseUrl}${url}`;
+const tokenRefresher = createTokenRefresher({
+    getRefreshToken,
+    saveAccessToken: saveToken,
+    saveRefreshToken,
+    removeAccessToken: removeToken,
+    removeRefreshToken,
+    refresh: refreshAccessToken,
+});
 
-    const token = await getAccessToken();
-
+function buildRequestHeaders(options: RequestInit, bearerToken: string | null) {
     const headers = new Headers(options.headers);
     headers.set("Accept", "application/json");
+    if (bearerToken) headers.set("Authorization", `Bearer ${bearerToken}`);
 
-    if (token) headers.set("Authorization", `Bearer ${token}`);
-
-    // Only set JSON content-type when we actually send a JSON body
+    // Only set JSON content-type when we actually send a JSON body.
     if (options.body && !headers.has("Content-Type")) {
         headers.set("Content-Type", "application/json");
     }
+    return headers;
+}
 
-    let res: Response | undefined;
+// Performs a single fetch with the LAN-host fallback that physical devices need on first boot.
+async function executeRequest(
+    url: string,
+    baseUrl: string,
+    options: RequestInit,
+    bearerToken: string | null
+): Promise<Response> {
+    const fullUrl = url.startsWith("http") ? url : `${baseUrl}${url}`;
+    const headers = buildRequestHeaders(options, bearerToken);
+
     try {
-        res = await fetch(fullUrl, { ...options, headers });
+        return await fetch(fullUrl, { ...options, headers });
     } catch (cause: any) {
         const isRelativeRequest = !url.startsWith("http");
         const looksLocalhost = /localhost|127\.0\.0\.1/.test(baseUrl);
@@ -99,42 +114,68 @@ export const customFetch = async <T>(
             const fallbackUrl = `${fallbackBaseUrl}${url}`;
 
             try {
-                res = await fetch(fallbackUrl, { ...options, headers });
+                return await fetch(fallbackUrl, { ...options, headers });
             } catch {
                 // Fall through to the original error below for a clearer message.
             }
         }
 
-        if (!res) {
-            const hostHint = Platform.OS === "android"
-                ? "Android emulator should use 10.0.2.2; physical devices must use your computer LAN IP."
-                : "iOS simulator can use localhost; physical devices must use your computer LAN IP.";
-            const err: any = new Error(
-                `Network request failed for ${fullUrl}. Check EXPO_PUBLIC_API_BASE_URL (${baseUrl}). ${hostHint}`
-            );
-            err.cause = cause;
-            err.baseUrl = baseUrl;
-            err.url = fullUrl;
-            throw err;
-        }
+        const hostHint = Platform.OS === "android"
+            ? "Android emulator should use 10.0.2.2; physical devices must use your computer LAN IP."
+            : "iOS simulator can use localhost; physical devices must use your computer LAN IP.";
+        const err: any = new Error(
+            `Network request failed for ${fullUrl}. Check EXPO_PUBLIC_API_BASE_URL (${baseUrl}). ${hostHint}`
+        );
+        err.cause = cause;
+        err.baseUrl = baseUrl;
+        err.url = fullUrl;
+        throw err;
     }
+}
 
-    if (!res) {
-        throw new Error("Unexpected missing response");
-    }
+// Orval custom fetch wrapper returns { status, data, headers }
+export const customFetch = async <T>(
+    url: string,
+    options: RequestInit
+): Promise<T> => {
+    const baseUrl = getBaseUrl();
+    const fullUrl = url.startsWith("http") ? url : `${baseUrl}${url}`;
+    const token = await getToken();
 
-    const body = await parseBody(res);
+    let res = await executeRequest(url, baseUrl, options, token);
 
-    // Make non-2xx fail fast (TanStack Query wants thrown errors)
-    if (!res.ok) {
-        if (res.status === 401) {
+    // On 401, try to refresh the access token exactly once and retry. A 401 on the retry
+    // propagates as a normal error below — we never recurse into the refresh flow twice.
+    if (res.status === 401) {
+        const refreshResult = await tokenRefresher.ensureFreshAccessToken();
+
+        if (refreshResult.status === "refreshed") {
+            res = await executeRequest(url, baseUrl, options, refreshResult.accessToken);
+            if (res.status === 401) {
+                // Freshly-minted token still rejected — the session is unusable.
+                emitAuthSessionInvalidation({
+                    kind: "unauthorized",
+                    status: 401,
+                    url: fullUrl,
+                });
+            }
+        } else if (
+            refreshResult.status === "revoked" ||
+            refreshResult.status === "no_refresh_token"
+        ) {
             emitAuthSessionInvalidation({
                 kind: "unauthorized",
                 status: 401,
                 url: fullUrl,
             });
         }
+        // transient_error: do not sign out; let the 401 surface as an error so the caller can retry.
+    }
 
+    const body = await parseBody(res);
+
+    // Make non-2xx fail fast (TanStack Query wants thrown errors)
+    if (!res.ok) {
         const err: any = new Error(body?.title || body?.detail || `HTTP ${res.status}`);
         err.status = res.status;
         err.problem = body; // your RFC7807 payload

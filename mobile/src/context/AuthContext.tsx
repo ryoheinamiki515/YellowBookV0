@@ -17,12 +17,19 @@ import {
     saveProfileNameSuggestion,
     sanitizeInternalPath,
 } from "../lib/authFlowStorage";
-import { getToken, removeToken, saveToken } from "../lib/tokenStorage";
+import {
+    getToken,
+    removeRefreshToken,
+    removeToken,
+    saveRefreshToken,
+    saveToken,
+} from "../lib/tokenStorage";
 
 type AuthSessionStatus = "checking" | "authenticated" | "unauthenticated";
 
 type SignInInput = {
     accessToken: string;
+    refreshToken?: string | null;
     profileNameSuggestion?: string | null;
 };
 
@@ -85,11 +92,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setPendingPath(nextPendingPath);
     }, []);
 
-    const signIn = useCallback(async ({ accessToken, profileNameSuggestion }: SignInInput) => {
+    const signIn = useCallback(async ({ accessToken, refreshToken, profileNameSuggestion }: SignInInput) => {
         const nextSuggestion = normalizeProfileNameSuggestion(profileNameSuggestion);
 
         await Promise.all([
             saveToken(accessToken),
+            refreshToken ? saveRefreshToken(refreshToken) : removeRefreshToken(),
             saveProfileNameSuggestion(nextSuggestion),
         ]);
 
@@ -112,6 +120,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             try {
                 await Promise.all([
                     removeToken(),
+                    removeRefreshToken(),
                     clearPendingPathStorage(),
                     clearProfileNameSuggestionStorage(),
                 ]);
