@@ -23,10 +23,10 @@ export function createTokenRefresher(deps: TokenRefresherDeps): TokenRefresher {
     let inFlight: Promise<EnsureFreshAccessTokenResult> | null = null;
 
     async function runRefresh(): Promise<EnsureFreshAccessTokenResult> {
-        const refreshToken = await deps.getRefreshToken();
-        if (!refreshToken) return { status: "no_refresh_token" };
-
         try {
+            const refreshToken = await deps.getRefreshToken();
+            if (!refreshToken) return { status: "no_refresh_token" };
+
             const tokens = await deps.refresh(refreshToken);
             await Promise.all([
                 deps.saveAccessToken(tokens.accessToken),

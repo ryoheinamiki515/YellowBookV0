@@ -140,6 +140,34 @@ describe("createTokenRefresher", () => {
         assert.equal(refreshCalls, 2);
     });
 
+    test("getRefreshToken read failure returns transient_error, not a thrown rejection", async () => {
+        const readErr = new Error("secure store unavailable");
+        const { deps, removes } = makeHarness({
+            getRefreshToken: async () => { throw readErr; },
+        });
+        const refresher = createTokenRefresher(deps);
+
+        const result = await refresher.ensureFreshAccessToken();
+
+        assert.equal(result.status, "transient_error");
+        assert.equal((result as { status: "transient_error"; error: unknown }).error, readErr);
+        assert.equal(removes.access, 0);
+        assert.equal(removes.refresh, 0);
+    });
+
+    test("saveAccessToken failure after successful refresh returns transient_error", async () => {
+        const saveErr = new Error("disk full");
+        const { deps } = makeHarness({
+            saveAccessToken: async () => { throw saveErr; },
+        });
+        const refresher = createTokenRefresher(deps);
+
+        const result = await refresher.ensureFreshAccessToken();
+
+        assert.equal(result.status, "transient_error");
+        assert.equal((result as { status: "transient_error"; error: unknown }).error, saveErr);
+    });
+
     test("storage cleanup failure on revoke does not mask the revoked signal", async () => {
         const { deps } = makeHarness({
             refresh: async () => {
