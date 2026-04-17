@@ -4,7 +4,6 @@ import {
     Dimensions,
     Easing,
     Keyboard,
-    KeyboardAvoidingView,
     Modal,
     Platform,
     Pressable,
@@ -409,9 +408,7 @@ export function BottomSheetModal({
                             transform: [
                                 { translateY: sheetTranslateY },
                                 { translateY: dragOffset },
-                                ...(isFull
-                                    ? []
-                                    : [{ translateY: keyboardFillTranslateY }]),
+                                { translateY: keyboardFillTranslateY },
                             ],
                         }}
                     >
@@ -430,39 +427,31 @@ export function BottomSheetModal({
                             transform: [
                                 { translateY: sheetTranslateY },
                                 { translateY: dragOffset },
-                                ...(isFull
-                                    ? []
-                                    : [{ translateY: Animated.multiply(keyboardLift, -1) }]),
+                                { translateY: Animated.multiply(keyboardLift, -1) },
                             ],
                         }}
                     >
-                        <KeyboardAvoidingView
-                            behavior={isFull ? "padding" : undefined}
-                            enabled={isFull}
-                            style={isFull ? { flex: 1, maxHeight: maxSheetHeight } : undefined}
+                        <YStack
+                            backgroundColor="$surface"
+                            borderTopLeftRadius="$8"
+                            borderTopRightRadius="$8"
+                            padding="$6"
+                            paddingBottom={Math.max(insets.bottom, 0) + SHEET_BOTTOM_PADDING_PX}
+                            minHeight={isFull ? undefined : resolvedMinHeight}
+                            maxHeight={isFull ? undefined : maxSheetHeight}
+                            flexShrink={1}
+                            flex={isFull ? 1 : undefined}
+                            style={SHEET_SHADOW_STYLE}
                         >
-                            <YStack
-                                backgroundColor="$surface"
-                                borderTopLeftRadius="$8"
-                                borderTopRightRadius="$8"
-                                padding="$6"
-                                paddingBottom={Math.max(insets.bottom, 0) + SHEET_BOTTOM_PADDING_PX}
-                                minHeight={isFull ? undefined : resolvedMinHeight}
-                                maxHeight={isFull ? undefined : maxSheetHeight}
-                                flexShrink={1}
-                                flex={isFull ? 1 : undefined}
-                                style={SHEET_SHADOW_STYLE}
-                            >
-                                {isFull ? (
-                                    <DragHandleIndicator
-                                        interactive
-                                        dragOffset={dragOffset}
-                                        onDismiss={handleClose}
-                                    />
-                                ) : null}
-                                {children}
-                            </YStack>
-                        </KeyboardAvoidingView>
+                            {isFull ? (
+                                <DragHandleIndicator
+                                    interactive
+                                    dragOffset={dragOffset}
+                                    onDismiss={handleClose}
+                                />
+                            ) : null}
+                            {children}
+                        </YStack>
                     </Animated.View>
             </GestureHandlerRootView>
         </Modal>
