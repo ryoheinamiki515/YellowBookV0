@@ -131,7 +131,7 @@ function serializeMe(user: { id: string; displayName: string | null; birthdayMon
 // ---------------------------------------------------------------------------
 // GET /v1/me — Get the current authenticated user (MeResponse)
 // ---------------------------------------------------------------------------
-v1.get("/me", ...requireUser([]), async (req, res, next) => {
+v1.get("/me", ...requireUser(), async (req, res, next) => {
     try {
         const id = (req as any).userId as string;
         const authSubject = (req as any).authSubject as string;
@@ -147,7 +147,7 @@ v1.get("/me", ...requireUser([]), async (req, res, next) => {
 // ---------------------------------------------------------------------------
 // PATCH /v1/me — Update the current user's profile
 // ---------------------------------------------------------------------------
-v1.patch("/me", ...requireUser([]), async (req, res, next) => {
+v1.patch("/me", ...requireUser(), async (req, res, next) => {
     try {
         const id = (req as any).userId as string;
         const authSubject = (req as any).authSubject as string;
@@ -191,7 +191,7 @@ v1.patch("/me", ...requireUser([]), async (req, res, next) => {
 // ---------------------------------------------------------------------------
 // POST /v1/me/profile-image-upload — Get a presigned URL to upload a profile image
 // ---------------------------------------------------------------------------
-v1.post("/me/profile-image-upload", ...requireUser([]), async (req, res, next) => {
+v1.post("/me/profile-image-upload", ...requireUser(), async (req, res, next) => {
     try {
         const userId = (req as any).userId as string;
         const { uploadUrl, publicUrl } = await createProfileImageUploadUrl(userId);
@@ -204,7 +204,7 @@ v1.post("/me/profile-image-upload", ...requireUser([]), async (req, res, next) =
 // ---------------------------------------------------------------------------
 // DELETE /v1/me/profile-image — Remove the current user's profile image
 // ---------------------------------------------------------------------------
-v1.delete("/me/profile-image", ...requireUser([]), async (req, res, next) => {
+v1.delete("/me/profile-image", ...requireUser(), async (req, res, next) => {
     try {
         const userId = (req as any).userId as string;
         await deleteProfileImage(userId);
@@ -389,7 +389,7 @@ const CreatePlanSchema = z
 
 v1.post(
     "/plans",
-    ...requireUser(["create:socialplans"]),
+    ...requireUser(),
     withIdempotency("POST /v1/plans", async (req, res, next) => {
         try {
             const data = CreatePlanSchema.parse(req.body);
@@ -425,7 +425,7 @@ v1.post(
 // ---------------------------------------------------------------------------
 v1.get(
     "/plans",
-    ...requireUser(["read:socialplans"]),
+    ...requireUser(),
     async (req, res, next) => {
         try {
             const userId = (req as any).userId as string;
@@ -602,7 +602,7 @@ v1.get(
 // ---------------------------------------------------------------------------
 // GET /v1/plans/:planId — Get a social plan
 // ---------------------------------------------------------------------------
-v1.get("/plans/:planId", ...requireUser(["read:socialplans"]), async (req, res, next) => {
+v1.get("/plans/:planId", ...requireUser(), async (req, res, next) => {
     try {
         const userId = (req as any).userId as string;
         const planId = req.params.planId;
@@ -630,7 +630,7 @@ v1.get("/plans/:planId", ...requireUser(["read:socialplans"]), async (req, res, 
 // ---------------------------------------------------------------------------
 // PATCH /v1/plans/:planId — Update a social plan (JSON Merge Patch)
 // ---------------------------------------------------------------------------
-v1.patch("/plans/:planId", ...requireUser(["create:socialplans"]), async (req: any, res, next) => {
+v1.patch("/plans/:planId", ...requireUser(), async (req: any, res, next) => {
     try {
         const userId = req.userId as string;
         const planId = req.params.planId;
@@ -681,7 +681,7 @@ v1.patch("/plans/:planId", ...requireUser(["create:socialplans"]), async (req: a
 // ---------------------------------------------------------------------------
 // DELETE /v1/plans/:planId — Permanently delete a social plan
 // ---------------------------------------------------------------------------
-v1.delete("/plans/:planId", ...requireUser(["create:socialplans"]), async (req, res, next) => {
+v1.delete("/plans/:planId", ...requireUser(), async (req, res, next) => {
     try {
         const userId = (req as any).userId as string;
         const planId = req.params.planId as string;
@@ -710,7 +710,7 @@ const AddParticipantSchema = z.object({
 
 v1.post(
     "/plans/:planId/participants",
-    ...requireUser(["create:socialplans"]),
+    ...requireUser(),
     withIdempotency("POST /v1/plans/:planId/participants", async (req, res, next) => {
         try {
             const ownerId = (req as any).userId as string;
@@ -773,7 +773,7 @@ const PatchParticipantSchema = z.object({
     isPrimary: z.boolean().optional(),
 });
 
-v1.patch("/plans/:planId/participants/:participantId", ...requireUser(["create:socialplans"]), async (req, res, next) => {
+v1.patch("/plans/:planId/participants/:participantId", ...requireUser(), async (req, res, next) => {
     try {
         const ownerId = (req as any).userId as string;
         const planId = req.params.planId as string;
@@ -834,7 +834,7 @@ v1.patch("/plans/:planId/participants/:participantId", ...requireUser(["create:s
 // ---------------------------------------------------------------------------
 // DELETE /v1/plans/:planId/participants/:participantId — Remove a participant
 // ---------------------------------------------------------------------------
-v1.delete("/plans/:planId/participants/:participantId", ...requireUser(["create:socialplans"]), async (req, res, next) => {
+v1.delete("/plans/:planId/participants/:participantId", ...requireUser(), async (req, res, next) => {
     try {
         const ownerId = (req as any).userId as string;
         const planId = req.params.planId as string;
@@ -865,7 +865,7 @@ v1.delete("/plans/:planId/participants/:participantId", ...requireUser(["create:
 // ---------------------------------------------------------------------------
 // GET /v1/people — List people in the user's People Library
 // ---------------------------------------------------------------------------
-v1.get("/people", ...requireUser([]), async (req, res, next) => {
+v1.get("/people", ...requireUser(), async (req, res, next) => {
     try {
         const ownerId = (req as any).userId as string;
 
@@ -937,7 +937,7 @@ v1.get("/people", ...requireUser([]), async (req, res, next) => {
 // ---------------------------------------------------------------------------
 v1.post(
     "/people",
-    ...requireUser([]),
+    ...requireUser(),
     withIdempotency("POST /v1/people", async (req, res, next) => {
         try {
             const ownerId = (req as any).userId as string;
@@ -959,7 +959,7 @@ v1.post(
 // ---------------------------------------------------------------------------
 // GET /v1/people/:personId — Get a person
 // ---------------------------------------------------------------------------
-v1.get("/people/:personId", ...requireUser([]), async (req, res, next) => {
+v1.get("/people/:personId", ...requireUser(), async (req, res, next) => {
     try {
         const ownerId = (req as any).userId as string;
         const personId = req.params.personId;
@@ -979,7 +979,7 @@ v1.get("/people/:personId", ...requireUser([]), async (req, res, next) => {
 // ---------------------------------------------------------------------------
 // PATCH /v1/people/:personId — Update a person (JSON Merge Patch)
 // ---------------------------------------------------------------------------
-v1.patch("/people/:personId", ...requireUser([]), async (req, res, next) => {
+v1.patch("/people/:personId", ...requireUser(), async (req, res, next) => {
     try {
         const ownerId = (req as any).userId as string;
         const personId = req.params.personId;
@@ -1012,7 +1012,7 @@ v1.patch("/people/:personId", ...requireUser([]), async (req, res, next) => {
 // ---------------------------------------------------------------------------
 // POST /v1/people/:personId/merge — Merge another person into this person
 // ---------------------------------------------------------------------------
-v1.post("/people/:personId/merge", ...requireUser([]), async (req, res, next) => {
+v1.post("/people/:personId/merge", ...requireUser(), async (req, res, next) => {
     try {
         const ownerId = (req as any).userId as string;
         const personToKeepId = req.params.personId;
@@ -1041,7 +1041,7 @@ v1.post("/people/:personId/merge", ...requireUser([]), async (req, res, next) =>
 // ---------------------------------------------------------------------------
 // DELETE /v1/people/:personId — Delete a person
 // ---------------------------------------------------------------------------
-v1.delete("/people/:personId", ...requireUser([]), async (req, res, next) => {
+v1.delete("/people/:personId", ...requireUser(), async (req, res, next) => {
     try {
         const ownerId = (req as any).userId as string;
         const personId = req.params.personId;
@@ -1063,7 +1063,7 @@ v1.delete("/people/:personId", ...requireUser([]), async (req, res, next) => {
 // ---------------------------------------------------------------------------
 // POST /v1/connections/invites — Generate a connection invite
 // ---------------------------------------------------------------------------
-v1.post("/connections/invites", ...requireUser([]), async (req, res, next) => {
+v1.post("/connections/invites", ...requireUser(), async (req, res, next) => {
     try {
         const senderId = (req as any).userId as string;
         const senderUser = await prisma.user.findUniqueOrThrow({
@@ -1105,7 +1105,7 @@ v1.post("/connections/invites", ...requireUser([]), async (req, res, next) => {
 // ---------------------------------------------------------------------------
 // POST /v1/connections/invites/:token/accept — Accept a connection invite
 // ---------------------------------------------------------------------------
-v1.post("/connections/invites/:token/accept", ...requireUser([]), async (req, res, next) => {
+v1.post("/connections/invites/:token/accept", ...requireUser(), async (req, res, next) => {
     try {
         const acceptorId = (req as any).userId as string;
         const token = req.params.token;
@@ -1171,7 +1171,7 @@ v1.post("/connections/invites/:token/accept", ...requireUser([]), async (req, re
 // ---------------------------------------------------------------------------
 // GET /v1/connections — List connections
 // ---------------------------------------------------------------------------
-v1.get("/connections", ...requireUser([]), async (req, res, next) => {
+v1.get("/connections", ...requireUser(), async (req, res, next) => {
     try {
         const userId = (req as any).userId as string;
 
@@ -1202,7 +1202,7 @@ v1.get("/connections", ...requireUser([]), async (req, res, next) => {
 // ---------------------------------------------------------------------------
 // DELETE /v1/connections/:connectionId — Remove a connection
 // ---------------------------------------------------------------------------
-v1.delete("/connections/:connectionId", ...requireUser([]), async (req, res, next) => {
+v1.delete("/connections/:connectionId", ...requireUser(), async (req, res, next) => {
     try {
         const userId = (req as any).userId as string;
         const connectionId = req.params.connectionId;
@@ -1243,7 +1243,7 @@ v1.delete("/connections/:connectionId", ...requireUser([]), async (req, res, nex
 // ---------------------------------------------------------------------------
 // POST /v1/plans/:planId/share — Share a plan
 // ---------------------------------------------------------------------------
-v1.post("/plans/:planId/share", ...requireUser(["create:socialplans"]), async (req, res, next) => {
+v1.post("/plans/:planId/share", ...requireUser(), async (req, res, next) => {
     try {
         const ownerId = (req as any).userId as string;
         const planId = req.params.planId;
@@ -1302,7 +1302,7 @@ v1.post("/plans/:planId/share", ...requireUser(["create:socialplans"]), async (r
 // ---------------------------------------------------------------------------
 // GET /v1/plans/:planId/share — Get share status
 // ---------------------------------------------------------------------------
-v1.get("/plans/:planId/share", ...requireUser(["read:socialplans"]), async (req, res, next) => {
+v1.get("/plans/:planId/share", ...requireUser(), async (req, res, next) => {
     try {
         const userId = (req as any).userId as string;
         const planId = req.params.planId;
@@ -1342,7 +1342,7 @@ v1.get("/plans/:planId/share", ...requireUser(["read:socialplans"]), async (req,
 // ---------------------------------------------------------------------------
 // DELETE /v1/plans/:planId/share — Revoke sharing
 // ---------------------------------------------------------------------------
-v1.delete("/plans/:planId/share", ...requireUser(["create:socialplans"]), async (req, res, next) => {
+v1.delete("/plans/:planId/share", ...requireUser(), async (req, res, next) => {
     try {
         const userId = (req as any).userId as string;
         const planId = req.params.planId;
@@ -1432,7 +1432,7 @@ v1.get("/shared/:token", async (req, res, next) => {
 // ---------------------------------------------------------------------------
 // POST /v1/shared/:token/subscribe — Subscribe via share link
 // ---------------------------------------------------------------------------
-v1.post("/shared/:token/subscribe", ...requireUser([]), async (req, res, next) => {
+v1.post("/shared/:token/subscribe", ...requireUser(), async (req, res, next) => {
     try {
         const userId = (req as any).userId as string;
         const token = req.params.token;
@@ -1494,7 +1494,7 @@ v1.post("/shared/:token/subscribe", ...requireUser([]), async (req, res, next) =
 // ---------------------------------------------------------------------------
 // DELETE /v1/plans/:planId/subscription — Unsubscribe from a plan
 // ---------------------------------------------------------------------------
-v1.delete("/plans/:planId/subscription", ...requireUser([]), async (req, res, next) => {
+v1.delete("/plans/:planId/subscription", ...requireUser(), async (req, res, next) => {
     try {
         const userId = (req as any).userId as string;
         const planId = req.params.planId;
@@ -1522,7 +1522,7 @@ const MembershipPatchSchema = z.object({
     markedDoneAt: z.string().datetime().nullable().optional(),
 });
 
-v1.patch("/plans/:planId/membership", ...requireUser([]), async (req, res, next) => {
+v1.patch("/plans/:planId/membership", ...requireUser(), async (req, res, next) => {
     try {
         const userId = (req as any).userId as string;
         const planId = req.params.planId;
@@ -1547,7 +1547,7 @@ v1.patch("/plans/:planId/membership", ...requireUser([]), async (req, res, next)
 // ---------------------------------------------------------------------------
 // DELETE /v1/plans/:planId/membership — Leave a plan (alias for unsubscribe)
 // ---------------------------------------------------------------------------
-v1.delete("/plans/:planId/membership", ...requireUser([]), async (req, res, next) => {
+v1.delete("/plans/:planId/membership", ...requireUser(), async (req, res, next) => {
     try {
         const userId = (req as any).userId as string;
         const planId = req.params.planId;
@@ -1569,7 +1569,7 @@ v1.delete("/plans/:planId/membership", ...requireUser([]), async (req, res, next
 // ---------------------------------------------------------------------------
 // GET /v1/plans/:planId/activity — Activity feed (discussion, events)
 // ---------------------------------------------------------------------------
-v1.get("/plans/:planId/activity", ...requireUser([]), async (req, res, next) => {
+v1.get("/plans/:planId/activity", ...requireUser(), async (req, res, next) => {
     try {
         const userId = (req as any).userId as string;
         const planId = req.params.planId;
@@ -1634,7 +1634,7 @@ const PostActivitySchema = z.object({
     body: z.string().min(1).max(20000),
 });
 
-v1.post("/plans/:planId/activity", ...requireUser([]), async (req, res, next) => {
+v1.post("/plans/:planId/activity", ...requireUser(), async (req, res, next) => {
     try {
         const userId = (req as any).userId as string;
         const planId = req.params.planId;
