@@ -1,6 +1,6 @@
-import type { Request, Response, NextFunction } from "express";
+import type { Response, NextFunction } from "express";
 import type { PrismaClient } from "@prisma/client";
-import { auth, requiredScopes } from "express-oauth2-jwt-bearer";
+import { auth } from "express-oauth2-jwt-bearer";
 
 export function makeRequireUser(opts: {
     prisma: PrismaClient;
@@ -21,31 +21,25 @@ export function makeRequireUser(opts: {
         return user.id;
     }
 
-    return function requireUser(scopes: string[] = []) {
-        const scopeMw = scopes.length ? (requiredScopes as any)(...scopes) : (_r: any, _s: any, n: any) => n();
-
+    return function requireUser() {
         return [
             async (req: any, res: Response, next: NextFunction) => {
-
-                jwtCheck(req, res, (err) => {
+                jwtCheck(req, res, async (err) => {
                     if (err) return next(err);
-                    scopeMw(req, res, async (err: any) => {
-                        if (err) return next(err);
 
-                        try {
-                            const sub = (req as any).auth?.payload?.sub as string | undefined;
-                            if (!sub) return next({ status: 401, expose: true, message: "missing_sub" });
+                    try {
+                        const sub = (req as any).auth?.payload?.sub as string | undefined;
+                        if (!sub) return next({ status: 401, expose: true, message: "missing_sub" });
 
-                            const userId = await resolveUser(sub);
+                        const userId = await resolveUser(sub);
 
-                            (req as any).authSubject = sub;
-                            (req as any).userId = userId;
+                        (req as any).authSubject = sub;
+                        (req as any).userId = userId;
 
-                            next();
-                        } catch (e) {
-                            next(e);
-                        }
-                    });
+                        next();
+                    } catch (e) {
+                        next(e);
+                    }
                 });
             },
         ];
