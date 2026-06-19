@@ -4,16 +4,27 @@
     "appVersionSource": "remote"
   },
   "build": {
+    "base": {
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://yellowbookv0-production.up.railway.app",
+        "EXPO_PUBLIC_AUTH0_DOMAIN": "dev-k43h3pz7ialt4pnm.us.auth0.com",
+        "EXPO_PUBLIC_AUTH0_CLIENT_ID": "zdtqi23bhy1dCmA3VHIVFEVc3YEpQ3z0",
+        "EXPO_PUBLIC_AUTH0_AUDIENCE": "https://api.yellowbook.dev"
+      }
+    },
     "development": {
+      "extends": "base",
       "developmentClient": true,
       "distribution": "internal",
       "channel": "development"
     },
     "preview": {
+      "extends": "base",
       "distribution": "internal",
       "channel": "preview"
     },
     "production": {
+      "extends": "base",
       "autoIncrement": true,
       "channel": "production"
     }
