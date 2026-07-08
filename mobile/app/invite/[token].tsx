@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator } from "react-native";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -21,9 +21,12 @@ export default function InviteTokenScreen() {
     const acceptInvite = useAcceptConnectionInvite();
     const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
     const [errorMessage, setErrorMessage] = useState("");
+    const attemptedTokenRef = useRef<string | null>(null);
 
     useEffect(() => {
         if (!isAuthenticated || !token) return;
+        if (attemptedTokenRef.current === token) return;
+        attemptedTokenRef.current = token;
 
         acceptInvite.mutate(
             { token },
@@ -56,7 +59,7 @@ export default function InviteTokenScreen() {
                 },
             }
         );
-    }, [acceptInvite, isAuthenticated, queryClient, router, token]);
+    }, [isAuthenticated, token]);
 
     if (!isAuthenticated) {
         return (
