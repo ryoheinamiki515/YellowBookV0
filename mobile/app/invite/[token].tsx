@@ -1,65 +1,17 @@
-import React, { useEffect, useRef, useState } from "react";
+import React from "react";
 import { ActivityIndicator } from "react-native";
-import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { YStack, Text } from "tamagui";
 
 import { useAuth } from "../../src/context/AuthContext";
-import {
-    getListConnectionsQueryKey,
-    useAcceptConnectionInvite,
-} from "../../src/api/generated/connections/connections";
-import { getListPeopleQueryKey } from "../../src/api/generated/people/people";
-import { getProblemDetail } from "../../src/lib/problemDetails";
+import { useAcceptInviteOnce } from "../../src/hooks/useAcceptInviteOnce";
 
 export default function InviteTokenScreen() {
     const { token } = useLocalSearchParams<{ token: string }>();
     const { hasToken: isAuthenticated } = useAuth();
     const router = useRouter();
-    const queryClient = useQueryClient();
-    const acceptInvite = useAcceptConnectionInvite();
-    const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
-    const [errorMessage, setErrorMessage] = useState("");
-    const attemptedTokenRef = useRef<string | null>(null);
-
-    useEffect(() => {
-        if (!isAuthenticated || !token) return;
-        if (attemptedTokenRef.current === token) return;
-        attemptedTokenRef.current = token;
-
-        acceptInvite.mutate(
-            { token },
-            {
-                onSuccess: () => {
-                    void queryClient.invalidateQueries({
-                        queryKey: getListPeopleQueryKey(),
-                    });
-                    void queryClient.invalidateQueries({
-                        queryKey: getListConnectionsQueryKey(),
-                    });
-                    setStatus("success");
-                    setTimeout(() => router.replace("/(main)/connections"), 1500);
-                },
-                onError: (error: any) => {
-                    const detail = getProblemDetail(error);
-                    if (detail.includes("display_name_required")) {
-                        router.replace("/complete-profile");
-                        return;
-                    }
-
-                    setStatus("error");
-                    if (detail.includes("already_connected")) {
-                        setErrorMessage("You're already connected!");
-                    } else if (detail.includes("cannot_accept_own")) {
-                        setErrorMessage("You can't accept your own invite.");
-                    } else {
-                        setErrorMessage("This invite link is invalid or expired.");
-                    }
-                },
-            }
-        );
-    }, [isAuthenticated, token]);
+    const { status, errorMessage } = useAcceptInviteOnce({ token, isAuthenticated });
 
     if (!isAuthenticated) {
         return (
