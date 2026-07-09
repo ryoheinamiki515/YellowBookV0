@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "tsx src/server.ts",
+    "test": "tsx --test \"src/**/*.test.ts\"",
     "build": "prisma generate",
     "start": "prisma migrate deploy && node --import tsx src/server.ts",
     "prisma:studio": "prisma studio"

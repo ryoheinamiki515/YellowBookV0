@@ -24,6 +24,8 @@ import { PlanPatchSchema, toPrismaUpdate, validateTimeSemantics } from "./api/pa
 import { generateToken } from "./api/tokens.js";
 import { mergePeople } from "./personMerge.js";
 import { linkOrCreateLinkedPerson } from "./personLinking.js";
+import { nullIfBlank, requireDisplayName } from "./api/displayName.js";
+import { acceptConnectionInvite } from "./services/connectionInvite.js";
 import { createProfileImageUploadUrl, deleteProfileImage } from "./r2.js";
 import {
     getPlanView,
@@ -312,22 +314,8 @@ const PatchMeSchema = z.object({
     { message: "at_least_one_field_required" }
 );
 
-function nullIfBlank(value: string | null | undefined) {
-    if (value == null) return null;
-    const trimmed = value.trim();
-    return trimmed.length ? trimmed : null;
-}
-
 function toJsonSafe<T>(value: T): T {
     return JSON.parse(JSON.stringify(value)) as T;
-}
-
-function requireDisplayName(value: string | null | undefined) {
-    const displayName = nullIfBlank(value);
-    if (!displayName) {
-        throw { status: 409, expose: true, message: "display_name_required" };
-    }
-    return displayName;
 }
 
 // loadConnectionMapForUser moved to services/planView.ts
@@ -1110,59 +1098,9 @@ v1.post("/connections/invites/:token/accept", ...requireUser(), async (req, res,
         const acceptorId = (req as any).userId as string;
         const token = req.params.token;
 
-        const invite = await prisma.connectionInvite.findUnique({ where: { token } });
+        const result = await acceptConnectionInvite(prisma, { acceptorId, token });
 
-        if (!invite || invite.status !== "PENDING" || invite.expiresAt < new Date()) {
-            return next({ status: 404, expose: true, message: "invite_not_found_or_expired" });
-        }
-
-        if (invite.senderId === acceptorId) {
-            return next({ status: 400, expose: true, message: "cannot_accept_own_invite" });
-        }
-
-        const existing = await prisma.connection.findUnique({
-            where: { userId_targetId: { userId: invite.senderId, targetId: acceptorId } },
-        });
-        if (existing) {
-            return next({ status: 409, expose: true, message: "already_connected" });
-        }
-
-        const [senderUser, acceptorUser] = await Promise.all([
-            prisma.user.findUniqueOrThrow({ where: { id: invite.senderId } }),
-            prisma.user.findUniqueOrThrow({ where: { id: acceptorId } }),
-        ]);
-        const senderDisplayName = requireDisplayName(senderUser.displayName);
-        const acceptorDisplayName = requireDisplayName(acceptorUser.displayName);
-
-        await prisma.$transaction(async (tx) => {
-            // Create bidirectional connections
-            await tx.connection.createMany({
-                data: [
-                    { userId: invite.senderId, targetId: acceptorId },
-                    { userId: acceptorId, targetId: invite.senderId },
-                ],
-            });
-
-            // Link or create Person records in each other's libraries
-            await linkOrCreateLinkedPerson(tx, {
-                ownerId: invite.senderId,
-                linkedUserId: acceptorId,
-                displayName: acceptorDisplayName,
-            });
-            await linkOrCreateLinkedPerson(tx, {
-                ownerId: acceptorId,
-                linkedUserId: invite.senderId,
-                displayName: senderDisplayName,
-            });
-
-            // Mark invite as accepted
-            await tx.connectionInvite.update({
-                where: { id: invite.id },
-                data: { status: "ACCEPTED" },
-            });
-        });
-
-        res.json({ data: { status: "connected" } });
+        res.json({ data: result });
     } catch (e) {
         next(e);
     }
