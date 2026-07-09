@@ -3,29 +3,12 @@ import {
     removeStoredValue,
     writeStoredValue,
 } from "./clientStorage";
+import { getResumablePendingPath, sanitizeInternalPath } from "./internalPath";
+
+export { getResumablePendingPath, sanitizeInternalPath };
 
 const PENDING_PATH_KEY = "pending_post_auth_path";
 const PROFILE_NAME_SUGGESTION_KEY = "profile_name_suggestion";
-
-export function sanitizeInternalPath(path: string | null | undefined): string | null {
-    if (!path) return null;
-
-    const trimmed = path.trim();
-    if (!trimmed.startsWith("/") || trimmed.startsWith("//")) {
-        return null;
-    }
-
-    return trimmed;
-}
-
-export function getResumablePendingPath(path: string | null | undefined): string | null {
-    const normalized = sanitizeInternalPath(path);
-    if (!normalized || normalized === "/login" || normalized === "/complete-profile") {
-        return null;
-    }
-
-    return normalized;
-}
 
 function normalizeProfileNameSuggestion(value: string | null | undefined): string | null {
     if (!value) return null;

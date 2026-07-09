@@ -27,6 +27,7 @@ model User {
   linkedPeople        Person[]           @relation("linkedPeople")
   memberships         PlanMembership[]
   planActivities      PlanActivity[]
+  pushTokens          PushToken[]
 }
 
 model Person {
@@ -173,6 +174,20 @@ model ShareToken {
   revokedAt DateTime?
 
   @@index([planId])
+}
+
+/// A device's push-notification token (Expo push token), owned by a user.
+/// One row per device; `token` is unique so re-registration upserts in place.
+model PushToken {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique @db.VarChar(255)
+  platform  String   @db.VarChar(16)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 enum PlanMemberRole {

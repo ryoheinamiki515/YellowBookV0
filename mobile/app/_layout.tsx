@@ -18,6 +18,7 @@ import { TamaguiProvider, Text, YStack } from "tamagui";
 import { DetailFooterAction } from "../src/components/DetailFooterAction";
 import { AuthProvider, useAuth } from "../src/context/AuthContext";
 import { useMeProfile } from "../src/hooks/useMeProfile";
+import { usePushNotifications } from "../src/hooks/usePushNotifications";
 import { getResumablePendingPath } from "../src/lib/authFlowStorage";
 import { getProblemDetail } from "../src/lib/problemDetails";
 import tamaguiConfig from "../tamagui.config";
@@ -84,6 +85,11 @@ function ProtectedLayout() {
     const router = useRouter();
     const queryClient = useQueryClient();
     const meProfile = useMeProfile();
+
+    usePushNotifications({
+        isAuthenticated: hasToken,
+        isReady: hasToken && meProfile.hasCompletedProfile,
+    });
 
     const currentPath = pathname || "/";
     const isLogin = currentPath === "/login";
