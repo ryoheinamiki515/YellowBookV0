@@ -1,0 +1,39 @@
+name: api-tests
+
+on:
+  pull_request:
+    paths:
+      - "api/**"
+      - ".github/workflows/api-tests.yml"
+  push:
+    branches: [main]
+    paths:
+      - "api/**"
+      - ".github/workflows/api-tests.yml"
+
+concurrency:
+  group: api-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: api/package-lock.json
+
+      - run: npm ci
+
+      # Generate the Prisma client (no DB connection needed) so modules that
+      # import @prisma/client at runtime resolve.
+      - run: npm run build
+
+      - run: npm test
