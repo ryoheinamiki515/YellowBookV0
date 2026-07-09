@@ -84,6 +84,33 @@ describe("usePushNotifications", () => {
         );
     });
 
+    test("retries after a transient registration failure, then succeeds", async () => {
+        jest.useFakeTimers();
+        try {
+            const mutate = jest
+                .fn()
+                .mockImplementationOnce((_a, opts?: { onError?: () => void }) => opts?.onError?.())
+                .mockImplementationOnce((_a, opts?: { onSuccess?: () => void }) => opts?.onSuccess?.());
+            mockUseRegisterPushToken.mockImplementation(() => ({ mutate }));
+            renderHook((props) => usePushNotifications(props), {
+                initialProps: { isAuthenticated: true, isReady: true },
+                wrapper,
+            });
+
+            await flush();
+            expect(mutate).toHaveBeenCalledTimes(1); // first attempt failed → retry scheduled
+
+            await act(async () => {
+                jest.advanceTimersByTime(1000); // attempt-0 backoff elapses
+            });
+            await flush(); // effect re-runs and re-registers
+
+            expect(mutate).toHaveBeenCalledTimes(2);
+        } finally {
+            jest.useRealTimers();
+        }
+    });
+
     test("does not register while unauthenticated", async () => {
         const { mutate } = setup({ isAuthenticated: false, isReady: false });
         await flush();
