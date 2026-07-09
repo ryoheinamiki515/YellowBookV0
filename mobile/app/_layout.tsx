@@ -21,6 +21,7 @@ import { useMeProfile } from "../src/hooks/useMeProfile";
 import { usePushNotifications } from "../src/hooks/usePushNotifications";
 import { getResumablePendingPath } from "../src/lib/authFlowStorage";
 import { getProblemDetail } from "../src/lib/problemDetails";
+import { resumeNavigationTarget } from "../src/lib/protectedNavigation";
 import tamaguiConfig from "../tamagui.config";
 
 const queryClient = new QueryClient();
@@ -136,12 +137,16 @@ function ProtectedLayout() {
             return;
         }
 
-        if (isLogin || isCompleteProfile) {
-            const nextPath = resumablePendingPath ?? "/(main)/plans";
+        const resumeTarget = resumeNavigationTarget({
+            isLogin,
+            isCompleteProfile,
+            resumablePendingPath,
+        });
+        if (resumeTarget) {
             if (pendingPath) {
                 void clearPendingPath();
             }
-            router.replace(nextPath as any);
+            router.replace(resumeTarget as any);
         }
     }, [
         bootstrapError,
