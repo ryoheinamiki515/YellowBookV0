@@ -16,6 +16,7 @@ import { serializePlanActivity } from "./api/serializers/planActivity.js";
 import { serializeBirthday, serializePerson, linkedUserProfileSelect } from "./api/serializers/person.js";
 import { serializeConnection } from "./api/serializers/connection.js";
 import { makeRequireUser } from "./middleware/requireUser.js";
+import { makeLinkPreviewRouter } from "./linkPreviewRouter.js";
 import { planEtag, representationEtag, ifMatchFailed } from "./api/etag.js";
 import { makeWithIdempotency } from "./api/idempotency.js";
 import { decodeCursor, encodeCursor } from "./api/pagination/planCursor.js";
@@ -94,6 +95,15 @@ app.get("/.well-known/assetlinks.json", (_req, res) => {
     ]);
 });
 
+const prisma = new PrismaClient();
+const APP_BASE_URL =
+    process.env.APP_BASE_URL || "https://yellowbookv0-production.up.railway.app";
+
+// Public link-preview landing pages (Open Graph cards for iMessage/Messenger).
+// Mounted before the OpenAPI validator and outside /v1 so it isn't rejected;
+// unauthenticated because the token is the bearer capability.
+app.use(makeLinkPreviewRouter(prisma, APP_BASE_URL));
+
 app.use(
     openapiValidator({
         apiSpec: path.join(process.cwd(), "openapi.yaml"),
@@ -102,8 +112,6 @@ app.use(
     })
 );
 
-const prisma = new PrismaClient();
-
 const requireUser = makeRequireUser({
     prisma,
     issuerBaseURL: process.env.AUTH0_ISSUER_BASE_URL!,
@@ -111,7 +119,6 @@ const requireUser = makeRequireUser({
 });
 
 const withIdempotency = makeWithIdempotency(prisma);
-const APP_BASE_URL = process.env.APP_BASE_URL || "https://yellowbookv0-production.up.railway.app";
 
 const v1 = express.Router();
 app.use("/v1", v1);
