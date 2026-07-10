@@ -99,7 +99,7 @@ export default function ConnectionsScreen() {
                     Alert.alert("Copied!", "Invite link copied to clipboard.");
                 } else {
                     Share.share({
-                        message: `Connect with me on YellowBook! ${url}`,
+                        message: `Connect with me on YellowBook!\n${url}`,
                     });
                 }
             },

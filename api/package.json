@@ -18,6 +18,7 @@
     "@aws-sdk/client-s3": "^3.1018.0",
     "@aws-sdk/s3-request-presigner": "^3.1018.0",
     "@prisma/client": "^5.22.0",
+    "@resvg/resvg-js": "^2.6.2",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
