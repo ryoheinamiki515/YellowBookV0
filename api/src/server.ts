@@ -22,6 +22,11 @@ import { makeWithIdempotency } from "./api/idempotency.js";
 import { decodeCursor, encodeCursor } from "./api/pagination/planCursor.js";
 import { decodeDisplayNameCursor, encodeDisplayNameCursor } from "./api/pagination/planCursor.js";
 import { PlanPatchSchema, toPrismaUpdate, validateTimeSemantics } from "./api/patch/planPatch.js";
+import {
+    PlanParticipantCreateSchema,
+    dedupePlanParticipants,
+    assertPeopleOwned,
+} from "./api/planParticipants.js";
 import { generateToken } from "./api/tokens.js";
 import { mergePeople } from "./personMerge.js";
 import { linkOrCreateLinkedPerson } from "./personLinking.js";
@@ -421,6 +426,7 @@ const CreatePlanSchema = z
         anchorStart: z.string().datetime().nullable().optional(),
         anchorEnd: z.string().datetime().nullable().optional(),
         timezone: z.string().max(64).optional(),
+        participants: z.array(PlanParticipantCreateSchema).optional(),
     })
     .superRefine((data, ctx) => {
         // Run deep constraints
@@ -440,6 +446,15 @@ v1.post(
 
             const ownerId = (req as any).userId;
 
+            const participantsInput = dedupePlanParticipants(data.participants ?? []);
+            await assertPeopleOwned(
+                prisma,
+                ownerId,
+                participantsInput
+                    .map((p) => p.personId)
+                    .filter((id): id is string => !!id)
+            );
+
             const plan = await prisma.socialPlan.create({
                 data: {
                     ownerId,
@@ -452,6 +467,30 @@ v1.post(
                     timezone: data.timezone ?? null,
                     memberships: {
                         create: { userId: ownerId, role: "OWNER", response: "ACCEPTED" },
+                    },
+                    ...(participantsInput.length > 0
+                        ? {
+                              participants: {
+                                  create: participantsInput.map((p) => ({
+                                      personId: p.personId ?? null,
+                                      displayName: p.displayName ?? null,
+                                      isPrimary: p.isPrimary,
+                                  })),
+                              },
+                          }
+                        : {}),
+                },
+                include: {
+                    participants: {
+                        include: {
+                            person: {
+                                select: {
+                                    linkedUserId: true,
+                                    displayName: true,
+                                    linkedUser: { select: { profileImageUrl: true } },
+                                },
+                            },
+                        },
                     },
                 },
             });
@@ -743,14 +782,7 @@ v1.delete("/plans/:planId", ...requireUser(), async (req, res, next) => {
 // ---------------------------------------------------------------------------
 // POST /v1/plans/:planId/participants — Add a participant to a plan
 // ---------------------------------------------------------------------------
-const AddParticipantSchema = z.object({
-    personId: z.string().uuid().nullable().optional(),
-    displayName: z.string().max(120).nullable().optional(),
-    isPrimary: z.boolean().default(false),
-}).refine(
-    (d) => d.personId || d.displayName,
-    { message: "At least one of personId or displayName is required" }
-);
+const AddParticipantSchema = PlanParticipantCreateSchema;
 
 v1.post(
     "/plans/:planId/participants",
@@ -766,12 +798,7 @@ v1.post(
             const data = AddParticipantSchema.parse(req.body);
 
             // If personId provided, verify the person belongs to this user
-            if (data.personId) {
-                const person = await prisma.person.findFirst({
-                    where: { id: data.personId, ownerId },
-                });
-                if (!person) return next({ status: 404, expose: true, message: "person_not_found" });
-            }
+            await assertPeopleOwned(prisma, ownerId, data.personId ? [data.personId] : []);
 
             const [participant] = await prisma.$transaction([
                 prisma.socialPlanParticipant.create({
