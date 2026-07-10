@@ -20,21 +20,29 @@ export type ResumeNavigation = {
  *    cold-started the app while the profile was still loading) → push it so back
  *    returns to the home screen already showing. Without this, a pending path set
  *    outside the login flow is never consumed.
+ *
+ * Returns null once `currentPath` already matches the target. Navigating updates
+ * currentPath before the async clearPendingPath() nulls pendingPath, so the effect
+ * re-runs with the target still pending; without this guard a second push would
+ * stack a duplicate detail route and swallow the first back press.
  */
 export function resumeNavigationTarget({
     isLogin,
     isCompleteProfile,
     resumablePendingPath,
+    currentPath,
 }: {
     isLogin: boolean;
     isCompleteProfile: boolean;
     resumablePendingPath: string | null;
+    currentPath: string;
 }): ResumeNavigation | null {
+    let target: ResumeNavigation | null = null;
     if (isLogin || isCompleteProfile) {
-        return { path: resumablePendingPath ?? DEFAULT_HOME_PATH, mode: "replace" };
+        target = { path: resumablePendingPath ?? DEFAULT_HOME_PATH, mode: "replace" };
+    } else if (resumablePendingPath) {
+        target = { path: resumablePendingPath, mode: "push" };
     }
-    if (resumablePendingPath) {
-        return { path: resumablePendingPath, mode: "push" };
-    }
-    return null;
+
+    return target && target.path === currentPath ? null : target;
 }

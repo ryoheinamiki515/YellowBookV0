@@ -141,6 +141,7 @@ function ProtectedLayout() {
             isLogin,
             isCompleteProfile,
             resumablePendingPath,
+            currentPath,
         });
         if (resume) {
             if (pendingPath) {

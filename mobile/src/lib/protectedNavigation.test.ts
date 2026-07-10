@@ -9,6 +9,7 @@ describe("resumeNavigationTarget", () => {
                 isLogin: true,
                 isCompleteProfile: false,
                 resumablePendingPath: "/plan/abc",
+                currentPath: "/login",
             }),
             { path: "/plan/abc", mode: "replace" }
         );
@@ -20,6 +21,7 @@ describe("resumeNavigationTarget", () => {
                 isLogin: true,
                 isCompleteProfile: false,
                 resumablePendingPath: null,
+                currentPath: "/login",
             }),
             { path: "/(main)/plans", mode: "replace" }
         );
@@ -36,8 +38,25 @@ describe("resumeNavigationTarget", () => {
                 isLogin: false,
                 isCompleteProfile: false,
                 resumablePendingPath: "/plan/xyz",
+                currentPath: "/plans",
             }),
             { path: "/plan/xyz", mode: "push" }
+        );
+    });
+
+    // Regression: navigating updates currentPath before the async clearPendingPath
+    // nulls pendingPath, re-running the effect with the target still pending. Once
+    // we've arrived at the target we must return null, or a second push stacks a
+    // duplicate /plan/... entry and the first back press stays on the detail screen.
+    test("returns null once already at the target so it does not re-navigate", () => {
+        assert.equal(
+            resumeNavigationTarget({
+                isLogin: false,
+                isCompleteProfile: false,
+                resumablePendingPath: "/plan/xyz",
+                currentPath: "/plan/xyz",
+            }),
+            null
         );
     });
 
@@ -47,6 +66,7 @@ describe("resumeNavigationTarget", () => {
                 isLogin: false,
                 isCompleteProfile: false,
                 resumablePendingPath: null,
+                currentPath: "/plans",
             }),
             null
         );
