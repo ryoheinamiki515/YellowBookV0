@@ -131,6 +131,42 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /v1/me/push-tokens:
+    post:
+      tags: [System]
+      summary: Register this device's push notification token
+      operationId: registerPushToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PushTokenRequest"
+      responses:
+        "204":
+          description: Token registered
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /v1/me/push-tokens/{token}:
+    delete:
+      tags: [System]
+      summary: Unregister a device's push notification token
+      operationId: unregisterPushToken
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Token unregistered
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
   /v1/plans:
     get:
       tags: [Plans]
@@ -1480,6 +1516,20 @@ components:
         profileImageUrl:
           type: [string, "null"]
           maxLength: 2048
+
+    PushTokenRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        token:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: The Expo push token for this device
+        platform:
+          type: string
+          enum: [ios, android]
+      required: [token, platform]
 
     ProfileImageUploadResponse:
       type: object

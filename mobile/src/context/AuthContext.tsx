@@ -24,6 +24,7 @@ import {
     saveRefreshToken,
     saveToken,
 } from "../lib/tokenStorage";
+import { unregisterPushTokenForSignOut } from "../lib/pushTokenStorage";
 
 type AuthSessionStatus = "checking" | "authenticated" | "unauthenticated";
 
@@ -118,6 +119,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setSessionStatus("unauthenticated");
 
             try {
+                // Before clearing the session token so this request is still
+                // authenticated; failures are swallowed internally.
+                await unregisterPushTokenForSignOut();
+
                 await Promise.all([
                     removeToken(),
                     removeRefreshToken(),

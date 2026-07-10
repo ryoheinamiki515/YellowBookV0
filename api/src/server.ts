@@ -27,6 +27,7 @@ import { linkOrCreateLinkedPerson } from "./personLinking.js";
 import { nullIfBlank, requireDisplayName } from "./api/displayName.js";
 import { acceptConnectionInvite } from "./services/connectionInvite.js";
 import { createProfileImageUploadUrl, deleteProfileImage } from "./r2.js";
+import { sendPushToUsers } from "./services/pushNotifications.js";
 import {
     getPlanView,
     assertPlanPermission,
@@ -213,6 +214,49 @@ v1.delete("/me/profile-image", ...requireUser(), async (req, res, next) => {
         await prisma.user.update({
             where: { id: userId },
             data: { profileImageUrl: null },
+        });
+        res.status(204).end();
+    } catch (e) {
+        next(e);
+    }
+});
+
+const RegisterPushTokenSchema = z.object({
+    token: z.string().min(1).max(255),
+    platform: z.enum(["ios", "android"]),
+});
+
+// ---------------------------------------------------------------------------
+// POST /v1/me/push-tokens — Register this device's push token for the current user
+// ---------------------------------------------------------------------------
+v1.post("/me/push-tokens", ...requireUser(), async (req, res, next) => {
+    try {
+        const userId = (req as any).userId as string;
+        const { token, platform } = RegisterPushTokenSchema.parse(req.body);
+
+        // Re-registering the same device (token) re-associates it to the current
+        // user — important on a shared device after a sign-out / sign-in.
+        await prisma.pushToken.upsert({
+            where: { token },
+            create: { token, platform, userId },
+            update: { platform, userId },
+        });
+
+        res.status(204).end();
+    } catch (e) {
+        next(e);
+    }
+});
+
+// ---------------------------------------------------------------------------
+// DELETE /v1/me/push-tokens/:token — Unregister a device's push token (on sign-out)
+// ---------------------------------------------------------------------------
+v1.delete("/me/push-tokens/:token", ...requireUser(), async (req, res, next) => {
+    try {
+        const userId = (req as any).userId as string;
+        // deleteMany (scoped to the caller) is idempotent — no 404 if already gone.
+        await prisma.pushToken.deleteMany({
+            where: { token: req.params.token, userId },
         });
         res.status(204).end();
     } catch (e) {
@@ -1210,16 +1254,32 @@ v1.post("/plans/:planId/share", ...requireUser(), async (req, res, next) => {
             .filter((id): id is string => id != null && id !== ownerId);
 
         const subscribedUserIds: string[] = [];
+        const newlyAddedUserIds: string[] = [];
         for (const linkedUserId of linkedUserIds) {
             try {
                 await prisma.planMembership.create({
                     data: { planId, userId: linkedUserId, role: "MEMBER", response: "PENDING" },
                 });
                 subscribedUserIds.push(linkedUserId);
+                newlyAddedUserIds.push(linkedUserId);
             } catch (e: any) {
                 if (e?.code !== "P2002") throw e;
+                // Already a member — re-sharing shouldn't re-notify.
                 subscribedUserIds.push(linkedUserId);
             }
+        }
+
+        if (newlyAddedUserIds.length > 0) {
+            const owner = await prisma.user.findUnique({
+                where: { id: ownerId },
+                select: { displayName: true },
+            });
+            const sharerName = owner?.displayName?.trim() || "Someone";
+            void sendPushToUsers(prisma, newlyAddedUserIds, {
+                title: `${sharerName} shared a plan`,
+                body: plan.intentText,
+                data: { type: "plan_shared", planId },
+            });
         }
 
         res.json({
