@@ -2229,6 +2229,7 @@ export function PlanDetailContent({
                     onStageExistingPerson={handleStageExistingPersonParticipant}
                     onStageNewPerson={handleStageNewPersonParticipant}
                     onRemoveParticipant={handleRemoveParticipantByIdentity}
+                    onAddGroup={handleAddGroupParticipants}
                     disabled={isMutating}
                 />
 
