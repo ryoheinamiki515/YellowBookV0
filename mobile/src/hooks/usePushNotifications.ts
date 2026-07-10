@@ -72,7 +72,7 @@ export function usePushNotifications({
         const path = notificationRouteForData(data);
         if (!path) return;
         if (isReady) {
-            router.replace(path as never);
+            router.push(path as never);
         } else {
             void rememberPendingPath(path);
         }

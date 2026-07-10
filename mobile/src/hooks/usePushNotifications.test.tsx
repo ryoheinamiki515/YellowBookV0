@@ -21,9 +21,10 @@ jest.mock("expo-constants", () => ({
     __esModule: true,
     default: { expoConfig: { extra: { eas: { projectId: "pid" } } } },
 }));
+const mockPush = jest.fn();
 const mockReplace = jest.fn();
 jest.mock("expo-router", () => ({
-    useRouter: () => ({ replace: mockReplace }),
+    useRouter: () => ({ push: mockPush, replace: mockReplace }),
 }));
 const mockRememberPendingPath = jest.fn();
 jest.mock("../context/AuthContext", () => ({
@@ -63,6 +64,7 @@ function setup(initialProps: { isAuthenticated: boolean; isReady: boolean }) {
 
 beforeEach(() => {
     mockUseRegisterPushToken.mockReset();
+    mockPush.mockReset();
     mockReplace.mockReset();
     mockRememberPendingPath.mockReset();
     (invalidatePlanQueries as jest.Mock).mockReset();
@@ -117,7 +119,7 @@ describe("usePushNotifications", () => {
         expect(mutate).not.toHaveBeenCalled();
     });
 
-    test("routes a plan_shared tap to the plan detail screen when ready", async () => {
+    test("pushes a plan_shared tap onto the plan detail screen when ready", async () => {
         setup({ isAuthenticated: true, isReady: true });
         await flush();
 
@@ -131,7 +133,8 @@ describe("usePushNotifications", () => {
             });
         });
 
-        expect(mockReplace).toHaveBeenCalledWith("/plan/plan-1");
+        expect(mockPush).toHaveBeenCalledWith("/plan/plan-1");
+        expect(mockReplace).not.toHaveBeenCalled();
         expect(mockRememberPendingPath).not.toHaveBeenCalled();
     });
 
@@ -150,6 +153,7 @@ describe("usePushNotifications", () => {
         });
 
         expect(mockRememberPendingPath).toHaveBeenCalledWith("/plan/plan-9");
+        expect(mockPush).not.toHaveBeenCalled();
         expect(mockReplace).not.toHaveBeenCalled();
     });
 });

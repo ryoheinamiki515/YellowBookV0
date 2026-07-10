@@ -137,16 +137,20 @@ function ProtectedLayout() {
             return;
         }
 
-        const resumeTarget = resumeNavigationTarget({
+        const resume = resumeNavigationTarget({
             isLogin,
             isCompleteProfile,
             resumablePendingPath,
         });
-        if (resumeTarget) {
+        if (resume) {
             if (pendingPath) {
                 void clearPendingPath();
             }
-            router.replace(resumeTarget as any);
+            if (resume.mode === "push") {
+                router.push(resume.path as any);
+            } else {
+                router.replace(resume.path as any);
+            }
         }
     }, [
         bootstrapError,
