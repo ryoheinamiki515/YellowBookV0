@@ -22,11 +22,18 @@ import { makeWithIdempotency } from "./api/idempotency.js";
 import { decodeCursor, encodeCursor } from "./api/pagination/planCursor.js";
 import { decodeDisplayNameCursor, encodeDisplayNameCursor } from "./api/pagination/planCursor.js";
 import { PlanPatchSchema, toPrismaUpdate, validateTimeSemantics } from "./api/patch/planPatch.js";
+import {
+    PlanParticipantCreateSchema,
+    dedupePlanParticipants,
+    assertPeopleOwned,
+} from "./api/planParticipants.js";
 import { generateToken } from "./api/tokens.js";
 import { mergePeople } from "./personMerge.js";
 import { linkOrCreateLinkedPerson } from "./personLinking.js";
 import { nullIfBlank, requireDisplayName } from "./api/displayName.js";
 import { acceptConnectionInvite } from "./services/connectionInvite.js";
+import { serializeGroup, groupInclude } from "./api/serializers/group.js";
+import { createGroup, addGroupMember, removeGroupMember } from "./services/groups.js";
 import { createProfileImageUploadUrl, deleteProfileImage } from "./r2.js";
 import { sendPushToUsers } from "./services/pushNotifications.js";
 import {
@@ -365,6 +372,9 @@ const PatchMeSchema = z.object({
     { message: "at_least_one_field_required" }
 );
 
+const CreateGroupSchema = z.object({ name: z.string().trim().min(1).max(80) });
+const PatchGroupSchema = z.object({ name: z.string().trim().min(1).max(80).optional() });
+
 function toJsonSafe<T>(value: T): T {
     return JSON.parse(JSON.stringify(value)) as T;
 }
@@ -416,6 +426,7 @@ const CreatePlanSchema = z
         anchorStart: z.string().datetime().nullable().optional(),
         anchorEnd: z.string().datetime().nullable().optional(),
         timezone: z.string().max(64).optional(),
+        participants: z.array(PlanParticipantCreateSchema).optional(),
     })
     .superRefine((data, ctx) => {
         // Run deep constraints
@@ -435,6 +446,15 @@ v1.post(
 
             const ownerId = (req as any).userId;
 
+            const participantsInput = dedupePlanParticipants(data.participants ?? []);
+            await assertPeopleOwned(
+                prisma,
+                ownerId,
+                participantsInput
+                    .map((p) => p.personId)
+                    .filter((id): id is string => !!id)
+            );
+
             const plan = await prisma.socialPlan.create({
                 data: {
                     ownerId,
@@ -447,6 +467,30 @@ v1.post(
                     timezone: data.timezone ?? null,
                     memberships: {
                         create: { userId: ownerId, role: "OWNER", response: "ACCEPTED" },
+                    },
+                    ...(participantsInput.length > 0
+                        ? {
+                              participants: {
+                                  create: participantsInput.map((p) => ({
+                                      personId: p.personId ?? null,
+                                      displayName: p.displayName ?? null,
+                                      isPrimary: p.isPrimary,
+                                  })),
+                              },
+                          }
+                        : {}),
+                },
+                include: {
+                    participants: {
+                        include: {
+                            person: {
+                                select: {
+                                    linkedUserId: true,
+                                    displayName: true,
+                                    linkedUser: { select: { profileImageUrl: true } },
+                                },
+                            },
+                        },
                     },
                 },
             });
@@ -738,14 +782,7 @@ v1.delete("/plans/:planId", ...requireUser(), async (req, res, next) => {
 // ---------------------------------------------------------------------------
 // POST /v1/plans/:planId/participants — Add a participant to a plan
 // ---------------------------------------------------------------------------
-const AddParticipantSchema = z.object({
-    personId: z.string().uuid().nullable().optional(),
-    displayName: z.string().max(120).nullable().optional(),
-    isPrimary: z.boolean().default(false),
-}).refine(
-    (d) => d.personId || d.displayName,
-    { message: "At least one of personId or displayName is required" }
-);
+const AddParticipantSchema = PlanParticipantCreateSchema;
 
 v1.post(
     "/plans/:planId/participants",
@@ -761,12 +798,7 @@ v1.post(
             const data = AddParticipantSchema.parse(req.body);
 
             // If personId provided, verify the person belongs to this user
-            if (data.personId) {
-                const person = await prisma.person.findFirst({
-                    where: { id: data.personId, ownerId },
-                });
-                if (!person) return next({ status: 404, expose: true, message: "person_not_found" });
-            }
+            await assertPeopleOwned(prisma, ownerId, data.personId ? [data.personId] : []);
 
             const [participant] = await prisma.$transaction([
                 prisma.socialPlanParticipant.create({
@@ -1223,6 +1255,137 @@ v1.delete("/connections/:connectionId", ...requireUser(), async (req, res, next)
             });
         });
 
+        res.status(204).end();
+    } catch (e) {
+        next(e);
+    }
+});
+
+// ---------------------------------------------------------------------------
+// GET /v1/groups — List the user's private groups (members inlined)
+// ---------------------------------------------------------------------------
+v1.get("/groups", ...requireUser(), async (req, res, next) => {
+    try {
+        const ownerId = (req as any).userId as string;
+        const groups = await prisma.group.findMany({
+            where: { ownerId },
+            include: groupInclude,
+            orderBy: { name: "asc" },
+        });
+        res.json({ data: groups.map(serializeGroup) });
+    } catch (e) {
+        next(e);
+    }
+});
+
+// ---------------------------------------------------------------------------
+// POST /v1/groups — Create a group
+// ---------------------------------------------------------------------------
+v1.post("/groups", ...requireUser(), async (req, res, next) => {
+    try {
+        const ownerId = (req as any).userId as string;
+        const { name } = CreateGroupSchema.parse(req.body);
+        const group = await createGroup(prisma, { ownerId, name });
+        res.setHeader("Location", `/v1/groups/${group.id}`);
+        res.status(201).json({ data: serializeGroup(group) });
+    } catch (e) {
+        next(e);
+    }
+});
+
+// ---------------------------------------------------------------------------
+// GET /v1/groups/:groupId — Get a single group
+// ---------------------------------------------------------------------------
+v1.get("/groups/:groupId", ...requireUser(), async (req, res, next) => {
+    try {
+        const ownerId = (req as any).userId as string;
+        const group = await prisma.group.findFirst({
+            where: { id: req.params.groupId, ownerId },
+            include: groupInclude,
+        });
+        if (!group) return next({ status: 404, expose: true, message: "not_found" });
+        res.json({ data: serializeGroup(group) });
+    } catch (e) {
+        next(e);
+    }
+});
+
+// ---------------------------------------------------------------------------
+// PATCH /v1/groups/:groupId — Rename a group
+// ---------------------------------------------------------------------------
+v1.patch("/groups/:groupId", ...requireUser(), async (req, res, next) => {
+    try {
+        const ownerId = (req as any).userId as string;
+        const current = await prisma.group.findFirst({
+            where: { id: req.params.groupId, ownerId },
+            include: groupInclude,
+        });
+        if (!current) return next({ status: 404, expose: true, message: "not_found" });
+
+        const patch = PatchGroupSchema.parse(req.body);
+        if (patch.name === undefined) {
+            return res.json({ data: serializeGroup(current) });
+        }
+
+        const dup = await prisma.group.findFirst({
+            where: { ownerId, name: { equals: patch.name, mode: "insensitive" }, NOT: { id: current.id } },
+            select: { id: true },
+        });
+        if (dup) return next({ status: 409, expose: true, message: "group_name_taken" });
+
+        const updated = await prisma.group.update({
+            where: { id: current.id },
+            data: { name: patch.name },
+            include: groupInclude,
+        });
+        res.json({ data: serializeGroup(updated) });
+    } catch (e) {
+        next(e);
+    }
+});
+
+// ---------------------------------------------------------------------------
+// DELETE /v1/groups/:groupId — Delete a group (cascades membership)
+// ---------------------------------------------------------------------------
+v1.delete("/groups/:groupId", ...requireUser(), async (req, res, next) => {
+    try {
+        const ownerId = (req as any).userId as string;
+        const result = await prisma.group.deleteMany({ where: { id: req.params.groupId, ownerId } });
+        if (result.count === 0) return next({ status: 404, expose: true, message: "not_found" });
+        res.status(204).end();
+    } catch (e) {
+        next(e);
+    }
+});
+
+// ---------------------------------------------------------------------------
+// PUT /v1/groups/:groupId/members/:personId — Add a member (idempotent)
+// ---------------------------------------------------------------------------
+v1.put("/groups/:groupId/members/:personId", ...requireUser(), async (req, res, next) => {
+    try {
+        const ownerId = (req as any).userId as string;
+        await addGroupMember(prisma, {
+            ownerId,
+            groupId: req.params.groupId,
+            personId: req.params.personId,
+        });
+        res.status(204).end();
+    } catch (e) {
+        next(e);
+    }
+});
+
+// ---------------------------------------------------------------------------
+// DELETE /v1/groups/:groupId/members/:personId — Remove a member (idempotent)
+// ---------------------------------------------------------------------------
+v1.delete("/groups/:groupId/members/:personId", ...requireUser(), async (req, res, next) => {
+    try {
+        const ownerId = (req as any).userId as string;
+        await removeGroupMember(prisma, {
+            ownerId,
+            groupId: req.params.groupId,
+            personId: req.params.personId,
+        });
         res.status(204).end();
     } catch (e) {
         next(e);

@@ -33,6 +33,8 @@ tags:
     description: Plan sharing and subscriptions
   - name: System
     description: Health and identity
+  - name: Groups
+    description: Private, owner-scoped groups of people for bulk-adding plan participants
 
 security:
   - sessionCookie: []
@@ -1031,6 +1033,136 @@ paths:
         "409":
           $ref: "#/components/responses/Conflict"
 
+  /v1/groups:
+    get:
+      tags: [Groups]
+      summary: List the user's private groups
+      operationId: listGroups
+      responses:
+        "200":
+          description: A list of groups (members inlined)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupListResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    post:
+      tags: [Groups]
+      summary: Create a group
+      operationId: createGroup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroupCreateRequest"
+      responses:
+        "201":
+          description: Created
+          headers:
+            Location:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /v1/groups/{groupId}:
+    parameters:
+      - $ref: "#/components/parameters/GroupId"
+
+    get:
+      tags: [Groups]
+      summary: Get a group
+      operationId: getGroup
+      responses:
+        "200":
+          description: The group
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    patch:
+      tags: [Groups]
+      summary: Rename a group (JSON Merge Patch)
+      operationId: patchGroup
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: "#/components/schemas/GroupPatchRequest"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+    delete:
+      tags: [Groups]
+      summary: Delete a group
+      operationId: deleteGroup
+      responses:
+        "204":
+          description: Group deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1/groups/{groupId}/members/{personId}:
+    parameters:
+      - $ref: "#/components/parameters/GroupId"
+      - $ref: "#/components/parameters/PersonId"
+
+    put:
+      tags: [Groups]
+      summary: Add a person to a group (idempotent)
+      operationId: addGroupMember
+      responses:
+        "204":
+          description: Member added
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    delete:
+      tags: [Groups]
+      summary: Remove a person from a group (idempotent)
+      operationId: deleteGroupMember
+      responses:
+        "204":
+          description: Member removed
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
 components:
   securitySchemes:
     sessionCookie:
@@ -1071,6 +1203,12 @@ components:
         $ref: "#/components/schemas/Uuid"
     PersonId:
       name: personId
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/Uuid"
+    GroupId:
+      name: groupId
       in: path
       required: true
       schema:
@@ -1484,6 +1622,83 @@ components:
           format: date-time
       required: [id, targetUserId, createdAt]
       additionalProperties: false
+
+    GroupMemberRef:
+      type: object
+      additionalProperties: false
+      properties:
+        personId:
+          $ref: "#/components/schemas/Uuid"
+        displayName:
+          type: string
+        profileImageUrl:
+          type: [string, "null"]
+          maxLength: 2048
+      required: [personId, displayName]
+
+    Group:
+      type: object
+      description: |
+        A private, owner-scoped named collection of People (e.g. a "badminton" crew).
+        Never visible to other users.
+      additionalProperties: false
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+        memberCount:
+          type: integer
+        members:
+          type: array
+          items:
+            $ref: "#/components/schemas/GroupMemberRef"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, name, memberCount, members, createdAt, updatedAt]
+
+    GroupResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        data:
+          $ref: "#/components/schemas/Group"
+      required: [data]
+
+    GroupListResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Group"
+      required: [data]
+
+    GroupCreateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
+      required: [name]
+
+    GroupPatchRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 80
 
     # -----------------------
     # Requests
