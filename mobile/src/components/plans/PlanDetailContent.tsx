@@ -19,12 +19,7 @@ import type { CalendarProps, DateData } from "react-native-calendars";
 import { MoreHorizontal } from "lucide-react-native";
 import {
     ActionsBottomSheet,
-    BottomSheetHeader,
-    BottomSheetHeaderAction,
-    BottomSheetListRow,
     BottomSheetModal,
-    BottomSheetSectionLabel,
-    BottomSheetTextField,
 } from "../BottomSheetPrimitives";
 import { EditableText } from "../EditableText";
 import { useConfirm } from "../ConfirmDialog";
@@ -47,10 +42,7 @@ import {
     usePatchPlanMembership,
     getGetShareStatusQueryKey,
 } from "../../api/generated/sharing/sharing";
-import {
-    useListPeople,
-    useCreatePerson,
-} from "../../api/generated/people/people";
+import { useCreatePerson } from "../../api/generated/people/people";
 import type { SocialPlan } from "../../api/generated/model/socialPlan";
 import type { SocialPlanPatchRequest } from "../../api/generated/model/socialPlanPatchRequest";
 import type { SocialPlanTimePrecision } from "../../api/generated/model/socialPlanTimePrecision";
@@ -71,12 +63,12 @@ import {
     invalidatePeopleQueries,
     invalidatePlanQueries,
 } from "../../lib/queryInvalidation";
-
-type PlanPersonIdentity = {
-    personId?: string | null;
-    displayName?: string | null;
-    profileImageUrl?: string | null;
-};
+import { AddPeopleSheet } from "./AddPeopleSheet";
+import {
+    normalizePersonDisplayName,
+    type PlanPersonIdentity,
+} from "../../lib/planParticipants";
+import type { Group } from "../../api/generated/model/group";
 
 type StagedParticipantAdd =
     | {
@@ -100,52 +92,6 @@ type DisplayPlanParticipantChip = {
     displayName: string;
     profileImageUrl?: string | null;
 };
-
-function normalizePersonDisplayName(
-    name: string | null | undefined
-): string | null {
-    const normalized = name?.trim().toLowerCase();
-    return normalized ? normalized : null;
-}
-
-function mergeUniquePlanPeople(
-    ...groups: PlanPersonIdentity[][]
-): PlanPersonIdentity[] {
-    const merged: PlanPersonIdentity[] = [];
-    const seenPersonIds = new Set<string>();
-    const seenDisplayNames = new Set<string>();
-
-    for (const group of groups) {
-        for (const person of group) {
-            const personId = person.personId ?? null;
-            const displayName = person.displayName?.trim() || null;
-            const normalizedDisplayName = normalizePersonDisplayName(displayName);
-
-            if (!personId && !normalizedDisplayName) continue;
-
-            const isDuplicate =
-                (personId ? seenPersonIds.has(personId) : false) ||
-                (normalizedDisplayName
-                    ? seenDisplayNames.has(normalizedDisplayName)
-                    : false);
-
-            if (isDuplicate) continue;
-
-            if (personId) seenPersonIds.add(personId);
-            if (normalizedDisplayName) {
-                seenDisplayNames.add(normalizedDisplayName);
-            }
-
-            merged.push({
-                personId,
-                displayName,
-                profileImageUrl: person.profileImageUrl ?? null,
-            });
-        }
-    }
-
-    return merged;
-}
 
 function getErrorStatusCode(error: unknown): number | null {
     if (!error || typeof error !== "object") return null;
@@ -909,376 +855,6 @@ function WhenSheet({
 }
 
 // ---------------------------------------------------------------------------
-// AddPersonSheet — bottom sheet for adding participants
-// ---------------------------------------------------------------------------
-
-function AddPersonSheet({
-    open,
-    onOpenChange,
-    currentParticipants,
-    onStageExistingPerson,
-    onStageNewPerson,
-    onRemoveParticipant,
-    disabled = false,
-}: {
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-    currentParticipants: PlanPersonIdentity[];
-    onStageExistingPerson: (person: Person) => void;
-    onStageNewPerson: (displayName: string) => void;
-    onRemoveParticipant: (identity: PlanPersonIdentity) => void;
-    disabled?: boolean;
-}) {
-    const [searchText, setSearchText] = useState("");
-    const [debouncedQ, setDebouncedQ] = useState("");
-
-    useEffect(() => {
-        if (!open) {
-            setSearchText("");
-            setDebouncedQ("");
-        }
-    }, [open]);
-
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            setDebouncedQ(searchText.trim());
-        }, 300);
-        return () => clearTimeout(timer);
-    }, [searchText]);
-
-    // Always fetch people — show all when no search, filter when searching
-    const { data: peopleResponse } = useListPeople(
-        debouncedQ ? { q: debouncedQ } : undefined
-    );
-
-    const allPeople: Person[] =
-        peopleResponse?.data && "data" in peopleResponse.data
-            ? (peopleResponse.data as { data: Person[] }).data
-            : [];
-
-    const allPlanPeople = mergeUniquePlanPeople(currentParticipants);
-    const existingPersonIds = new Set(
-        allPlanPeople
-            .map((p) => p.personId)
-            .filter(Boolean) as string[]
-    );
-    const existingDisplayNames = new Set(
-        allPlanPeople
-            .map((p) => normalizePersonDisplayName(p.displayName))
-            .filter(Boolean) as string[]
-    );
-
-    const isPersonOnPlan = useCallback(
-        (person: Person): boolean => {
-            const normalizedName = normalizePersonDisplayName(person.displayName);
-            return (
-                existingPersonIds.has(person.id) ||
-                !!(normalizedName && existingDisplayNames.has(normalizedName))
-            );
-        },
-        [existingPersonIds, existingDisplayNames]
-    );
-
-    const allOnPlan = allPlanPeople.filter(
-        (p): p is { personId?: string | null; displayName: string } =>
-            Boolean(p.displayName)
-    );
-
-    const handleTogglePerson = useCallback(
-        (person: Person) => {
-            if (isPersonOnPlan(person)) {
-                onRemoveParticipant({
-                    personId: person.id,
-                    displayName: person.displayName,
-                });
-            } else {
-                onStageExistingPerson(person);
-            }
-            setSearchText("");
-        },
-        [isPersonOnPlan, onRemoveParticipant, onStageExistingPerson]
-    );
-
-    const handleCreateAndAdd = useCallback(() => {
-        const name = searchText.trim();
-        if (!name) return;
-        onStageNewPerson(name);
-        setSearchText("");
-    }, [searchText, onStageNewPerson]);
-
-    // Check if typed name already exists as a participant or matches an existing person
-    const normalizedSearch = normalizePersonDisplayName(searchText);
-    const nameAlreadyOnPlan = normalizedSearch
-        ? existingDisplayNames.has(normalizedSearch)
-        : false;
-    const exactMatchInLibrary = normalizedSearch
-        ? allPeople.find(
-              (p) =>
-                  normalizePersonDisplayName(p.displayName) === normalizedSearch
-          )
-        : null;
-
-    return (
-        <BottomSheetModal
-            open={open}
-            onOpenChange={onOpenChange}
-            minHeight={300}
-        >
-            <BottomSheetHeader
-                title="Add someone"
-                subtitle="Search your People library or type a new name. Changes save when you tap Save."
-                trailingAction={
-                    <BottomSheetHeaderAction
-                        label="Done"
-                        onPress={() => {
-                            Keyboard.dismiss();
-                            onOpenChange(false);
-                        }}
-                        accessibilityLabel="Done adding people"
-                    />
-                }
-            />
-
-            <BottomSheetTextField
-                placeholder="Search or type a name..."
-                placeholderTextColor="$placeholderColor"
-                value={searchText}
-                onChangeText={setSearchText}
-                autoFocus
-                accessibilityLabel="Search for a person"
-            />
-
-            {/* People already on this plan */}
-            {allOnPlan.length > 0 && (
-                <YStack marginTop="$3">
-                    <BottomSheetSectionLabel>
-                        On this plan
-                    </BottomSheetSectionLabel>
-                    <XStack
-                        flexWrap="wrap"
-                        gap="$1.5"
-                        marginBottom="$1"
-                    >
-                        {allOnPlan.map((person) => {
-                            const name = person.displayName;
-                            const nameKey =
-                                normalizePersonDisplayName(name) || name;
-                            const chipKey = person.personId || `name:${nameKey}`;
-
-                            return (
-                                <Pressable
-                                    key={chipKey}
-                                    onPress={() => onRemoveParticipant(person)}
-                                    disabled={disabled}
-                                    accessibilityRole="button"
-                                    accessibilityLabel={`Remove ${name} from this plan`}
-                                >
-                                    <XStack
-                                        alignItems="center"
-                                        gap="$1.5"
-                                        backgroundColor="$backgroundStrong"
-                                        borderWidth={1}
-                                        borderColor="$borderColorSubtle"
-                                        paddingHorizontal="$2.5"
-                                        paddingVertical="$1"
-                                        borderRadius="$10"
-                                    >
-                                        <Avatar {...avatarProps(person, name)} size={20} />
-                                        <Text
-                                            fontFamily="$body"
-                                            fontSize="$2"
-                                            color="$color"
-                                        >
-                                            {name}
-                                        </Text>
-                                        <View
-                                            width={14}
-                                            height={14}
-                                            borderRadius={7}
-                                            backgroundColor="$colorTertiary"
-                                            justifyContent="center"
-                                            alignItems="center"
-                                        >
-                                            <Text
-                                                fontFamily="$body"
-                                                fontSize={9}
-                                                fontWeight="700"
-                                                color="white"
-                                                lineHeight={11}
-                                            >
-                                                {"×"}
-                                            </Text>
-                                        </View>
-                                    </XStack>
-                                </Pressable>
-                            );
-                        })}
-                    </XStack>
-                </YStack>
-            )}
-
-                <ScrollView
-                    style={{ marginTop: 12, maxHeight: 240 }}
-                    showsVerticalScrollIndicator={false}
-                    keyboardShouldPersistTaps="handled"
-                >
-                    <YStack gap="$2" paddingBottom="$1">
-                        {allPeople.map((person) => {
-                            const onPlan = isPersonOnPlan(person);
-                            return (
-                                <BottomSheetListRow
-                                    key={person.id}
-                                    onPress={() => handleTogglePerson(person)}
-                                    disabled={disabled}
-                                    accessibilityLabel={
-                                        onPlan
-                                            ? `Remove ${person.displayName} from this plan`
-                                            : `Add ${person.displayName} to this plan`
-                                    }
-                                    leading={
-                                        <Avatar {...avatarProps(person)} size={32} />
-                                    }
-                                    title={person.displayName}
-                                    subtitle={
-                                        person.pronouns || person.neighborhood
-                                            ? [person.pronouns, person.neighborhood]
-                                                  .filter(Boolean)
-                                                  .join(" · ")
-                                            : undefined
-                                    }
-                                    trailing={
-                                        onPlan ? (
-                                            <Text
-                                                fontFamily="$body"
-                                                fontSize="$4"
-                                                color="$accentColor"
-                                            >
-                                                {"✓"}
-                                            </Text>
-                                        ) : undefined
-                                    }
-                                />
-                            );
-                        })}
-
-                        {/* "Already on this plan" hint */}
-                        {searchText.trim().length > 0 && nameAlreadyOnPlan && (
-                            <BottomSheetListRow
-                                tone="muted"
-                                title={searchText.trim()}
-                                subtitle="Already on this plan"
-                                leading={
-                                    <View
-                                        width={32}
-                                        height={32}
-                                        borderRadius={16}
-                                        backgroundColor="$surface"
-                                        justifyContent="center"
-                                        alignItems="center"
-                                    >
-                                        <Text
-                                            fontFamily="$body"
-                                            fontSize={13}
-                                            fontWeight="600"
-                                            color="$colorTertiary"
-                                        >
-                                            {searchText.trim().charAt(0).toUpperCase()}
-                                        </Text>
-                                    </View>
-                                }
-                            />
-                        )}
-
-                        {/* Create new person + add to plan */}
-                        {searchText.trim().length > 0 &&
-                            !exactMatchInLibrary &&
-                            !nameAlreadyOnPlan && (
-                            <BottomSheetListRow
-                                onPress={handleCreateAndAdd}
-                                disabled={disabled}
-                                tone="accent"
-                                accessibilityLabel={`Create ${searchText.trim()} and add to this plan`}
-                                leading={
-                                    <View
-                                        width={32}
-                                        height={32}
-                                        borderRadius={16}
-                                        backgroundColor="$accentBackground"
-                                        justifyContent="center"
-                                        alignItems="center"
-                                    >
-                                        <Text
-                                            fontFamily="$heading"
-                                            fontSize="$5"
-                                            color="$accentColor"
-                                        >
-                                            +
-                                        </Text>
-                                    </View>
-                                }
-                                title={
-                                    disabled
-                                        ? "Saving..."
-                                        : `Add "${searchText.trim()}"`
-                                }
-                                subtitle="Will save to your People library and add to this plan when you save"
-                                trailing={
-                                    <XStack
-                                        borderRadius="$10"
-                                        backgroundColor="$backgroundStrong"
-                                        borderWidth={1}
-                                        borderColor="$borderColorSubtle"
-                                        paddingHorizontal="$2.5"
-                                        paddingVertical="$1"
-                                    >
-                                        <Text
-                                            fontFamily="$body"
-                                            fontSize="$2"
-                                            color="$colorSecondary"
-                                            fontWeight="600"
-                                        >
-                                            New
-                                        </Text>
-                                    </XStack>
-                                }
-                            />
-                        )}
-
-                        {/* Empty state when no people exist */}
-                        {allPeople.length === 0 &&
-                            !searchText.trim() && (
-                                <YStack
-                                    padding="$4"
-                                    alignItems="center"
-                                    gap="$1"
-                                    backgroundColor="$backgroundStrong"
-                                    borderRadius="$4"
-                                >
-                                    <Text
-                                        fontFamily="$body"
-                                        fontSize="$3"
-                                        color="$colorTertiary"
-                                        textAlign="center"
-                                    >
-                                        No people in your library yet.
-                                    </Text>
-                                    <Text
-                                        fontFamily="$body"
-                                        fontSize="$3"
-                                        color="$colorTertiary"
-                                        textAlign="center"
-                                    >
-                                        Type a name to create one.
-                                    </Text>
-                                </YStack>
-                            )}
-                    </YStack>
-                </ScrollView>
-        </BottomSheetModal>
-    );
-}
-
-// ---------------------------------------------------------------------------
 // Detail screen
 // ---------------------------------------------------------------------------
 
@@ -1724,7 +1300,7 @@ export function PlanDetailContent({
     }, []);
 
     const handleStageExistingPersonParticipant = useCallback(
-        (person: Person) => {
+        (person: { id: string; displayName: string; profileImageUrl?: string | null }) => {
             const normalizedName = normalizePersonDisplayName(person.displayName);
             const removedMatch = plan?.participants.find(
                 (participant) =>
@@ -1810,6 +1386,19 @@ export function PlanDetailContent({
             });
         },
         [plan, removedParticipantIds, nextParticipantDraftId]
+    );
+
+    const handleAddGroupParticipants = useCallback(
+        (group: Group) => {
+            for (const member of group.members) {
+                handleStageExistingPersonParticipant({
+                    id: member.personId,
+                    displayName: member.displayName,
+                    profileImageUrl: member.profileImageUrl ?? null,
+                });
+            }
+        },
+        [handleStageExistingPersonParticipant]
     );
 
     const handleRemoveParticipantChip = useCallback(
@@ -2614,9 +2203,11 @@ export function PlanDetailContent({
                     planId={id}
                 />
 
-                <AddPersonSheet
+                <AddPeopleSheet
                     open={addPersonSheetOpen}
                     onOpenChange={setAddPersonSheetOpen}
+                    title="Add people"
+                    subtitle="Add individuals or a whole group, then drop anyone you like."
                     currentParticipants={[
                         ...visibleServerParticipants.map((participant) => ({
                             personId: participant.personId,
