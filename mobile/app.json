@@ -65,7 +65,8 @@
       "expo-secure-store",
       "expo-font",
       "expo-notifications",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "./plugins/withIosAppIconSizes"
     ],
     "extra": {
       "router": {},
