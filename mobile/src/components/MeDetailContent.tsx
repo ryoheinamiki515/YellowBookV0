@@ -20,9 +20,9 @@ import {
     usePatchMe,
     useCreateProfileImageUpload,
     useDeleteProfileImage,
-    useDeleteMe,
 } from "../api/generated/system/system";
 import { useMeProfile } from "../hooks/useMeProfile";
+import { useDeleteAccount } from "../hooks/useDeleteAccount";
 import { useAuth } from "../context/AuthContext";
 import { useConfirm } from "./ConfirmDialog";
 import { ProfileFields } from "./ProfileFields";
@@ -54,7 +54,7 @@ export function MeDetailContent({ onClose }: MeDetailContentProps) {
     const patchMe = usePatchMe();
     const createUpload = useCreateProfileImageUpload();
     const deleteImage = useDeleteProfileImage();
-    const deleteMe = useDeleteMe();
+    const { deleteAccount, isDeleting: isDeletingAccount } = useDeleteAccount();
     const { signOut } = useAuth();
 
     const [accountSheetOpen, setAccountSheetOpen] = useState(false);
@@ -190,17 +190,15 @@ export function MeDetailContent({ onClose }: MeDetailContentProps) {
         if (!confirmed) return;
 
         try {
-            await deleteMe.mutateAsync();
             setAccountSheetOpen(false);
-            queryClient.clear();
-            signOut();
+            await deleteAccount();
         } catch {
             Alert.alert(
                 "Couldn't delete account",
                 "Something went wrong. Please try again."
             );
         }
-    }, [confirm, deleteMe, queryClient, signOut]);
+    }, [confirm, deleteAccount]);
 
     // Loading state
     if (isLoading || !me) {
@@ -392,7 +390,7 @@ export function MeDetailContent({ onClose }: MeDetailContentProps) {
                         accessibilityRole="button"
                         accessibilityLabel="Delete account"
                     >
-                        {deleteMe.isPending ? "Deleting account..." : "Delete Account"}
+                        {isDeletingAccount ? "Deleting account..." : "Delete Account"}
                     </Text>
                 </YStack>
             </BottomSheetModal>
