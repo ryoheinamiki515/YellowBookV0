@@ -374,6 +374,94 @@ export const usePatchMe = <TError = BadRequestResponse | UnauthorizedResponse,
       return useMutation(getPatchMeMutationOptions(options), queryClient);
     }
     /**
+ * @summary Permanently delete the current user's account and all of their data
+ */
+export type deleteMeResponse204 = {
+  data: void
+  status: 204
+}
+
+export type deleteMeResponse401 = {
+  data: UnauthorizedResponse
+  status: 401
+}
+
+export type deleteMeResponseSuccess = (deleteMeResponse204) & {
+  headers: Headers;
+};
+export type deleteMeResponseError = (deleteMeResponse401) & {
+  headers: Headers;
+};
+
+export type deleteMeResponse = (deleteMeResponseSuccess | deleteMeResponseError)
+
+export const getDeleteMeUrl = () => {
+
+
+
+
+  return `/v1/me`
+}
+
+export const deleteMe = async ( options?: RequestInit): Promise<deleteMeResponse> => {
+
+  return customFetch<deleteMeResponse>(getDeleteMeUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getDeleteMeMutationOptions = <TError = UnauthorizedResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMe>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteMe>>, TError,void, TContext> => {
+
+const mutationKey = ['deleteMe'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteMe>>, void> = () => {
+
+
+          return  deleteMe(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteMeMutationResult = NonNullable<Awaited<ReturnType<typeof deleteMe>>>
+
+    export type DeleteMeMutationError = UnauthorizedResponse
+
+    /**
+ * @summary Permanently delete the current user's account and all of their data
+ */
+export const useDeleteMe = <TError = UnauthorizedResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteMe>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteMe>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getDeleteMeMutationOptions(options), queryClient);
+    }
+    /**
  * @summary Get a presigned URL to upload a profile image
  */
 export type createProfileImageUploadResponse200 = {
