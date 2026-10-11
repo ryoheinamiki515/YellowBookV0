@@ -22,6 +22,7 @@ import {
     useDeleteProfileImage,
 } from "../api/generated/system/system";
 import { useMeProfile } from "../hooks/useMeProfile";
+import { useDeleteAccount } from "../hooks/useDeleteAccount";
 import { useAuth } from "../context/AuthContext";
 import { useConfirm } from "./ConfirmDialog";
 import { ProfileFields } from "./ProfileFields";
@@ -53,6 +54,7 @@ export function MeDetailContent({ onClose }: MeDetailContentProps) {
     const patchMe = usePatchMe();
     const createUpload = useCreateProfileImageUpload();
     const deleteImage = useDeleteProfileImage();
+    const { deleteAccount, isDeleting: isDeletingAccount } = useDeleteAccount();
     const { signOut } = useAuth();
 
     const [accountSheetOpen, setAccountSheetOpen] = useState(false);
@@ -176,6 +178,27 @@ export function MeDetailContent({ onClose }: MeDetailContentProps) {
             signOut();
         }
     }, [signOut, confirm]);
+
+    const handleDeleteAccount = useCallback(async () => {
+        const confirmed = await confirm({
+            title: "Delete your account?",
+            message:
+                "This permanently deletes your profile, people, plans and connections. It can't be undone.",
+            confirmLabel: "Delete Account",
+            destructive: true,
+        });
+        if (!confirmed) return;
+
+        try {
+            setAccountSheetOpen(false);
+            await deleteAccount();
+        } catch {
+            Alert.alert(
+                "Couldn't delete account",
+                "Something went wrong. Please try again."
+            );
+        }
+    }, [confirm, deleteAccount]);
 
     // Loading state
     if (isLoading || !me) {
@@ -353,6 +376,22 @@ export function MeDetailContent({ onClose }: MeDetailContentProps) {
                         }}
                         accessibilityLabel="Sign out"
                     />
+                    <Text
+                        fontFamily="$body"
+                        fontSize="$3"
+                        color="$destructiveColor"
+                        textAlign="center"
+                        marginTop="$2"
+                        onPress={() => {
+                            void handleDeleteAccount();
+                        }}
+                        pressStyle={{ opacity: 0.7 }}
+                        cursor="pointer"
+                        accessibilityRole="button"
+                        accessibilityLabel="Delete account"
+                    >
+                        {isDeletingAccount ? "Deleting account..." : "Delete Account"}
+                    </Text>
                 </YStack>
             </BottomSheetModal>
         </YStack>

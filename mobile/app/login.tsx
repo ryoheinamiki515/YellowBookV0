@@ -13,6 +13,7 @@ import { useAuth } from "../src/context/AuthContext";
 import { View, Text, YStack, XStack, Spinner } from "tamagui";
 import { PageContainer } from "../src/components/PageContainer";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from "../src/lib/legalLinks";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -441,8 +442,29 @@ export default function LoginScreen() {
                         textAlign="center"
                         lineHeight="$3"
                     >
-                        By continuing, you agree to our Terms of{"\n"}Service
-                        and Privacy Policy.
+                        By continuing, you agree to our{"\n"}
+                        <Text
+                            fontFamily="$body"
+                            fontSize="$2"
+                            color="$colorSecondary"
+                            textDecorationLine="underline"
+                            accessibilityRole="link"
+                            onPress={() => void WebBrowser.openBrowserAsync(TERMS_OF_SERVICE_URL)}
+                        >
+                            Terms of Service
+                        </Text>{" "}
+                        and{" "}
+                        <Text
+                            fontFamily="$body"
+                            fontSize="$2"
+                            color="$colorSecondary"
+                            textDecorationLine="underline"
+                            accessibilityRole="link"
+                            onPress={() => void WebBrowser.openBrowserAsync(PRIVACY_POLICY_URL)}
+                        >
+                            Privacy Policy
+                        </Text>
+                        .
                     </Text>
                 </Animated.View>
             </PageContainer>

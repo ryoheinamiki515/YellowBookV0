@@ -17,6 +17,7 @@ import { serializeBirthday, serializePerson, linkedUserProfileSelect } from "./a
 import { serializeConnection } from "./api/serializers/connection.js";
 import { makeRequireUser } from "./middleware/requireUser.js";
 import { makeLinkPreviewRouter } from "./linkPreviewRouter.js";
+import { makeLegalPagesRouter } from "./legalPages.js";
 import { planEtag, representationEtag, ifMatchFailed } from "./api/etag.js";
 import { makeWithIdempotency } from "./api/idempotency.js";
 import { decodeCursor, encodeCursor } from "./api/pagination/planCursor.js";
@@ -29,6 +30,7 @@ import { nullIfBlank, requireDisplayName } from "./api/displayName.js";
 import { acceptConnectionInvite } from "./services/connectionInvite.js";
 import { createProfileImageUploadUrl, deleteProfileImage } from "./r2.js";
 import { sendPushToUsers } from "./services/pushNotifications.js";
+import { deleteAccount } from "./services/accountDeletion.js";
 import {
     getPlanView,
     assertPlanPermission,
@@ -103,6 +105,7 @@ const APP_BASE_URL =
 // Mounted before the OpenAPI validator and outside /v1 so it isn't rejected;
 // unauthenticated because the token is the bearer capability.
 app.use(makeLinkPreviewRouter(prisma, APP_BASE_URL));
+app.use(makeLegalPagesRouter());
 
 app.use(
     openapiValidator({
@@ -193,6 +196,19 @@ v1.patch("/me", ...requireUser(), async (req, res, next) => {
         res.json({
             data: serializeMe(user, authSubject),
         });
+    } catch (e) {
+        next(e);
+    }
+});
+
+// ---------------------------------------------------------------------------
+// DELETE /v1/me — Permanently delete the current user's account and data
+// ---------------------------------------------------------------------------
+v1.delete("/me", ...requireUser(), async (req, res, next) => {
+    try {
+        const userId = (req as any).userId as string;
+        await deleteAccount(prisma, { userId, deleteProfileImage });
+        res.status(204).end();
     } catch (e) {
         next(e);
     }
