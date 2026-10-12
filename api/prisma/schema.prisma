@@ -28,6 +28,7 @@ model User {
   memberships         PlanMembership[]
   planActivities      PlanActivity[]
   pushTokens          PushToken[]
+  groups              Group[]            @relation("ownerGroups")
 }
 
 model Person {
@@ -52,6 +53,7 @@ model Person {
   archivedAt DateTime?
 
   participants SocialPlanParticipant[]
+  groups       PersonGroup[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -162,6 +164,34 @@ enum ConnectionInviteStatus {
   PENDING
   ACCEPTED
   EXPIRED
+}
+
+/// A private, owner-scoped named collection of People (e.g. a "badminton" crew).
+/// Never visible to other users; used to bulk-add participants when creating a plan.
+model Group {
+  id        String        @id @default(uuid()) @db.Uuid
+  ownerId   String        @db.Uuid
+  owner     User          @relation("ownerGroups", fields: [ownerId], references: [id], onDelete: Cascade)
+  name      String        @db.VarChar(80)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  members   PersonGroup[]
+
+  @@unique([ownerId, name])
+  @@index([ownerId, name])
+}
+
+model PersonGroup {
+  groupId  String @db.Uuid
+  group    Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  personId String @db.Uuid
+  person   Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@id([groupId, personId])
+  @@index([personId])
 }
 
 model ShareToken {

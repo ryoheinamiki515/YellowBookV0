@@ -29,6 +29,7 @@ import {
 import { EditableText } from "./EditableText";
 import { useConfirm } from "./ConfirmDialog";
 import { PersonEventsSection } from "./PersonEventsSection";
+import { PersonGroupsSection } from "./PersonGroupsSection";
 
 import {
     useGetPerson,
@@ -614,6 +615,9 @@ export function PersonDetailContent({
                                 }}
                             />
                         </YStack>
+
+                        {/* Groups */}
+                        <PersonGroupsSection personId={person.id} />
 
                         {/* Metadata */}
                         <YStack

@@ -21,3 +21,7 @@ export function invalidatePlanQueries(queryClient: QueryClient) {
 export function invalidatePeopleQueries(queryClient: QueryClient) {
     return invalidateQueryPrefix(queryClient, "/v1/people");
 }
+
+export function invalidateGroupQueries(queryClient: QueryClient) {
+    return invalidateQueryPrefix(queryClient, "/v1/groups");
+}

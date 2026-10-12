@@ -33,6 +33,7 @@ import { avatarProps } from "../../../src/lib/avatarPerson";
 import { useDesktopResizableSplitView } from "../../../src/hooks/useDesktopResizableSplitView";
 import { useSheetSessionState } from "../../../src/hooks/useSheetSessionState";
 import { ScreenHeader } from "../../../src/components/ScreenHeader";
+import { GroupsPane } from "../../../src/components/GroupsPane";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -523,6 +524,61 @@ function CreatePersonSheet({
 }
 
 // ---------------------------------------------------------------------------
+// People ⇄ Groups toggle
+// ---------------------------------------------------------------------------
+
+function PeopleGroupsToggle({
+    viewMode,
+    onChange,
+}: {
+    viewMode: "people" | "groups";
+    onChange: (mode: "people" | "groups") => void;
+}) {
+    return (
+        <XStack
+            marginHorizontal="$6"
+            marginTop="$2"
+            padding={3}
+            backgroundColor="$backgroundStrong"
+            borderRadius="$6"
+            gap={3}
+        >
+            {(["people", "groups"] as const).map((mode) => {
+                const active = viewMode === mode;
+                return (
+                    <YStack
+                        key={mode}
+                        flex={1}
+                        height={36}
+                        borderRadius="$5"
+                        justifyContent="center"
+                        alignItems="center"
+                        backgroundColor={active ? "$surface" : "transparent"}
+                        onPress={() => onChange(mode)}
+                        pressStyle={{ opacity: 0.85 }}
+                        // @ts-ignore
+                        animation="fast"
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: active }}
+                        accessibilityLabel={mode === "people" ? "People" : "Groups"}
+                        cursor="pointer"
+                    >
+                        <Text
+                            fontFamily="$body"
+                            fontSize="$3"
+                            fontWeight={active ? "700" : "500"}
+                            color={active ? "$color" : "$colorTertiary"}
+                        >
+                            {mode === "people" ? "People" : "Groups"}
+                        </Text>
+                    </YStack>
+                );
+            })}
+        </XStack>
+    );
+}
+
+// ---------------------------------------------------------------------------
 // Screen
 // ---------------------------------------------------------------------------
 
@@ -536,6 +592,7 @@ export default function PeopleScreen() {
     const keyboardAppearance = useNativeKeyboardAppearance();
 
     const [sheetOpen, setSheetOpen] = useState(false);
+    const [viewMode, setViewMode] = useState<"people" | "groups">("people");
     const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
     const [searchText, setSearchText] = useState("");
     const [debouncedQ, setDebouncedQ] = useState("");
@@ -649,43 +706,51 @@ export default function PeopleScreen() {
                         zIndex: 1,
                     }}
                 >
-                    {countLabel ? (
-                        <YStack paddingHorizontal="$6" paddingTop="$2">
-                            <Text
-                                fontFamily="$body"
-                                fontSize="$2"
-                                color="$colorTertiary"
-                            >
-                                {countLabel}
-                            </Text>
-                        </YStack>
-                    ) : null}
+                    <PeopleGroupsToggle viewMode={viewMode} onChange={setViewMode} />
 
-                    <YStack paddingHorizontal="$6" paddingTop="$2" paddingBottom="$3">
-                        <Input
-                            fontFamily="$body"
-                            fontSize="$4"
-                            color="$color"
-                            backgroundColor="$backgroundStrong"
-                            borderColor="$borderColorSubtle"
-                            borderWidth={1}
-                            borderRadius="$5"
-                            paddingHorizontal="$4"
-                            paddingVertical="$2.5"
-                            placeholder="Search people..."
-                            placeholderTextColor="$placeholderColor"
-                            value={searchText}
-                            onChangeText={setSearchText}
-                            keyboardAppearance={keyboardAppearance}
-                            focusStyle={{
-                                borderColor: "$borderColorFocus",
-                                borderWidth: 2,
-                            }}
-                            accessibilityLabel="Search people"
-                        />
-                    </YStack>
+                    {viewMode === "people" && (
+                        <>
+                            {countLabel ? (
+                                <YStack paddingHorizontal="$6" paddingTop="$2">
+                                    <Text
+                                        fontFamily="$body"
+                                        fontSize="$2"
+                                        color="$colorTertiary"
+                                    >
+                                        {countLabel}
+                                    </Text>
+                                </YStack>
+                            ) : null}
+
+                            <YStack paddingHorizontal="$6" paddingTop="$2" paddingBottom="$3">
+                                <Input
+                                    fontFamily="$body"
+                                    fontSize="$4"
+                                    color="$color"
+                                    backgroundColor="$backgroundStrong"
+                                    borderColor="$borderColorSubtle"
+                                    borderWidth={1}
+                                    borderRadius="$5"
+                                    paddingHorizontal="$4"
+                                    paddingVertical="$2.5"
+                                    placeholder="Search people..."
+                                    placeholderTextColor="$placeholderColor"
+                                    value={searchText}
+                                    onChangeText={setSearchText}
+                                    keyboardAppearance={keyboardAppearance}
+                                    focusStyle={{
+                                        borderColor: "$borderColorFocus",
+                                        borderWidth: 2,
+                                    }}
+                                    accessibilityLabel="Search people"
+                                />
+                            </YStack>
+                        </>
+                    )}
                 </Animated.View>
 
+                {viewMode === "people" ? (
+                  <>
                 {/* ---- Content ---- */}
                 {isLoading ? (
                     <SkeletonCards />
@@ -801,6 +866,12 @@ export default function PeopleScreen() {
                     onOpenChange={setSheetOpen}
                     onCreated={handleCreated}
                 />
+                  </>
+                ) : (
+                    <GroupsPane
+                        onOpenGroup={(groupId) => router.push(`/group/${groupId}`)}
+                    />
+                )}
 
             </>
     );
