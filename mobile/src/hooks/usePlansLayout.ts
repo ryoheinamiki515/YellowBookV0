@@ -4,7 +4,7 @@ import { readStoredValue, writeStoredValue } from "../lib/clientStorage";
 
 export type PlansLayout = "list" | "calendar";
 
-const PLANS_LAYOUT_STORAGE_KEY = "plans.layout";
+const PLANS_LAYOUT_STORAGE_KEY = "plans_layout";
 
 function isPlansLayout(value: string | null): value is PlansLayout {
     return value === "list" || value === "calendar";

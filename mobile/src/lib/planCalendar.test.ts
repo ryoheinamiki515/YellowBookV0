@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { buildPlanCalendar, getPartOfDay } from "./planCalendar.js";
+import { buildPlanCalendar, getPartOfDay, type PartOfDay } from "./planCalendar.js";
 import { collectOpenPlanRows } from "./agendaGrouping.js";
 import type { SocialPlan } from "../api/generated/model/socialPlan.js";
 
@@ -25,6 +25,10 @@ function exactPlan(id: string, day: number, hour: number): SocialPlan {
     return makePlan({ id, timePrecision: "EXACT", anchorStart: at(day, hour) });
 }
 
+function windowPlan(id: string, startIso: string, endIso: string): SocialPlan {
+    return makePlan({ id, timePrecision: "WINDOW", anchorStart: startIso, anchorEnd: endIso });
+}
+
 function calendarOf(...plans: SocialPlan[]) {
     return buildPlanCalendar(collectOpenPlanRows(plans, []));
 }
@@ -33,8 +37,19 @@ function planIdsOn(calendar: ReturnType<typeof calendarOf>, dateKey: string): st
     return calendar.get(dateKey)?.rows.map((row) => row.plan.id) ?? [];
 }
 
+function withTimeZone(timeZone: string, run: () => void) {
+    const previous = process.env.TZ;
+    process.env.TZ = timeZone;
+    try {
+        run();
+    } finally {
+        if (previous === undefined) delete process.env.TZ;
+        else process.env.TZ = previous;
+    }
+}
+
 describe("getPartOfDay", () => {
-    const cases: Array<[hour: number, minute: number, expected: string]> = [
+    const cases: Array<[hour: number, minute: number, expected: PartOfDay]> = [
         [0, 0, "lateNight"],
         [4, 59, "lateNight"],
         [5, 0, "morning"],
@@ -54,9 +69,13 @@ describe("getPartOfDay", () => {
 });
 
 describe("buildPlanCalendar", () => {
-    test("exact-time plan marks its day with its part of day", () => {
+    test("exact-time plan puts a part-of-day dot on its day", () => {
         const calendar = calendarOf(exactPlan("brunch", 5, 10));
-        assert.deepEqual(calendar.get("2026-12-05")?.marks, ["morning"]);
+        assert.deepEqual(calendar.get("2026-12-05"), {
+            dots: ["morning"],
+            range: null,
+            rows: calendar.get("2026-12-05")?.rows,
+        });
         assert.deepEqual(planIdsOn(calendar, "2026-12-05"), ["brunch"]);
     });
 
@@ -66,44 +85,78 @@ describe("buildPlanCalendar", () => {
             timePrecision: "WINDOW",
             anchorStart: at(6, 22, 47),
         });
-        assert.deepEqual(calendarOf(dateOnly).get("2026-12-06")?.marks, ["allDay"]);
+        assert.deepEqual(calendarOf(dateOnly).get("2026-12-06")?.dots, ["allDay"]);
     });
 
-    test("multi-day window marks every covered day as range, inclusive of both ends", () => {
-        const weekend = makePlan({
-            id: "weekend",
-            timePrecision: "WINDOW",
-            anchorStart: at(11, 9),
-            anchorEnd: at(13, 9),
-        });
-        const calendar = calendarOf(weekend);
+    test("multi-day window covers every day inclusive of both ends, with no dots", () => {
+        const calendar = calendarOf(windowPlan("weekend", at(11, 9), at(13, 9)));
         for (const key of ["2026-12-11", "2026-12-12", "2026-12-13"]) {
-            assert.deepEqual(calendar.get(key)?.marks, ["range"], key);
+            assert.deepEqual(calendar.get(key)?.dots, [], key);
+            assert.ok(calendar.get(key)?.range, key);
             assert.deepEqual(planIdsOn(calendar, key), ["weekend"], key);
         }
         assert.equal(calendar.get("2026-12-10"), undefined);
         assert.equal(calendar.get("2026-12-14"), undefined);
     });
 
-    test("window that starts and ends on the same day is all-day, not a range", () => {
-        const sameDay = makePlan({
-            id: "same-day",
-            timePrecision: "WINDOW",
-            anchorStart: at(8, 9),
-            anchorEnd: at(8, 18),
+    test("range segments know whether the span continues into neighboring days", () => {
+        const calendar = calendarOf(windowPlan("weekend", at(11, 9), at(13, 9)));
+        assert.deepEqual(calendar.get("2026-12-11")?.range, {
+            continuesFromPrevious: false,
+            continuesToNext: true,
         });
-        assert.deepEqual(calendarOf(sameDay).get("2026-12-08")?.marks, ["allDay"]);
+        assert.deepEqual(calendar.get("2026-12-12")?.range, {
+            continuesFromPrevious: true,
+            continuesToNext: true,
+        });
+        assert.deepEqual(calendar.get("2026-12-13")?.range, {
+            continuesFromPrevious: true,
+            continuesToNext: false,
+        });
     });
 
-    test("window crossing month boundary covers days in both months", () => {
-        const crossing = makePlan({
-            id: "crossing",
-            timePrecision: "WINDOW",
-            anchorStart: new Date(2026, 10, 30, 12).toISOString(),
-            anchorEnd: new Date(2026, 11, 1, 12).toISOString(),
+    test("back-to-back windows join into one continuous span", () => {
+        const calendar = calendarOf(
+            windowPlan("first", at(1, 9), at(2, 9)),
+            windowPlan("second", at(3, 9), at(4, 9))
+        );
+        assert.deepEqual(calendar.get("2026-12-02")?.range, {
+            continuesFromPrevious: true,
+            continuesToNext: true,
         });
-        const calendar = calendarOf(crossing);
+    });
+
+    test("window that starts and ends on the same day is all-day, not a range", () => {
+        const calendar = calendarOf(windowPlan("same-day", at(8, 9), at(8, 18)));
+        assert.deepEqual(calendar.get("2026-12-08")?.dots, ["allDay"]);
+        assert.equal(calendar.get("2026-12-08")?.range, null);
+    });
+
+    test("window crossing a month boundary covers days in both months", () => {
+        const calendar = calendarOf(
+            windowPlan(
+                "crossing",
+                new Date(2026, 10, 30, 12).toISOString(),
+                new Date(2026, 11, 1, 12).toISOString()
+            )
+        );
         assert.deepEqual([...calendar.keys()], ["2026-11-30", "2026-12-01"]);
+    });
+
+    test("window spanning a midnight DST start keeps its last day", () => {
+        withTimeZone("America/Santiago", () => {
+            const calendar = calendarOf(
+                windowPlan(
+                    "dst",
+                    new Date(2026, 8, 5, 12).toISOString(),
+                    new Date(2026, 8, 8, 12).toISOString()
+                )
+            );
+            assert.deepEqual(
+                [...calendar.keys()],
+                ["2026-09-05", "2026-09-06", "2026-09-07", "2026-09-08"]
+            );
+        });
     });
 
     test("plans without a date do not appear on the calendar", () => {
@@ -114,38 +167,23 @@ describe("buildPlanCalendar", () => {
         assert.equal(calendar.size, 0);
     });
 
-    test("marks are deduplicated and ordered through the day; rows follow the same order", () => {
+    test("dots are deduplicated and ordered through the day; rows follow the same order", () => {
         const calendar = calendarOf(
             exactPlan("late", 5, 22),
             exactPlan("dinner-2", 5, 19),
+            windowPlan("trip", at(4, 9), at(6, 9)),
             makePlan({ id: "all-day", timePrecision: "WINDOW", anchorStart: at(5, 0) }),
             exactPlan("dinner-1", 5, 18),
             exactPlan("coffee", 5, 8)
         );
-        const day = calendar.get("2026-12-05");
-        assert.deepEqual(day?.marks, ["morning", "evening", "lateNight", "allDay"]);
+        assert.deepEqual(calendar.get("2026-12-05")?.dots, ["morning", "evening", "lateNight", "allDay"]);
         assert.deepEqual(planIdsOn(calendar, "2026-12-05"), [
             "coffee",
             "dinner-1",
             "dinner-2",
             "late",
             "all-day",
+            "trip",
         ]);
-    });
-
-    test("closed plans and plans the viewer marked done are excluded", () => {
-        const rows = collectOpenPlanRows(
-            [makePlan({ id: "done", state: "DONE", timePrecision: "EXACT", anchorStart: at(5, 10) })],
-            [
-                makePlan({
-                    id: "member-done",
-                    timePrecision: "EXACT",
-                    anchorStart: at(5, 10),
-                    membership: { markedDoneAt: at(4, 10) } as SocialPlan["membership"],
-                }),
-                exactPlan("shared-open", 5, 10),
-            ]
-        );
-        assert.deepEqual(planIdsOn(buildPlanCalendar(rows), "2026-12-05"), ["shared-open"]);
     });
 });

@@ -54,7 +54,7 @@ describe("usePlansLayout", () => {
         act(() => result.current[1]("calendar"));
 
         expect(result.current[0]).toBe("calendar");
-        expect(mockWriteStoredValue).toHaveBeenCalledWith("plans.layout", "calendar");
+        expect(mockWriteStoredValue).toHaveBeenCalledWith("plans_layout", "calendar");
     });
 
     test("a choice made before the stored value loads is not overwritten by it", async () => {

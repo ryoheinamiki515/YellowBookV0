@@ -6,6 +6,11 @@ export function toLocalDateKey(date: Date): string {
     return `${y}-${m}-${d}`;
 }
 
-export function isoToLocalDateKey(iso: string): string {
-    return toLocalDateKey(new Date(iso));
+export function dateFromLocalDateKey(dateKey: string, offsetDays = 0): Date {
+    const [y, m, d] = dateKey.split("-").map(Number);
+    return new Date(y, m - 1, d + offsetDays);
+}
+
+export function startOfLocalDay(date: Date): Date {
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }

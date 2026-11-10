@@ -7,7 +7,7 @@ import {
     type PlanQuickActionKind,
 } from "./planListDerivations";
 import { fromPlan, getDateKey } from "./planWhen";
-import { toLocalDateKey } from "./dateKey";
+import { dateFromLocalDateKey, startOfLocalDay, toLocalDateKey } from "./dateKey";
 
 export type AgendaPlanRowData = {
     plan: SocialPlan;
@@ -24,11 +24,9 @@ export type AgendaSection = {
     data: AgendaPlanRowData[];
 };
 
-
 function getDayLabel(dateKey: string, today: Date): string {
-    const [y, m, d] = dateKey.split("-").map(Number);
-    const target = new Date(y, m - 1, d);
-    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const target = dateFromLocalDateKey(dateKey);
+    const todayStart = startOfLocalDay(today);
     const diffMs = target.getTime() - todayStart.getTime();
     const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
 

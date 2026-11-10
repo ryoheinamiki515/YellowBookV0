@@ -1,6 +1,6 @@
 import type { SocialPlan } from "../api/generated/model/socialPlan";
 import type { SocialPlanTimePrecision } from "../api/generated/model/socialPlanTimePrecision";
-import { isoToLocalDateKey } from "./dateKey";
+import { toLocalDateKey } from "./dateKey";
 
 // ---------------------------------------------------------------------------
 // PlanWhen — discriminated union modelling user intent for "when"
@@ -107,7 +107,7 @@ export function getStartAnchor(when: PlanWhen): string | null {
 export function getDateKey(when: PlanWhen): string | null {
     const iso = getStartAnchor(when);
     if (!iso) return null;
-    return isoToLocalDateKey(iso);
+    return toLocalDateKey(new Date(iso));
 }
 
 export function isBeforeToday(when: PlanWhen): boolean {
