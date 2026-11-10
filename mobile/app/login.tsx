@@ -9,6 +9,10 @@ import {
 } from "react-native";
 import { useAuthRequest, makeRedirectUri, ResponseType } from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
+import { useLocalSearchParams } from "expo-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { devAccessTokenFor } from "../src/auth/devStack";
+import { DEV_STACK_API_URL } from "../src/auth/devStackEnv";
 import { useAuth } from "../src/context/AuthContext";
 import { View, Text, YStack, XStack, Spinner } from "tamagui";
 import { PageContainer } from "../src/components/PageContainer";
@@ -139,8 +143,24 @@ function useStaggeredEntrance(count: number, baseDelay = 80) {
 // Screen
 // ---------------------------------------------------------------------------
 
+/** On the simulator test stack, signs in from `yellowbook://login?devUser=<name>`; see src/auth/devStack. */
+function useDevSignInLink() {
+    const { signIn } = useAuth();
+    const queryClient = useQueryClient();
+    const { devUser } = useLocalSearchParams<{ devUser?: string }>();
+
+    useEffect(() => {
+        const accessToken = DEV_STACK_API_URL ? devAccessTokenFor(devUser) : null;
+        if (!accessToken) return;
+        // Switching dev users must not show the previous user's cached data.
+        queryClient.clear();
+        void signIn({ accessToken });
+    }, [devUser, queryClient, signIn]);
+}
+
 export default function LoginScreen() {
     const { signIn } = useAuth();
+    useDevSignInLink();
     const [isExchanging, setIsExchanging] = useState(false);
     const isWeb = Platform.OS === "web";
 

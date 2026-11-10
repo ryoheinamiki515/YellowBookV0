@@ -83,6 +83,19 @@ Set `EXPO_PUBLIC_API_BASE_URL` to where your API is reachable:
 - Android emulator: `http://10.0.2.2:3000`
 - Physical device: `http://<your-computer-lan-ip>:3000`
 
+## Simulator test stack (seeded data, no Auth0)
+
+For testing on the iOS simulator against local data without signing in:
+
+```bash
+scripts/sim/sim.sh up      # Postgres, API on :3100 with DEV_AUTH=1, Metro on :8091, "YB Agent" simulator
+scripts/sim/sim.sh seed    # reset dev users alice/bob/casey and their plans
+scripts/sim/sim.sh launch  # build if native code changed, launch, sign in as alice
+scripts/sim/sim.sh flow plans-smoke.yaml   # run a Maestro flow (mobile/.maestro)
+```
+
+It runs alongside the normal setup below without touching it. Details are in `.claude/skills/ios-sim/SKILL.md`. Maestro is required: `brew tap mobile-dev-inc/tap && brew install mobile-dev-inc/tap/maestro`.
+
 ## Recommended terminal layout
 
 - Terminal 1: DB (`docker compose up -d db`)

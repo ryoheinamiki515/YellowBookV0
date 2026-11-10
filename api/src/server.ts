@@ -15,7 +15,9 @@ import {
 import { serializePlanActivity } from "./api/serializers/planActivity.js";
 import { serializeBirthday, serializePerson, linkedUserProfileSelect } from "./api/serializers/person.js";
 import { serializeConnection } from "./api/serializers/connection.js";
+import { auth as auth0JwtCheck } from "express-oauth2-jwt-bearer";
 import { makeRequireUser } from "./middleware/requireUser.js";
+import { assertDevAuthAllowed, devAuthenticate, isDevAuthEnabled } from "./middleware/devAuth.js";
 import { makeLinkPreviewRouter } from "./linkPreviewRouter.js";
 import { makeLegalPagesRouter } from "./legalPages.js";
 import { planEtag, representationEtag, ifMatchFailed } from "./api/etag.js";
@@ -115,10 +117,19 @@ app.use(
     })
 );
 
+assertDevAuthAllowed(process.env);
+if (isDevAuthEnabled(process.env)) {
+    console.warn("DEV_AUTH=1: accepting dev tokens (Bearer dev:<name>) instead of Auth0. Local testing only.");
+}
+
 const requireUser = makeRequireUser({
     prisma,
-    issuerBaseURL: process.env.AUTH0_ISSUER_BASE_URL!,
-    audience: process.env.AUTH0_AUDIENCE!,
+    authenticate: isDevAuthEnabled(process.env)
+        ? devAuthenticate
+        : auth0JwtCheck({
+              issuerBaseURL: process.env.AUTH0_ISSUER_BASE_URL!,
+              audience: process.env.AUTH0_AUDIENCE!,
+          }),
 });
 
 const withIdempotency = makeWithIdempotency(prisma);

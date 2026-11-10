@@ -1,0 +1,7 @@
+# Opens ${LINK} and accepts iOS's "Open in “YellowBook”?" prompt, which appears after a short delay.
+appId: dev.yellowbook.mobile
+---
+- openLink: ${LINK}
+- tapOn:
+    text: "Open"
+    optional: true

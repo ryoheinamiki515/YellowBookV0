@@ -1,0 +1,21 @@
+# Smoke test for the seeded alice account: Plans list loads, a plan opens, back returns.
+# Run: scripts/sim/sim.sh seed && scripts/sim/sim.sh launch && scripts/sim/sim.sh flow plans-smoke.yaml
+appId: dev.yellowbook.mobile
+---
+- extendedWaitUntil:
+    visible: "Coffee with Bob"
+    timeout: 15000
+- takeScreenshot: plans-list
+- waitForAnimationToEnd
+- retry: # the first tap right after launch can land before the list is interactive
+    maxRetries: 1
+    commands:
+      - tapOn: "Coffee with Bob"
+      - extendedWaitUntil:
+          visible: "Mark Done"
+          timeout: 10000
+- takeScreenshot: plan-detail
+- tapOn: "Go back"
+- extendedWaitUntil:
+    visible: "Dinner at the ramen spot"
+    timeout: 10000
