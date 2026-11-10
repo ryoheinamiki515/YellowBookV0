@@ -37,12 +37,16 @@ import { planLifecycleText } from "../../../src/lib/planFormatters";
 import { invalidatePlanQueries } from "../../../src/lib/queryInvalidation";
 import {
     buildAgendaSections,
+    collectOpenPlanRows,
     type AgendaSection,
     type AgendaPlanRowData,
 } from "../../../src/lib/agendaGrouping";
 import { useKeyboardShortcut } from "../../../src/hooks/useKeyboardShortcut";
 import { useDesktopResizableSplitView } from "../../../src/hooks/useDesktopResizableSplitView";
 import { useRefreshOnVisible } from "../../../src/hooks/useRefreshOnVisible";
+import { usePlansLayout, type PlansLayout } from "../../../src/hooks/usePlansLayout";
+import { PlanCalendarView } from "../../../src/components/plans/PlanCalendarView";
+import { PlansLayoutToggle } from "../../../src/components/plans/PlansLayoutToggle";
 
 type PlanDetailFocusTarget = "when" | "people";
 
@@ -63,6 +67,7 @@ export default function PlansScreen() {
     const reducedMotion = useReducedMotionPreference();
 
     const [viewMode, setViewMode] = useState<"open" | "done">("open");
+    const [layout, setLayout] = usePlansLayout();
     const [sheetOpen, setSheetOpen] = useState(false);
     const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
     const [selectedPlanFocus, setSelectedPlanFocus] = useState<PlanDetailFocusTarget | undefined>(undefined);
@@ -144,6 +149,19 @@ export default function PlansScreen() {
         if (viewMode !== "open") return [];
         return buildAgendaSections(plans, subscribedPlans);
     }, [plans, subscribedPlans, viewMode]);
+
+    const openPlanRows = useMemo<AgendaPlanRowData[]>(
+        () => collectOpenPlanRows(plans, subscribedPlans),
+        [plans, subscribedPlans]
+    );
+
+    const handleLayoutChange = useCallback(
+        (next: PlansLayout) => {
+            if (next === "calendar") setViewMode("open");
+            setLayout(next);
+        },
+        [setLayout]
+    );
 
     const handleRefresh = useCallback(() => {
         void refreshPlans();
@@ -366,7 +384,9 @@ export default function PlansScreen() {
             paddingHorizontal="$5"
             paddingVertical="$2"
             alignItems="center"
+            justifyContent="space-between"
         >
+            {layout === "list" ? (
             <View
                 backgroundColor="$backgroundStrong"
                 paddingHorizontal={10}
@@ -389,6 +409,10 @@ export default function PlansScreen() {
                     {viewMode === "open" ? "Show completed" : "Show upcoming"}
                 </Text>
             </View>
+            ) : (
+                <View />
+            )}
+            <PlansLayoutToggle layout={layout} onChange={handleLayoutChange} />
         </XStack>
     );
 
@@ -416,6 +440,15 @@ export default function PlansScreen() {
                         Something went wrong.{"\n"}{Platform.OS === "web" ? "Try again." : "Pull down to try again."}
                     </Text>
                 </YStack>
+            ) : layout === "calendar" ? (
+                <View flex={1} position="relative">
+                    <PlanCalendarView
+                        rows={openPlanRows}
+                        onOpenPlan={handleOpenPlan}
+                        reducedMotion={reducedMotion}
+                    />
+                    <FloatingActionButton onPress={() => setSheetOpen(true)} />
+                </View>
             ) : viewMode === "done" ? (
                 allDonePlans.length === 0 ? (
                     <YStack flex={1} justifyContent="center" alignItems="center" paddingHorizontal="$8">

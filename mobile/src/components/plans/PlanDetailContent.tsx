@@ -57,6 +57,7 @@ import type { SocialPlanTimePrecision } from "../../api/generated/model/socialPl
 import type { Person } from "../../api/generated/model/person";
 import { PlanMemberResponse } from "../../api/generated/model/planMemberResponse";
 import { useReducedMotionPreference } from "../../lib/planHelpers";
+import { toLocalDateKey } from "../../lib/dateKey";
 import { Avatar } from "../Avatar";
 import { avatarProps } from "../../lib/avatarPerson";
 import { getSharedPeopleForDisplay } from "../../lib/sharedPeople";
@@ -323,14 +324,6 @@ function compareDateOnly(a: Date, b: Date): number {
     return normalizeDateOnly(a).getTime() - normalizeDateOnly(b).getTime();
 }
 
-function toCalendarDateKey(date: Date): string {
-    const local = normalizeDateOnly(date);
-    const year = local.getFullYear();
-    const month = `${local.getMonth() + 1}`.padStart(2, "0");
-    const day = `${local.getDate()}`.padStart(2, "0");
-    return `${year}-${month}-${day}`;
-}
-
 function dateFromCalendarPress(day: DateData): Date {
     return new Date(day.year, day.month - 1, day.day);
 }
@@ -345,7 +338,7 @@ function buildWindowRangeMarkedDates(
     const cursor = new Date(start);
 
     while (cursor <= end) {
-        const key = toCalendarDateKey(cursor);
+        const key = toLocalDateKey(cursor);
         const isStart = compareDateOnly(cursor, start) === 0;
         const isEnd = compareDateOnly(cursor, end) === 0;
 
@@ -479,7 +472,7 @@ function WindowRangeCalendarSelector({
                 padding="$2.5"
             >
                 <Calendar
-                    current={toCalendarDateKey(startDate)}
+                    current={toLocalDateKey(startDate)}
                     enableSwipeMonths
                     hideExtraDays
                     markingType="period"
@@ -768,12 +761,12 @@ function WhenSheet({
                             padding="$2.5"
                         >
                             <Calendar
-                                current={toCalendarDateKey(pickedDate)}
+                                current={toLocalDateKey(pickedDate)}
                                 enableSwipeMonths
                                 hideExtraDays
                                 markedDates={(() => {
                                     const dots = buildExistingPlanMarkedDates(otherPlans, planId);
-                                    const selectedKey = toCalendarDateKey(pickedDate);
+                                    const selectedKey = toLocalDateKey(pickedDate);
                                     dots[selectedKey] = {
                                         ...dots[selectedKey],
                                         selected: true,
@@ -810,7 +803,7 @@ function WhenSheet({
                         </YStack>
 
                         {(() => {
-                            const selectedKey = toCalendarDateKey(pickedDate);
+                            const selectedKey = toLocalDateKey(pickedDate);
                             const plansOnDate = otherPlans.filter(
                                 (p) =>
                                     p.id !== planId &&
