@@ -13,3 +13,6 @@ build
 
 # OS specific
 Thumbs.db
+
+# Local simulator test stack state (scripts/sim)
+.sim/

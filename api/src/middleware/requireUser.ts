@@ -1,17 +1,10 @@
-import type { Response, NextFunction } from "express";
+import type { Request, Response, NextFunction } from "express";
 import type { PrismaClient } from "@prisma/client";
-import { auth } from "express-oauth2-jwt-bearer";
 
-export function makeRequireUser(opts: {
-    prisma: PrismaClient;
-    issuerBaseURL: string;
-    audience: string;
-}) {
-    const jwtCheck = auth({
-        issuerBaseURL: opts.issuerBaseURL,
-        audience: opts.audience,
-    });
+/** Verifies the request's credentials and sets `req.auth.payload.sub`, or calls next with an error. */
+export type Authenticate = (req: Request, res: Response, next: (err?: unknown) => void) => void;
 
+export function makeRequireUser(opts: { prisma: PrismaClient; authenticate: Authenticate }) {
     async function resolveUser(sub: string): Promise<string> {
         const user = await opts.prisma.user.upsert({
             where: { auth0Sub: sub },
@@ -24,7 +17,7 @@ export function makeRequireUser(opts: {
     return function requireUser() {
         return [
             async (req: any, res: Response, next: NextFunction) => {
-                jwtCheck(req, res, async (err) => {
+                opts.authenticate(req, res, async (err) => {
                     if (err) return next(err);
 
                     try {

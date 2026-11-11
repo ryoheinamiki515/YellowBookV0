@@ -1,0 +1,23 @@
+# Used by `scripts/sim/sim.sh launch`: cold-start the dev client on Metro, signed out,
+# then sign in as ${DEV_USER} through the dev sign-in link.
+appId: dev.yellowbook.mobile
+---
+- clearKeychain # the session token lives in the keychain; start every launch signed out
+- launchApp:
+    stopApp: true
+    permissions:
+      all: allow
+- runFlow:
+    file: _open-link.yaml
+    env:
+      LINK: yellowbook://expo-development-client/?url=${METRO_URL}
+- extendedWaitUntil:
+    visible: "Sign in to YellowBook"
+    timeout: 120000
+- runFlow:
+    file: _open-link.yaml
+    env:
+      LINK: yellowbook://login?devUser=${DEV_USER}
+- extendedWaitUntil:
+    visible: "Plans"
+    timeout: 30000

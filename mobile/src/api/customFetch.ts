@@ -11,6 +11,7 @@ import {
 import { emitAuthSessionInvalidation } from "../auth/authSessionEvents";
 import { refreshAccessToken } from "../auth/refreshAccessToken";
 import { createTokenRefresher } from "../auth/tokenRefresh";
+import { DEV_STACK_API_URL } from "../auth/devStackEnv";
 
 function getExpoMetroHostIp(): string | null {
     const c = Constants as any;
@@ -51,7 +52,7 @@ function replaceLocalhostWithReachableHost(raw: string): string {
 //    Android emulator needs 10.0.2.2 for "your machine"
 //    Physical devices should use your computer LAN IP (we also retry with Expo's LAN host on failure).
 function getBaseUrl() {
-    const raw = process.env.EXPO_PUBLIC_API_BASE_URL;
+    const raw = DEV_STACK_API_URL ?? process.env.EXPO_PUBLIC_API_BASE_URL;
     if (!raw) throw new Error("Missing EXPO_PUBLIC_API_BASE_URL");
 
     const normalized = replaceLocalhostWithReachableHost(raw);
