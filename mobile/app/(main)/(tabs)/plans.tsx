@@ -37,12 +37,16 @@ import { planLifecycleText } from "../../../src/lib/planFormatters";
 import { invalidatePlanQueries } from "../../../src/lib/queryInvalidation";
 import {
     buildAgendaSections,
+    collectOpenPlanRows,
     type AgendaSection,
     type AgendaPlanRowData,
 } from "../../../src/lib/agendaGrouping";
 import { useKeyboardShortcut } from "../../../src/hooks/useKeyboardShortcut";
 import { useDesktopResizableSplitView } from "../../../src/hooks/useDesktopResizableSplitView";
 import { useRefreshOnVisible } from "../../../src/hooks/useRefreshOnVisible";
+import { usePlansLayout } from "../../../src/hooks/usePlansLayout";
+import { PlanCalendarView } from "../../../src/components/plans/PlanCalendarView";
+import { PlansLayoutToggle } from "../../../src/components/plans/PlansLayoutToggle";
 
 type PlanDetailFocusTarget = "when" | "people";
 
@@ -62,7 +66,9 @@ export default function PlansScreen() {
     const membershipMutation = usePatchPlanMembership();
     const reducedMotion = useReducedMotionPreference();
 
-    const [viewMode, setViewMode] = useState<"open" | "done">("open");
+    const [listViewMode, setListViewMode] = useState<"open" | "done">("open");
+    const [layout, setLayout] = usePlansLayout();
+    const viewMode = layout === "calendar" ? "open" : listViewMode;
     const [sheetOpen, setSheetOpen] = useState(false);
     const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
     const [selectedPlanFocus, setSelectedPlanFocus] = useState<PlanDetailFocusTarget | undefined>(undefined);
@@ -144,6 +150,11 @@ export default function PlansScreen() {
         if (viewMode !== "open") return [];
         return buildAgendaSections(plans, subscribedPlans);
     }, [plans, subscribedPlans, viewMode]);
+
+    const openPlanRows = useMemo<AgendaPlanRowData[]>(
+        () => collectOpenPlanRows(plans, subscribedPlans),
+        [plans, subscribedPlans]
+    );
 
     const handleRefresh = useCallback(() => {
         void refreshPlans();
@@ -292,7 +303,7 @@ export default function PlansScreen() {
     useKeyboardShortcut({ key: "n" }, () => setSheetOpen(true));
 
     const toggleViewMode = useCallback(() => {
-        setViewMode((v) => (v === "open" ? "done" : "open"));
+        setListViewMode((v) => (v === "open" ? "done" : "open"));
     }, []);
 
     const renderSectionHeader = useCallback(
@@ -310,18 +321,17 @@ export default function PlansScreen() {
     // Reset index counter when sections change
     useEffect(() => { itemIndexRef.current = 0; }, [agendaSections]);
 
-    const renderItem = useCallback(
-        ({ item }: { item: AgendaPlanRowData }) => {
-            const idx = itemIndexRef.current++;
+    const renderPlanRow = useCallback(
+        (row: AgendaPlanRowData, index: number) => {
             const card = (
                 <PlanCard
-                    plan={item.plan}
+                    plan={row.plan}
                     variant="compact"
                     onPress={(plan) => handleOpenPlan(plan.id)}
-                    attentionReason={item.attentionReason}
-                    quickActions={buildQuickActionItems(item)}
+                    attentionReason={row.attentionReason}
+                    quickActions={buildQuickActionItems(row)}
                     reducedMotion={reducedMotion}
-                    index={idx}
+                    index={index}
                 />
             );
 
@@ -329,8 +339,8 @@ export default function PlansScreen() {
 
             return (
                 <SwipeableRow
-                    onSwipeRight={() => handleMarkDoneFromList(item.plan.id)}
-                    onSwipeLeft={() => handleLetGoFromList(item.plan.id)}
+                    onSwipeRight={() => handleMarkDoneFromList(row.plan.id)}
+                    onSwipeLeft={() => handleLetGoFromList(row.plan.id)}
                     reducedMotion={reducedMotion}
                 >
                     {card}
@@ -344,6 +354,11 @@ export default function PlansScreen() {
             handleMarkDoneFromList,
             handleLetGoFromList,
         ]
+    );
+
+    const renderItem = useCallback(
+        ({ item }: { item: AgendaPlanRowData }) => renderPlanRow(item, itemIndexRef.current++),
+        [renderPlanRow]
     );
 
     const renderDoneItem = useCallback(
@@ -367,28 +382,33 @@ export default function PlansScreen() {
             paddingVertical="$2"
             alignItems="center"
         >
-            <View
-                backgroundColor="$backgroundStrong"
-                paddingHorizontal={10}
-                paddingVertical={5}
-                borderRadius={10}
-                onPress={toggleViewMode}
-                pressStyle={{ scale: 0.96, opacity: 0.7 }}
-                // @ts-ignore
-                animation="fast"
-                accessibilityRole="button"
-                accessibilityLabel={viewMode === "open" ? "Show completed plans" : "Show upcoming plans"}
-                cursor="pointer"
-            >
-                <Text
-                    fontFamily="$body"
-                    fontSize={12}
-                    fontWeight="500"
-                    color="$colorSecondary"
+            {layout === "list" ? (
+                <View
+                    backgroundColor="$backgroundStrong"
+                    paddingHorizontal={10}
+                    paddingVertical={5}
+                    borderRadius={10}
+                    onPress={toggleViewMode}
+                    pressStyle={{ scale: 0.96, opacity: 0.7 }}
+                    // @ts-ignore
+                    animation="fast"
+                    accessibilityRole="button"
+                    accessibilityLabel={viewMode === "open" ? "Show completed plans" : "Show upcoming plans"}
+                    cursor="pointer"
                 >
-                    {viewMode === "open" ? "Show completed" : "Show upcoming"}
-                </Text>
-            </View>
+                    <Text
+                        fontFamily="$body"
+                        fontSize={12}
+                        fontWeight="500"
+                        color="$colorSecondary"
+                    >
+                        {viewMode === "open" ? "Show completed" : "Show upcoming"}
+                    </Text>
+                </View>
+            ) : null}
+            <XStack marginLeft="auto">
+                <PlansLayoutToggle layout={layout} onChange={setLayout} />
+            </XStack>
         </XStack>
     );
 
@@ -416,6 +436,16 @@ export default function PlansScreen() {
                         Something went wrong.{"\n"}{Platform.OS === "web" ? "Try again." : "Pull down to try again."}
                     </Text>
                 </YStack>
+            ) : layout === "calendar" ? (
+                <View flex={1} position="relative">
+                    <PlanCalendarView
+                        rows={openPlanRows}
+                        renderPlanRow={renderPlanRow}
+                        refreshing={Boolean((isRefetching || isSubscribedPlansRefetching) && !isLoading)}
+                        onRefresh={handleRefresh}
+                    />
+                    <FloatingActionButton onPress={() => setSheetOpen(true)} />
+                </View>
             ) : viewMode === "done" ? (
                 allDonePlans.length === 0 ? (
                     <YStack flex={1} justifyContent="center" alignItems="center" paddingHorizontal="$8">

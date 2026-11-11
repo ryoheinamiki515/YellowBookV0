@@ -1,0 +1,63 @@
+# Plans tab calendar view against the seeded alice account (api/scripts/seed-dev-data.ts).
+# Run: scripts/sim/sim.sh seed && scripts/sim/sim.sh launch && scripts/sim/sim.sh flow plans-calendar.yaml
+appId: dev.yellowbook.mobile
+---
+# Seed dates are relative to today; day cells are labeled "<Weekday>, <Month> <day>, <year>, <n> plans".
+- evalScript: ${output.day = function (offset) { var d = new Date(); d.setDate(d.getDate() + offset); return ['January','February','March','April','May','June','July','August','September','October','November','December'][d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear(); }}
+- evalScript: ${output.lateShowDay = output.day(3); output.tahoeMiddle = output.day(6); output.freeDay = output.day(1)}
+
+- extendedWaitUntil:
+    visible: "Coffee with Bob"
+    timeout: 15000
+- waitForAnimationToEnd
+- tapOn: "Calendar view"
+- extendedWaitUntil:
+    visible: "Late night"
+    timeout: 10000
+- assertVisible: "Coffee with Bob" # today is selected and lists today's plans
+- takeScreenshot: month-today
+
+- tapOn:
+    text: ".*${output.lateShowDay}, 2 plans"
+- extendedWaitUntil:
+    visible: "Late show"
+    timeout: 5000
+- assertVisible: "Climbing session"
+- takeScreenshot: day-afternoon-and-late
+
+- tapOn:
+    text: ".*${output.tahoeMiddle}, 1 plan"
+- extendedWaitUntil:
+    visible: "Tahoe weekend"
+    timeout: 5000
+- takeScreenshot: day-inside-range
+
+- tapOn:
+    text: ".*${output.freeDay}, free"
+- extendedWaitUntil:
+    visible: "Nothing planned — you're free."
+    timeout: 5000
+
+- tapOn:
+    text: ".*${output.lateShowDay}, 2 plans"
+- retry:
+    maxRetries: 1
+    commands:
+      - tapOn: "Late show"
+      - extendedWaitUntil:
+          visible: "Mark Done"
+          timeout: 10000
+- takeScreenshot: plan-from-calendar
+- tapOn: "Go back"
+- extendedWaitUntil:
+    visible: "Late night" # back on the calendar, layout kept
+    timeout: 10000
+
+- swipe: # to next month
+    start: 85%, 30%
+    end: 15%, 30%
+- takeScreenshot: next-month
+- tapOn: "List view"
+- extendedWaitUntil:
+    visible: "Show completed"
+    timeout: 5000

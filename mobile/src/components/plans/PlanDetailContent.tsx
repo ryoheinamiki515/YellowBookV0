@@ -57,6 +57,8 @@ import type { SocialPlanTimePrecision } from "../../api/generated/model/socialPl
 import type { Person } from "../../api/generated/model/person";
 import { PlanMemberResponse } from "../../api/generated/model/planMemberResponse";
 import { useReducedMotionPreference } from "../../lib/planHelpers";
+import { dateFromLocalDateKey, startOfLocalDay, toLocalDateKey } from "../../lib/dateKey";
+import { CALENDAR_THEME } from "../calendarTheme";
 import { Avatar } from "../Avatar";
 import { avatarProps } from "../../lib/avatarPerson";
 import { getSharedPeopleForDisplay } from "../../lib/sharedPeople";
@@ -280,14 +282,7 @@ type WindowRangeMarking = CalendarMarkedDates[string];
 
 const RANGE_ENDPOINT_COLOR = palette.terracottaDark;
 const RANGE_TEXT_COLOR = "#FFFFFF";
-const RANGE_CALENDAR_SURFACE_COLOR = palette.parchment;
 const RANGE_CALENDAR_BORDER_COLOR = palette.driftwood;
-const RANGE_CALENDAR_TEXT_COLOR = palette.espresso;
-const RANGE_CALENDAR_MUTED_TEXT_COLOR = palette.bark;
-const RANGE_CALENDAR_DISABLED_TEXT_COLOR = palette.driftwood;
-const RANGE_CALENDAR_TODAY_BACKGROUND_COLOR = palette.honeyLight;
-const RANGE_CALENDAR_TODAY_TEXT_COLOR = palette.espresso;
-const RANGE_CALENDAR_ARROW_COLOR = palette.walnut;
 
 const EXISTING_PLAN_DOT_COLOR = palette.amberLight;
 const EXISTING_PLAN_TEXT_COLOR = palette.amberDark;
@@ -315,37 +310,21 @@ function formatWindowPickerDate(date: Date): string {
     });
 }
 
-function normalizeDateOnly(date: Date): Date {
-    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
-
 function compareDateOnly(a: Date, b: Date): number {
-    return normalizeDateOnly(a).getTime() - normalizeDateOnly(b).getTime();
-}
-
-function toCalendarDateKey(date: Date): string {
-    const local = normalizeDateOnly(date);
-    const year = local.getFullYear();
-    const month = `${local.getMonth() + 1}`.padStart(2, "0");
-    const day = `${local.getDate()}`.padStart(2, "0");
-    return `${year}-${month}-${day}`;
-}
-
-function dateFromCalendarPress(day: DateData): Date {
-    return new Date(day.year, day.month - 1, day.day);
+    return startOfLocalDay(a).getTime() - startOfLocalDay(b).getTime();
 }
 
 function buildWindowRangeMarkedDates(
     startDate: Date,
     endDate: Date
 ): CalendarMarkedDates {
-    const start = normalizeDateOnly(startDate);
-    const end = normalizeDateOnly(endDate);
+    const start = startOfLocalDay(startDate);
+    const end = startOfLocalDay(endDate);
     const markings: CalendarMarkedDates = {};
     const cursor = new Date(start);
 
     while (cursor <= end) {
-        const key = toCalendarDateKey(cursor);
+        const key = toLocalDateKey(cursor);
         const isStart = compareDateOnly(cursor, start) === 0;
         const isEnd = compareDateOnly(cursor, end) === 0;
 
@@ -389,7 +368,7 @@ function WindowRangeCalendarSelector({
 
     const handleDayPress = useCallback(
         (day: DateData) => {
-            const selectedDate = dateFromCalendarPress(day);
+            const selectedDate = dateFromLocalDateKey(day.dateString);
 
             if (selectionStep === "start") {
                 onStartDateChange(selectedDate);
@@ -479,7 +458,7 @@ function WindowRangeCalendarSelector({
                 padding="$2.5"
             >
                 <Calendar
-                    current={toCalendarDateKey(startDate)}
+                    current={toLocalDateKey(startDate)}
                     enableSwipeMonths
                     hideExtraDays
                     markingType="period"
@@ -490,20 +469,7 @@ function WindowRangeCalendarSelector({
                         paddingBottom: 6,
                         marginBottom: 2,
                     }}
-                    theme={{
-                        calendarBackground: RANGE_CALENDAR_SURFACE_COLOR,
-                        monthTextColor: RANGE_CALENDAR_TEXT_COLOR,
-                        dayTextColor: RANGE_CALENDAR_TEXT_COLOR,
-                        textDisabledColor: RANGE_CALENDAR_DISABLED_TEXT_COLOR,
-                        textInactiveColor: RANGE_CALENDAR_DISABLED_TEXT_COLOR,
-                        textSectionTitleColor: RANGE_CALENDAR_MUTED_TEXT_COLOR,
-                        todayBackgroundColor: RANGE_CALENDAR_TODAY_BACKGROUND_COLOR,
-                        todayTextColor: RANGE_CALENDAR_TODAY_TEXT_COLOR,
-                        arrowColor: RANGE_CALENDAR_ARROW_COLOR,
-                        textDayFontSize: 16,
-                        textMonthFontSize: 17,
-                        textDayHeaderFontSize: 12,
-                    }}
+                    theme={CALENDAR_THEME}
                     style={{ width: "100%" }}
                 />
             </YStack>
@@ -768,12 +734,12 @@ function WhenSheet({
                             padding="$2.5"
                         >
                             <Calendar
-                                current={toCalendarDateKey(pickedDate)}
+                                current={toLocalDateKey(pickedDate)}
                                 enableSwipeMonths
                                 hideExtraDays
                                 markedDates={(() => {
                                     const dots = buildExistingPlanMarkedDates(otherPlans, planId);
-                                    const selectedKey = toCalendarDateKey(pickedDate);
+                                    const selectedKey = toLocalDateKey(pickedDate);
                                     dots[selectedKey] = {
                                         ...dots[selectedKey],
                                         selected: true,
@@ -782,7 +748,7 @@ function WhenSheet({
                                     return dots;
                                 })()}
                                 onDayPress={(day: DateData) => {
-                                    setPickedDate(dateFromCalendarPress(day));
+                                    setPickedDate(dateFromLocalDateKey(day.dateString));
                                 }}
                                 headerStyle={{
                                     borderBottomWidth: 0,
@@ -790,27 +756,16 @@ function WhenSheet({
                                     marginBottom: 2,
                                 }}
                                 theme={{
-                                    calendarBackground: RANGE_CALENDAR_SURFACE_COLOR,
-                                    monthTextColor: RANGE_CALENDAR_TEXT_COLOR,
-                                    dayTextColor: RANGE_CALENDAR_TEXT_COLOR,
-                                    textDisabledColor: RANGE_CALENDAR_DISABLED_TEXT_COLOR,
-                                    textInactiveColor: RANGE_CALENDAR_DISABLED_TEXT_COLOR,
-                                    textSectionTitleColor: RANGE_CALENDAR_MUTED_TEXT_COLOR,
-                                    todayBackgroundColor: RANGE_CALENDAR_TODAY_BACKGROUND_COLOR,
-                                    todayTextColor: RANGE_CALENDAR_TODAY_TEXT_COLOR,
-                                    arrowColor: RANGE_CALENDAR_ARROW_COLOR,
+                                    ...CALENDAR_THEME,
                                     selectedDayBackgroundColor: RANGE_ENDPOINT_COLOR,
                                     selectedDayTextColor: RANGE_TEXT_COLOR,
-                                    textDayFontSize: 16,
-                                    textMonthFontSize: 17,
-                                    textDayHeaderFontSize: 12,
                                 }}
                                 style={{ width: "100%" }}
                             />
                         </YStack>
 
                         {(() => {
-                            const selectedKey = toCalendarDateKey(pickedDate);
+                            const selectedKey = toLocalDateKey(pickedDate);
                             const plansOnDate = otherPlans.filter(
                                 (p) =>
                                     p.id !== planId &&

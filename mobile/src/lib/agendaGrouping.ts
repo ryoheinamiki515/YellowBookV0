@@ -7,6 +7,7 @@ import {
     type PlanQuickActionKind,
 } from "./planListDerivations";
 import { fromPlan, getDateKey } from "./planWhen";
+import { dateFromLocalDateKey, startOfLocalDay, toLocalDateKey } from "./dateKey";
 
 export type AgendaPlanRowData = {
     plan: SocialPlan;
@@ -23,22 +24,9 @@ export type AgendaSection = {
     data: AgendaPlanRowData[];
 };
 
-function getCalendarDateKey(iso: string): string {
-    const d = new Date(iso);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
-}
-
-function getTodayKey(): string {
-    return getCalendarDateKey(new Date().toISOString());
-}
-
 function getDayLabel(dateKey: string, today: Date): string {
-    const [y, m, d] = dateKey.split("-").map(Number);
-    const target = new Date(y, m - 1, d);
-    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const target = dateFromLocalDateKey(dateKey);
+    const todayStart = startOfLocalDay(today);
     const diffMs = target.getTime() - todayStart.getTime();
     const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
 
@@ -72,10 +60,11 @@ function toRowData(plan: SocialPlan, isShared: boolean): AgendaPlanRowData {
     return { plan, attentionReason, quickActions, isShared };
 }
 
-export function buildAgendaSections(
+/** Open plans the viewer owns or follows, deduped with owned plans taking precedence. */
+export function collectOpenPlanRows(
     ownedPlans: SocialPlan[],
     subscribedPlans: SocialPlan[]
-): AgendaSection[] {
+): AgendaPlanRowData[] {
     const openOwned = ownedPlans.filter((p) => p.state === "OPEN");
     const openSubscribed = subscribedPlans.filter(
         (p) => p.state === "OPEN" && !p.membership?.markedDoneAt
@@ -94,8 +83,16 @@ export function buildAgendaSections(
             allOpen.push(toRowData(p, true));
         }
     }
+    return allOpen;
+}
 
-    const todayKey = getTodayKey();
+export function buildAgendaSections(
+    ownedPlans: SocialPlan[],
+    subscribedPlans: SocialPlan[]
+): AgendaSection[] {
+    const allOpen = collectOpenPlanRows(ownedPlans, subscribedPlans);
+
+    const todayKey = toLocalDateKey(new Date());
     const today = new Date();
 
     const pastDue: AgendaPlanRowData[] = [];

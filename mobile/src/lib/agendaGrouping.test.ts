@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { buildAgendaSections } from "./agendaGrouping.js";
+import { buildAgendaSections, collectOpenPlanRows } from "./agendaGrouping.js";
 import type { SocialPlan } from "../api/generated/model/socialPlan.js";
 
 function makePlan(overrides: Partial<SocialPlan> & { id: string }): SocialPlan {
@@ -73,5 +73,33 @@ describe("buildAgendaSections — shared plan quick actions", () => {
         const sections = buildAgendaSections([], [markedDonePlan]);
         const allPlanIds = sections.flatMap((s) => s.data.map((r) => r.plan.id));
         assert.ok(!allPlanIds.includes("shared-done"), "marked-done plan should be excluded");
+    });
+});
+
+describe("collectOpenPlanRows", () => {
+    test("excludes closed owned plans and shared plans the viewer marked done", () => {
+        const rows = collectOpenPlanRows(
+            [makePlan({ id: "owned-done", state: "DONE" }), makePlan({ id: "owned-open" })],
+            [
+                makePlan({
+                    id: "member-done",
+                    membership: { markedDoneAt: new Date().toISOString() } as SocialPlan["membership"],
+                }),
+                makePlan({ id: "shared-open" }),
+            ]
+        );
+        assert.deepEqual(
+            rows.map((row) => [row.plan.id, row.isShared]),
+            [
+                ["owned-open", false],
+                ["shared-open", true],
+            ]
+        );
+    });
+
+    test("a plan both owned and subscribed appears once, as owned", () => {
+        const plan = makePlan({ id: "both" });
+        const rows = collectOpenPlanRows([plan], [plan]);
+        assert.deepEqual(rows.map((row) => [row.plan.id, row.isShared]), [["both", false]]);
     });
 });
